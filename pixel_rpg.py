@@ -2062,6 +2062,9 @@ class Game:
                 if ev.type==pygame.QUIT: running=False;break
                 if ev.type==pygame.KEYDOWN:
                     k=ev.key
+                    if k==pygame.K_F8:
+                        pygame.image.save(self.screen, f"screenshot_{self.tick}.png")
+                        print(f"Screenshot saved: screenshot_{self.tick}.png")
                     if self.state=="title":
                         if k in(pygame.K_RETURN,pygame.K_e): self.state="story"
                     elif self.state=="story":

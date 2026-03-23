@@ -38,7 +38,11 @@ Pixel RPG is a retro-style role-playing game developed in Python using the [Pyga
 
 ## 📸 Screenshots
 
-> _Add your screenshots here_
+![Screenshot 1](screenshot_6577.png)
+![Screenshot 2](screenshot_32941.png)
+![Screenshot 3](screenshot_41528.png)
+![Screenshot 4](screenshot_52223.png)
+![Screenshot 5](screenshot_83432.png)
 
 ---
 
