@@ -1,48 +1,272 @@
 #!/usr/bin/env python3
 """
-KARANLIK TAC'IN LANETI  v4.0  ─  2D Pixel RPG
-pip install pygame  |  python pixel_rpg.py
+KARANLIK TAC'IN LANETI  v5.0  ─  2D Pixel RPG
+pip install pygame numpy  |  python pixel_rpg.py
 
 Kontroller:
-  WASD / Ok Tuslari  ->  Hareket
-  E                  ->  Konus / Etkilesim / Onayla
-  Space              ->  Sinifa ozel saldiri
-  1 2 3 4            ->  Yetenek kullan
-  I                  ->  Envanter / Ekipman
-  Q                  ->  Gorev Gunlugu
-  U                  ->  Nitelik dagitimi
-  R  (game over)     ->  Yeniden basla
+  WASD / Ok      -> Hareket        F11  -> Tam Ekran
+  E              -> Konuş/Etkileşim  ESC -> Çık/Geri
+  Space          -> Sınıfa Özel Saldırı
+  1 2 3 4        -> Yetenek Kullan
+  I              -> Envanter / Ekipman
+  Q              -> Görev Günlüğü
+  U              -> Nitelik Dağıtımı
+  F1             -> Ayarlar
 """
-
-import ctypes
-
-# Windows'un bu pencereyi ayrı bir uygulama gibi gruplamasını sağlar
-try:
-    myappid = 'PixelRPG.1.0' # Buraya istediğin benzersiz bir yazı yazabilirsin
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-except Exception:
-    pass
-
-
-
-import pygame, sys, math, random
+import pygame, sys, math, random, os, json
 from collections import deque
 from typing import List, Optional, Dict, Tuple
 from dataclasses import dataclass
 
-# İkon resmini belleğe yükle (32x32 boyutlarında olması önerilir)
-icon_image = pygame.image.load("icon.png")
-# Yüklenen resmi ikon olarak ayarla
-pygame.display.set_icon(icon_image)
-
-# Pencere oluşturuluyor...
-# screen = pygame.display.set_mode((SW, SH))
-
+# ─── PyGame mixer başlat (ses için) ─────────────────────────────
+try:
+    pygame.mixer.pre_init(frequency=22050, size=-16, channels=2, buffer=512)
+except Exception:
+    pass
 
 SW, SH = 960, 640
 TILE    = 32
 FPS     = 60
-TITLE   = "Karanlık Tacın Laneti"
+TITLE   = "Karanlik Tac'in Laneti"
+
+# ─── Ayarlar (JSON kaydı) ────────────────────────────────────────
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+
+class Settings:
+    DEFAULTS = {
+        "fullscreen": False, "master_vol": 80, "sfx_vol": 80,
+        "music_vol": 60, "language": "TR", "show_fps": False,
+    }
+    def __init__(self):
+        self.data = dict(self.DEFAULTS)
+        self.load()
+    def load(self):
+        try:
+            with open(SETTINGS_FILE) as f:
+                saved = json.load(f)
+                self.data.update({k:v for k,v in saved.items() if k in self.DEFAULTS})
+        except Exception: pass
+    def save(self):
+        try:
+            with open(SETTINGS_FILE,"w") as f: json.dump(self.data,f,indent=2)
+        except Exception: pass
+    def __getattr__(self,k): return self.data.get(k, self.DEFAULTS.get(k))
+    def __setattr__(self,k,v):
+        if k in ("data",): super().__setattr__(k,v)
+        elif k in self.DEFAULTS: self.data[k]=v
+        else: super().__setattr__(k,v)
+
+# Global ayarlar nesnesi
+CFG = Settings()
+
+# ─── Yerelleştirme ────────────────────────────────────────────────
+LOC = {
+    "TR": {
+        "title_play":"[ ENTER ]  Maceraya Başla",
+        "title_settings":"[ F1 ]  Ayarlar",
+        "settings":"AYARLAR",
+        "set_fullscreen":"Tam Ekran",
+        "set_master":"Ana Ses",
+        "set_sfx":"Efekt Sesi",
+        "set_music":"Müzik Sesi",
+        "set_language":"Dil / Language",
+        "set_fps":"FPS Göster",
+        "set_on":"AÇIK","set_off":"KAPALI",
+        "set_back":"[ ESC ] Geri",
+        "class_select":"SINIF SEÇ",
+        "class_subtitle":"Karakterin için bir yol seç",
+        "class_confirm":"[ E / ENTER ] Onayla",
+        "stat_alloc":"NİTELİK DAĞITIMI",
+        "stat_levelup":"SEVIYE ATLADI!",
+        "stat_confirm":"[ ENTER ] Onayla",
+        "stat_remain":"Kalan: %d puan",
+        "inventory":"ENVANTER",
+        "equip_tab":"Eşyalar","gear_tab":"Ekipman",
+        "quest_log":"GÖREV GÜNLÜĞÜ",
+        "quest_done":"Tamamlandı","quest_active":"Aktif","quest_locked":"Kilitli",
+        "dialog_continue":"[ E ] Devam",
+        "gameover_title":"ÖLDÜN","gameover_sub":"Karanlık seni yuttu...",
+        "gameover_restart":"[ R ] Yeniden Başla",
+        "victory_title":"ZAFER!","victory_sub":"Malachar yenildi!",
+        "victory_sub2":"Dünya bir kez daha kurtarıldı.",
+        "victory_menu":"[ ESC ] Ana Menü",
+        "map_label":"Harita:","chapter_label":"Bölüm",
+        "atk_label":"[Space]",
+        "gold":"Altın","skill_pts":"Puan!",
+        "item_use":"[ E ] Kullan","item_equip":"[ E ] Giy","item_unequip":"[ E ] Çıkar",
+        "equipped":"EKİPLİ",
+        "chest_opened":"Sandık Açıldı!",
+        "lvl":"Sv.",
+    },
+    "EN": {
+        "title_play":"[ ENTER ]  Start Adventure",
+        "title_settings":"[ F1 ]  Settings",
+        "settings":"SETTINGS",
+        "set_fullscreen":"Fullscreen",
+        "set_master":"Master Volume",
+        "set_sfx":"SFX Volume",
+        "set_music":"Music Volume",
+        "set_language":"Language / Dil",
+        "set_fps":"Show FPS",
+        "set_on":"ON","set_off":"OFF",
+        "set_back":"[ ESC ] Back",
+        "class_select":"SELECT CLASS",
+        "class_subtitle":"Choose your path",
+        "class_confirm":"[ E / ENTER ] Confirm",
+        "stat_alloc":"STAT ALLOCATION",
+        "stat_levelup":"LEVEL UP!",
+        "stat_confirm":"[ ENTER ] Confirm",
+        "stat_remain":"Remaining: %d pts",
+        "inventory":"INVENTORY",
+        "equip_tab":"Items","gear_tab":"Equipment",
+        "quest_log":"QUEST LOG",
+        "quest_done":"Completed","quest_active":"Active","quest_locked":"Locked",
+        "dialog_continue":"[ E ] Continue",
+        "gameover_title":"YOU DIED","gameover_sub":"Darkness consumed you...",
+        "gameover_restart":"[ R ] Restart",
+        "victory_title":"VICTORY!","victory_sub":"Malachar is defeated!",
+        "victory_sub2":"The world is saved once more.",
+        "victory_menu":"[ ESC ] Main Menu",
+        "map_label":"Map:","chapter_label":"Chapter",
+        "atk_label":"[Space]",
+        "gold":"Gold","skill_pts":"Points!",
+        "item_use":"[ E ] Use","item_equip":"[ E ] Equip","item_unequip":"[ E ] Unequip",
+        "equipped":"EQUIPPED",
+        "chest_opened":"Chest Opened!",
+        "lvl":"Lv.",
+    }
+}
+def T_(key:str, *args) -> str:
+    lang=CFG.data.get("language","TR")
+    text=LOC.get(lang,LOC["TR"]).get(key,LOC["TR"].get(key,key))
+    if args: text=text%args
+    return text
+
+# ─── Font Yöneticisi ─────────────────────────────────────────────
+class FontManager:
+    _cache:Dict={}
+    FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"assets","fonts")
+    PREFERRED = [
+        ("Cinzel-Bold.ttf","Cinzel-Regular.ttf"),      # başlık / HUD
+        ("Almendra-Bold.ttf","Almendra-Regular.ttf"),  # diyalog
+        ("UncialAntiqua-Regular.ttf",),                # dekoratif
+    ]
+    @classmethod
+    def _find(cls, names, size):
+        for name in names:
+            path = os.path.join(cls.FONT_DIR, name)
+            if os.path.exists(path):
+                try: return pygame.font.Font(path, size)
+                except Exception: pass
+        # System fallback
+        for sf in ["georgia","times new roman","palatino","serif","monospace"]:
+            try:
+                f=pygame.font.SysFont(sf, size, bold=True)
+                if f: return f
+            except Exception: pass
+        return pygame.font.SysFont("monospace", size, bold=True)
+
+    @classmethod
+    def get(cls, style:str, size:int) -> pygame.font.Font:
+        key=(style,size)
+        if key in cls._cache: return cls._cache[key]
+        if style=="title":     f=cls._find(cls.PREFERRED[0],size)
+        elif style=="dialog":  f=cls._find(cls.PREFERRED[1],size)
+        elif style=="deco":    f=cls._find(cls.PREFERRED[2],size)
+        else:                  f=cls._find(cls.PREFERRED[0],size)
+        cls._cache[key]=f; return f
+
+# ─── Ses Yöneticisi (Prosedürel ses üretimi — numpy) ─────────────
+class SoundManager:
+    _sounds:Dict={}
+    _enabled=True
+    SR=22050  # sample rate
+
+    @classmethod
+    def _make(cls,freq,dur,wave="sine",attack=0.01,decay=0.1,vol=0.4,vibrato=0.0,noise=0.0):
+        """Prosedürel ses oluştur."""
+        try:
+            import numpy as np
+            n=int(cls.SR*dur); t=np.linspace(0,dur,n,dtype=np.float32)
+            if wave=="sine":     w=np.sin(2*np.pi*freq*t)
+            elif wave=="square": w=np.sign(np.sin(2*np.pi*freq*t))*0.5
+            elif wave=="saw":    w=2*(t*freq-np.floor(t*freq+0.5))
+            elif wave=="tri":    w=2*np.abs(2*(t*freq-np.floor(t*freq+0.5)))-1
+            else:                w=np.sin(2*np.pi*freq*t)
+            if vibrato>0: w*=np.sin(2*np.pi*vibrato*t)*0.1+0.9
+            if noise>0:   w+=np.random.uniform(-noise,noise,n)
+            env=np.ones(n,dtype=np.float32)
+            att=int(cls.SR*attack); dec=int(cls.SR*decay)
+            if att>0: env[:min(att,n)]=np.linspace(0,1,min(att,n))
+            if dec>0 and att+dec<n:
+                env[att:att+dec]=np.linspace(1,0,dec)
+                env[att+dec:]=0
+            elif dec>0:
+                env[att:]=np.linspace(1,0,n-att)
+            w=w*env*vol
+            w=np.clip(w,-1,1)
+            pcm=(w*32767).astype(np.int16)
+            stereo=np.column_stack([pcm,pcm])
+            return pygame.sndarray.make_sound(stereo)
+        except Exception: return None
+
+    @classmethod
+    def _chord(cls,freqs,dur,**kw):
+        try:
+            import numpy as np
+            n=int(cls.SR*dur); combined=np.zeros(n,dtype=np.float32)
+            for freq in freqs:
+                t=np.linspace(0,dur,n,dtype=np.float32)
+                combined+=np.sin(2*np.pi*freq*t)
+            combined/=len(freqs); combined=np.clip(combined,-1,1)
+            pcm=(combined*kw.get("vol",0.35)*32767).astype(np.int16)
+            stereo=np.column_stack([pcm,pcm])
+            return pygame.sndarray.make_sound(stereo)
+        except Exception: return None
+
+    @classmethod
+    def init(cls):
+        try:
+            pygame.mixer.init(frequency=cls.SR,size=-16,channels=2,buffer=512)
+        except Exception: cls._enabled=False; return
+        defs={
+            "hit":      lambda: cls._make(220,0.12,"saw",0.005,0.11,0.5,noise=0.3),
+            "hit_heavy":lambda: cls._make(150,0.20,"saw",0.005,0.18,0.6,noise=0.4),
+            "heal":     lambda: cls._chord([523,659,784],0.35,vol=0.4),
+            "level_up": lambda: cls._chord([261,329,392,523,659,784],0.9,vol=0.5),
+            "chest":    lambda: cls._chord([392,494,587,784],0.5,vol=0.4),
+            "walk":     lambda: cls._make(80,0.04,"noise",0.001,0.035,0.15,noise=0.8),
+            "spell":    lambda: cls._chord([440,554,659],0.25,vol=0.45),
+            "arrow":    lambda: cls._make(600,0.10,"saw",0.001,0.09,0.3,noise=0.1),
+            "menu_sel": lambda: cls._make(660,0.08,"sine",0.005,0.07,0.3),
+            "menu_back":lambda: cls._make(440,0.08,"sine",0.005,0.07,0.25),
+            "boss_alert":lambda: cls._chord([110,138,165],0.8,vol=0.55),
+            "victory":  lambda: cls._chord([523,659,784,1046],1.2,vol=0.5),
+            "death":    lambda: cls._chord([110,138],0.8,vol=0.45),
+            "equip":    lambda: cls._chord([330,415,494],0.25,vol=0.35),
+            "error":    lambda: cls._make(180,0.18,"square",0.005,0.15,0.3),
+            "open_ui":  lambda: cls._chord([392,494,587],0.18,vol=0.3),
+            "trap":     lambda: cls._make(330,0.15,"square",0.005,0.12,0.4,noise=0.2),
+            "freeze":   lambda: cls._chord([880,1108,1318],0.3,vol=0.35),
+        }
+        for k,fn in defs.items():
+            try:
+                s=fn()
+                if s: cls._sounds[k]=s
+            except Exception: pass
+
+    @classmethod
+    def play(cls,name:str):
+        if not cls._enabled: return
+        s=cls._sounds.get(name)
+        if not s: return
+        vol=CFG.data.get("master_vol",80)*CFG.data.get("sfx_vol",80)/8000.0
+        try: s.set_volume(min(1.0,vol)); s.play()
+        except Exception: pass
+
+    @classmethod
+    def set_volume(cls,master:int,sfx:int):
+        pass  # dinamik olarak play()de uygulanıyor
 
 # ─── Renkler ────────────────────────────────────────────────────
 BK=(0,0,0);WH=(255,255,255);DKG=(14,8,22)
@@ -108,6 +332,9 @@ ITEMS = {
     "water_c":("Su Kristali",  (80,180,220),"quest",0,"Antik kristal."),
     "farm_tool":("Ciftci Aleti",(140,100,60),"stat_str",1,"STR +1 kalici."),
     "river_gem":("Nehir Tasi", (60,180,200),"stat_wis",1,"WIS +1 kalici."),
+    "scroll1":  ("Karanlik Parsomen",(180,140,220),"quest_sq",0,"Gizemli parsomen 1/3."),
+    "scroll2":  ("Ates Parsomeni",  (220,140,80), "quest_sq",0,"Gizemli parsomen 2/3."),
+    "scroll3":  ("Buz Parsomeni",   (140,200,220),"quest_sq",0,"Gizemli parsomen 3/3."),
 }
 # Tüm eşyaları birleştir (envanter ve ekipman)
 ALL_ITEMS = dict(ITEMS)
@@ -1301,10 +1528,23 @@ def build_west_river():
     # Doğu geçişi
     _add_trans(m, [(54,ty) for ty in range(18,28)]+[(55,ty) for ty in range(18,28)],
                "ashveil", 3, 24, T.GRASS, (1,0))
+    # Kütüphane geçişi (kuzey)
+    _add_trans(m, [(tx,0) for tx in range(24,32)]+[(tx,1) for tx in range(24,32)],
+               "mystic_library", 21, 4, T.GRASS, (0,-1))
     m.set(5,  16, T.CHEST); m.chests[(5,16)]  = ["river_gem","mp_pot","gold"]
     m.set(46,  5, T.CHEST); m.chests[(46,5)]  = ["hp_pot","hp_pot","mana_gem"]
     m.set(46, 33, T.CHEST); m.chests[(46,33)] = ["fine_bow","gold"]
-    def fisher_d(f): return ["Hos geldin! Ben Balikci Riva.","Bu nehir eskiden temizdi."]
+    def fisher_d(f):
+        if f.get("sq_fish_done"): return [
+            "Teşekkürler kahraman!",
+            "Köy halkını uyardım.",
+            "Kütüphaneye kuzeydeki su yolundan ulaşabilirsin."]
+        return [
+            "Hoş geldin! Ben Balıkçı Riva.",
+            "Bu nehir eskiden berraktı.",
+            "Karanlık varlıklar bozdu her şeyi.",
+            "Köy halkını uyarır mısın?",
+            "[ Yan Görev: Balıkçı Yardımı tamamlandı! ]"]
     m.npcs.append(NPC(6,16,"Balikci Riva",(100,140,180),fisher_d))
     def hermit_d(f): return ["Uzlette yasiyorum."]
     m.npcs.append(NPC(44,4,"Munzevi",(180,160,200),hermit_d))
@@ -1317,6 +1557,69 @@ def build_west_river():
         Enemy(40,22,"skeleton",50,11,30,agro=5,loot=["gold"]),
     ]
     _snap_all(m); return m
+
+
+
+def build_mystic_library():
+    """Gizemli Kütüphane — gizli ek harita, mini görev merkezi."""
+    m = GameMap(44, 38, "Gizemli Kutuphane", ambient=(20, 0, 40))
+    _rect(m, 0, 0, 44, 38, T.STONE)
+    # Ana salon
+    _rect(m, 2,  2, 40, 34, T.FLOOR)
+    # Raf bölmeleri (dekoratif duvarlar, kapılı)
+    for tx in range(6, 38, 8):
+        for ty in range(4, 14):
+            m.set(tx, ty, T.RUINS_WALL)
+        m.set(tx, 8, T.FLOOR); m.set(tx, 9, T.FLOOR)
+    for tx in range(6, 38, 8):
+        for ty in range(22, 34):
+            m.set(tx, ty, T.RUINS_WALL)
+        m.set(tx, 28, T.FLOOR); m.set(tx, 29, T.FLOOR)
+    # Merkez büyü dairesi
+    _rect(m, 18, 16, 8, 6, T.ICE)
+    for tx in range(19, 25): m.set(tx, 17, T.FLOOR)
+    for tx in range(19, 25): m.set(tx, 20, T.FLOOR)
+    for ty in range(17, 21): m.set(19, ty, T.FLOOR); m.set(24, ty, T.FLOOR)
+    # Çıkış → Batı Nehri (arka kapı)
+    _add_trans(m, [(tx, 36) for tx in range(18, 26)] +
+                  [(tx, 37) for tx in range(18, 26)],
+               "west_river", 28, 5, T.FLOOR, (0, 1))
+    # Giriş (Batı Nehri'nden)
+    _add_trans(m, [(tx, 2) for tx in range(18, 26)] +
+                  [(tx, 3) for tx in range(18, 26)],
+               "west_river", 28, 6, T.FLOOR, (0, -1))
+    # Sandıklar (mini görev ödülleri)
+    m.set(5,  5,  T.CHEST); m.chests[(5, 5)]  = ["arcane_staff", "mp_pot", "gold"]
+    m.set(37, 5,  T.CHEST); m.chests[(37, 5)] = ["mage_focus",   "mp_pot"]
+    m.set(5,  30, T.CHEST); m.chests[(5, 30)] = ["elder_staff",  "mp_pot", "mp_pot"]
+    m.set(37, 30, T.CHEST); m.chests[(37, 30)]= ["hp_pot", "mp_pot", "swift_boots", "gold"]
+    # NPC: Kütüphaneci
+    def libr_d(f):
+        done = [f.get("sq_scroll1"), f.get("sq_scroll2"), f.get("sq_scroll3")]
+        n = sum(1 for x in done if x)
+        if n >= 3: return [
+            "Tüm parşömenleri buldun!",
+            "Kütüphanemiz yeniden eksiksiz.",
+            "Sana özel büyü kitabını ver.",
+            "Sandıklar ödüllerle dolu, al!",
+            "Bir daha gelirsen burada olacağım."]
+        return [
+            f"Ben Kütüphaneci Elan.",
+            f"Bu kadim kütüphane yüzyıllardır burada.",
+            f"Ama 3 parşömen kayboldu!",
+            f"Bulduklarında getir. ({n}/3 bulundu)",
+            f"Harabelar, çöl ve buz mağarasında olabilirler."]
+    m.npcs.append(NPC(21, 19, "Kutuphaneci Elan", (140, 100, 200), libr_d, "oracle"))
+    # Düşmanlar (küçük büyülü varlıklar)
+    m.enemies += [
+        Enemy(10,  8, "skeleton", 65, 13, 38, agro=5, loot=["mp_pot"]),
+        Enemy(28,  8, "skeleton", 65, 13, 38, agro=5, loot=["mp_pot"]),
+        Enemy(10, 26, "golem",    90, 16, 52, agro=4, loot=["gold"]),
+        Enemy(28, 26, "golem",    90, 16, 52, agro=4, loot=["gold"]),
+        Enemy(21, 18, "skeleton", 75, 14, 45, agro=6, loot=["mp_pot", "gold"]),
+    ]
+    _snap_all(m)
+    return m
 
 
 # ─── UI ─────────────────────────────────────────────────────────
@@ -1354,210 +1657,6 @@ class UI:
             gv=int(abs(math.sin(pygame.time.get_ticks()*0.002))*50)+20
             pygame.draw.rect(s,(*UI_AC,gv),(0,0,w,h),3)
         surf.blit(s,(x,y))
-
-    def draw_hud(self,surf,player,map_name,chapter,quest_name,tick):
-        st=player.stats;cc=CLASS_COL.get(st.char_class,(100,100,200))
-        ci=CLASS_INFO[st.char_class]
-        # Sol panel 270x125
-        self.panel(surf,6,6,270,125)
-        pygame.draw.rect(surf,cc,(10,10,3,112))
-        # Başlık
-        self.txt(surf,f"{ci['name']}  Sv.{st.level}",18,10,cc,self.fmd)
-        # Barlar
-        self.txt(surf,"HP",18,30,HP_G,self.fsm)
-        self.grad_bar(surf,36,30,226,10,st.hp,st.max_hp,(80,15,15),HP_G)
-        self.txt(surf,f"{st.hp}/{st.max_hp}",38,31,(220,255,220),self.fsm)
-        self.txt(surf,"MP",18,44,MP_B,self.fsm)
-        self.grad_bar(surf,36,44,226,10,st.mp,st.max_mp,(10,15,60),UI_CY)
-        self.txt(surf,f"{st.mp}/{st.max_mp}",38,45,(180,220,255),self.fsm)
-        self.txt(surf,"XP",18,58,XP_T,self.fsm)
-        self.grad_bar(surf,36,58,226,8,st.xp,st.xp_next,(15,45,35),XP_T)
-        # Stats (tek satır)
-        self.txt(surf,f"ATK:{st.attack}  DEF:{st.defense}  AGI:{st.agi+st._equip_bonus('agi')}",18,72,LGR,self.fsm)
-        # Altın + puan
-        gp=int(abs(math.sin(tick*0.003))*15)
-        self.txt(surf,f"Gold:{st.gold}",18,86,(230+gp,180,40),self.fsm)
-        if st.skill_points>0:
-            sc=(255,220,50) if (tick//500)%2==0 else (200,160,30)
-            self.txt(surf,f"[U]+{st.skill_points} Puan!",140,86,sc,self.fsm)
-        # Bufflar
-        by=102
-        if "war_cry" in st.buffs:   self.txt(surf,"SAVAS CIGLIK",18,by,(255,120,50),self.fsm)
-        elif "holy_shield" in st.buffs: self.txt(surf,"KUTSAL KALKAN",18,by,(255,220,60),self.fsm)
-        # Ekipman özeti (küçük)
-        eq_strs=[]
-        for slot,ik in st.equipment.items():
-            if ik and ik in EQUIP_ITEMS: eq_strs.append(EQUIP_ITEMS[ik][0][:8])
-        if eq_strs: self.txt(surf,"  ".join(eq_strs[:2]),18,by if "war_cry" not in st.buffs and "holy_shield" not in st.buffs else by+12,(100,120,160),self.fsm)
-
-        # Üst merkez — harita + bölüm (ayrı satırlar)
-        mn=self.fmd.render(map_name,True,UI_AC)
-        surf.blit(mn,(SW//2-mn.get_width()//2,6))
-        qn=f"Bolum {chapter}: {quest_name[:30]}"
-        qt=self.fsm.render(qn,True,UI_GD)
-        surf.blit(qt,(SW//2-qt.get_width()//2,26))
-        # Saldırı türü
-        atk_name=CLASS_INFO[st.char_class]["atk_name"]
-        at=self.fsm.render(f"[Spc]{atk_name}",True,(120,160,120))
-        surf.blit(at,(SW//2-at.get_width()//2,42))
-
-        # Sağ üst kontroller (çok küçük, şeffaf)
-        tips=["[WASD]Hareket","[E]Konus/Ac","[Spc]Saldiri","[1-4]Yetenek","[I]Envanter","[Q]Gorev"]
-        for i,tip in enumerate(tips):
-            t2=self.fsm.render(tip,True,(55,65,75))
-            surf.blit(t2,(SW-t2.get_width()-6,8+i*13))
-
-    def draw_ability_bar(self,surf,stats,tick):
-        ab_list=ABILITIES.get(stats.char_class,[])
-        slot_w=54;bar_w=slot_w*4+8;bar_h=62
-        bx=SW//2-bar_w//2;by=SH-bar_h-6
-        self.panel(surf,bx-2,by-2,bar_w+4,bar_h+4)
-        for i,ab in enumerate(ab_list):
-            sx=bx+i*slot_w;sy=by
-            locked=stats.level<ab["level"];on_cd=stats.ab_cds[i]>0;no_mp=stats.mp<ab["mp"]
-            col=ab["col"]
-            ss=pygame.Surface((slot_w-2,bar_h),pygame.SRCALPHA)
-            if locked: ss.fill((25,15,35,200))
-            elif on_cd: ss.fill((18,12,28,200))
-            else: ss.fill((*col,55))
-            pygame.draw.rect(ss,col if not locked else GR,(0,0,slot_w-2,bar_h),2)
-            surf.blit(ss,(sx,sy))
-            self.txt(surf,str(i+1),sx+3,sy+2,UI_GD if not locked else GR,self.fsm,shadow=False)
-            pygame.draw.circle(surf,col if not locked else GR,(sx+slot_w//2-1,sy+21),11)
-            if not locked: pygame.draw.circle(surf,WH,(sx+slot_w//2-1,sy+21),11,1)
-            if on_cd:
-                max_cd=ab["cd"];frac=stats.ab_cds[i]/max_cd
-                cd_s=pygame.Surface((24,24),pygame.SRCALPHA);pygame.draw.circle(cd_s,(0,0,0,160),(12,12),11)
-                ang2=int(360*frac)
-                if ang2>0: pygame.draw.arc(cd_s,(255,255,255,180),(1,1,22,22),math.radians(90),math.radians(90+ang2),4)
-                surf.blit(cd_s,(sx+slot_w//2-13,sy+9))
-                cd_txt=self.fsm.render(str(stats.ab_cds[i]//FPS+1),True,WH)
-                surf.blit(cd_txt,(sx+slot_w//2-1-cd_txt.get_width()//2,sy+16))
-            c2=GR if locked else(UI_TX if not on_cd else GR)
-            self.txt(surf,ab["name"][:7],sx+1,sy+36,c2,self.fsm,shadow=False)
-            mc=UI_RD if(no_mp and not locked) else GR
-            self.txt(surf,f"MP:{ab['mp']}",sx+1,sy+48,mc,self.fsm,shadow=False)
-            if locked:
-                lk=self.fsm.render(f"Sv{ab['level']}",True,(160,80,80))
-                surf.blit(lk,(sx+slot_w//2-1-lk.get_width()//2,sy+17))
-
-    def draw_inventory(self,surf,player,sel,eq_tab,tick):
-        """Tam Envanter + Ekipman sistemi."""
-        pw,ph=640,440;px=SW//2-pw//2;py=SH//2-ph//2
-        self.panel(surf,px,py,pw,ph,glow=True)
-        # Sekmeler
-        for i,(tname,tcol) in enumerate([("Esyalar",UI_TX),("Ekipman",UI_GD)]):
-            active=(i==eq_tab)
-            ts=pygame.Surface((100,24),pygame.SRCALPHA)
-            ts.fill((*UI_AC,80) if active else (*UI_BD,30))
-            pygame.draw.rect(ts,UI_AC if active else UI_BD,(0,0,100,24),2)
-            surf.blit(ts,(px+16+i*108,py+8))
-            self.txt(surf,tname,px+22+i*108,py+11,UI_AC if active else GR,self.fss,shadow=False)
-        self.txt(surf,f"Gold:{player.stats.gold}",px+pw-110,py+10,UI_GD,self.fmd)
-
-        if eq_tab==0:
-            # ─── Eşya sekmesi ─────────────────────────────────
-            unique:Dict={};all_inv=player.inventory[:]
-            for k in all_inv: unique[k]=unique.get(k,0)+1
-            all_keys=list(unique.keys())
-            for i,(k,cnt) in enumerate(unique.items()):
-                itm=ALL_ITEMS.get(k)
-                if not itm: continue
-                row,col2=divmod(i,5);ix=px+14+col2*120;iy=py+44+row*90
-                if iy+90>py+ph-30: break
-                sel_this=(i==sel)
-                ss=pygame.Surface((116,86),pygame.SRCALPHA)
-                ss.fill((*UI_AC,70) if sel_this else (*UI_BD,28))
-                pygame.draw.rect(ss,UI_AC if sel_this else UI_BD,(0,0,116,86),2)
-                surf.blit(ss,(ix,iy))
-                # İkon arka planı
-                ic=itm[1];pygame.draw.rect(surf,ic,(ix+8,iy+8,40,40));pygame.draw.rect(surf,WH,(ix+8,iy+8,40,40),1)
-                if itm[2]=="equip":
-                    eic=PA.equip_icon(itm[3],ic);surf.blit(eic,(ix+10,iy+10))
-                self.txt(surf,itm[0][:10],ix+4,iy+52,WH,self.fsm)
-                if cnt>1: self.txt(surf,f"x{cnt}",ix+96,iy+8,UI_GD,self.fsm)
-                if itm[2]=="equip":
-                    # Ekipli mi?
-                    if k in player.stats.equipment.values():
-                        ep=pygame.Surface((116,86),pygame.SRCALPHA);ep.fill((40,200,80,40))
-                        pygame.draw.rect(ep,(40,200,80,120),(0,0,116,86),3);surf.blit(ep,(ix,iy))
-                        self.txt(surf,"EKIPLi",ix+56,iy+8,UI_GN,self.fsm)
-            # Seçili eşya bilgisi
-            if 0<=sel<len(all_keys):
-                si=ALL_ITEMS.get(all_keys[sel])
-                if si:
-                    self.txt(surf,si[0],px+14,py+ph-62,UI_AC,self.fmd)
-                    self.txt(surf,si[4],px+14,py+ph-44,LGR,self.fss)
-                    if si[2]=="equip":
-                        ek=all_keys[sel];_,_,_,slot,cls_set=EQUIP_ITEMS[ek]
-                        current=player.stats.equipment.get(slot)
-                        if current==ek: self.txt(surf,"[ E ] Cıkar",px+14,py+ph-26,UI_RD,self.fss)
-                        else: self.txt(surf,f"[ E ] Giy ({slot})",px+14,py+ph-26,UI_GN,self.fss)
-                    elif si[2] in("heal","mana"): self.txt(surf,"[ E ] Kullan",px+14,py+ph-26,UI_GN,self.fss)
-        else:
-            # ─── Ekipman sekmesi ───────────────────────────────
-            st=player.stats
-            slot_data=[("weapon","Silah",UI_RD),("armor","Zırh",ST_L),("ring","Yuzuk",UI_GD)]
-            for si2,(slot,sname,scol) in enumerate(slot_data):
-                iy=py+48+si2*110
-                # Slot kutusu
-                ss=pygame.Surface((pw-28,100),pygame.SRCALPHA)
-                ss.fill((*UI_BD,25));pygame.draw.rect(ss,scol,(0,0,pw-28,100),2)
-                surf.blit(ss,(px+14,iy))
-                ik=st.equipment.get(slot)
-                # Slot ikonu
-                ic_s=PA.equip_icon(slot,scol);surf.blit(ic_s,(px+20,iy+30))
-                self.txt(surf,sname,px+64,iy+8,scol,self.fmd)
-                if ik and ik in EQUIP_ITEMS:
-                    edata=EQUIP_ITEMS[ik]
-                    self.txt(surf,edata[0],px+64,iy+34,WH,self.fss)
-                    bonus_str=" | ".join(f"{k.upper()}+{v}" for k,v in edata[2].items())
-                    self.txt(surf,bonus_str,px+64,iy+56,UI_GN,self.fsm)
-                    self.txt(surf,"[ E ] Cıkar",px+64,iy+76,UI_RD,self.fsm)
-                else:
-                    self.txt(surf,"— Bos —",px+64,iy+36,GR,self.fss)
-                    self.txt(surf,"Esya sekmesinden ekipman giy",px+64,iy+56,GR,self.fsm)
-            # Toplam bonus
-            bx2=px+14;by2=py+ph-56
-            self.txt(surf,"Ekipman Bonusu:",bx2,by2,UI_GD,self.fss)
-            stats_show=[("str",HP_R),("int",UI_BL),("agi",UI_GN),("vit",UI_GD),("wis",UI_PR)]
-            for si3,(sk,sc) in enumerate(stats_show):
-                b=st._equip_bonus(sk)
-                if b>0: self.txt(surf,f"+{b}{sk.upper()}",bx2+si3*80,by2+20,sc,self.fsm)
-        self.txt(surf,"[Tab]Sekme  [I/ESC]Kapat  [Yon]Sec  [E]Kullan/Giy",px+14,py+ph-12,GR,self.fsm)
-
-    def draw_dialog(self,surf,npc_name,lines,page,total):
-        bh=112;bx=8;by=SH-bh-8
-        self.panel(surf,bx,by,SW-16,bh,glow=True)
-        pygame.draw.rect(surf,UI_BD,(bx,by-2,len(npc_name)*8+16,18))
-        self.txt(surf,npc_name,bx+8,by,UI_AC,self.fmd,shadow=False)
-        for i,line in enumerate(lines[:4]):
-            col=UI_GD if line.startswith("[") else UI_TX
-            self.txt(surf,line,bx+14,by+22+i*20,col,self.fss)
-        if(pygame.time.get_ticks()//600)%2==0: self.txt(surf,"[ E ] Devam",SW-130,by+bh-20,UI_AC,self.fsm)
-        if total>1: self.txt(surf,f"{page}/{total}",SW-50,by+4,GR,self.fsm)
-
-    def draw_quest_log(self,surf,flags,chapter):
-        pw,ph=500,365;px=SW//2-pw//2;py=SH//2-ph//2
-        self.panel(surf,px,py,pw,ph,glow=True)
-        self.txt(surf,"GOREV GUNLUGU",px+16,py+10,UI_GD,self.flg)
-        y_off=50
-        for ch,qdata in QUESTS.items():
-            qname,qdesc=qdata
-            if ch<chapter:
-                pygame.draw.rect(surf,(*UI_GN,28),(px+12,py+y_off-2,pw-24,34))
-                self.txt(surf,f"[V] Bolum {ch}: {qname}",px+18,py+y_off,UI_GN,self.fss)
-                self.txt(surf,"    Tamamlandi",px+18,py+y_off+16,GR,self.fsm)
-            elif ch==chapter:
-                pv=int(abs(math.sin(pygame.time.get_ticks()*0.003))*25)
-                pygame.draw.rect(surf,(*UI_GD,38+pv),(px+12,py+y_off-2,pw-24,34))
-                pygame.draw.rect(surf,UI_GD,(px+12,py+y_off-2,pw-24,34),2)
-                self.txt(surf,f"[>] Bolum {ch}: {qname}",px+18,py+y_off,UI_GD,self.fmd)
-                self.txt(surf,f"    {qdesc}",px+18,py+y_off+16,UI_TX,self.fsm)
-            else:
-                self.txt(surf,f"[?] Bolum {ch}: ???",px+18,py+y_off,(55,55,65),self.fss)
-            y_off+=38
-        self.txt(surf,"[Q/ESC] Kapat",px+14,py+ph-22,GR,self.fss)
 
     def draw_stat_alloc(self,surf,stats,free,sel,is_lu=False,tick=0):
         pw,ph=510,430;px=SW//2-pw//2;py=SH//2-ph//2
@@ -1684,16 +1783,313 @@ class UI:
     def draw_chapter(self,surf,chapter,alpha):
         if chapter not in QUESTS: return
         ov=pygame.Surface((SW,SH),pygame.SRCALPHA);ov.fill((0,0,0,min(150,alpha)));surf.blit(ov,(0,0))
-        t=self.fti.render(f"Bolum {chapter}",True,UI_GD);t.set_alpha(min(255,alpha));surf.blit(t,(SW//2-t.get_width()//2,SH//2-55))
-        t2=self.flg.render(QUESTS[chapter][0],True,UI_AC);t2.set_alpha(min(255,alpha));surf.blit(t2,(SW//2-t2.get_width()//2,SH//2+10))
+        t=self.fti.render(f"{T_('chapter_label')} {chapter}",True,UI_GD)
+        t.set_alpha(min(255,alpha));surf.blit(t,(SW//2-t.get_width()//2,SH//2-55))
+        t2=self.flg.render(QUESTS[chapter][0],True,UI_AC)
+        t2.set_alpha(min(255,alpha));surf.blit(t2,(SW//2-t2.get_width()//2,SH//2+10))
+
+    def draw_ability_bar(self,surf,stats,tick):
+        ab_list=ABILITIES.get(stats.char_class,[])
+        if not ab_list: return
+        slot_w=54;bar_w=slot_w*4+8;bar_h=62
+        bx=SW//2-bar_w//2;by=SH-bar_h-6
+        self.panel(surf,bx-2,by-2,bar_w+4,bar_h+4)
+        for i,ab in enumerate(ab_list):
+            sx=bx+i*slot_w;sy=by
+            locked=stats.level<ab["level"]
+            on_cd=stats.ab_cds[i]>0
+            no_mp=stats.mp<ab["mp"]
+            col=ab["col"]
+            ss=pygame.Surface((slot_w-2,bar_h),pygame.SRCALPHA)
+            if locked:   ss.fill((25,15,35,200))
+            elif on_cd:  ss.fill((18,12,28,200))
+            else:        ss.fill((*col,55))
+            pygame.draw.rect(ss,col if not locked else GR,(0,0,slot_w-2,bar_h),2)
+            surf.blit(ss,(sx,sy))
+            # Tuş etiketi
+            self.txt(surf,str(i+1),sx+3,sy+2,UI_GD if not locked else GR,self.fsm,shadow=False)
+            # İkon dairesi
+            pygame.draw.circle(surf,col if not locked else GR,(sx+slot_w//2-1,sy+21),11)
+            if not locked: pygame.draw.circle(surf,WH,(sx+slot_w//2-1,sy+21),11,1)
+            # Cooldown overlay
+            if on_cd:
+                max_cd=ab["cd"]; frac=stats.ab_cds[i]/max(1,max_cd)
+                cd_s=pygame.Surface((24,24),pygame.SRCALPHA)
+                pygame.draw.circle(cd_s,(0,0,0,160),(12,12),11)
+                ang2=int(360*frac)
+                if ang2>0:
+                    pygame.draw.arc(cd_s,(255,255,255,180),(1,1,22,22),
+                        math.radians(90),math.radians(90+ang2),4)
+                surf.blit(cd_s,(sx+slot_w//2-13,sy+9))
+                cd_n=stats.ab_cds[i]//FPS+1
+                ct=self.fsm.render(str(cd_n),True,WH)
+                surf.blit(ct,(sx+slot_w//2-1-ct.get_width()//2,sy+16))
+            # İsim
+            c2=GR if locked else(UI_TX if not on_cd else GR)
+            self.txt(surf,ab["name"][:7],sx+1,sy+36,c2,self.fsm,shadow=False)
+            # MP maliyeti
+            mc=UI_RD if(no_mp and not locked) else GR
+            self.txt(surf,f"MP:{ab['mp']}",sx+1,sy+48,mc,self.fsm,shadow=False)
+            # Kilit seviyesi
+            if locked:
+                lk=self.fsm.render(f"Sv{ab['level']}",True,(160,80,80))
+                surf.blit(lk,(sx+slot_w//2-1-lk.get_width()//2,sy+17))
+
+    def draw_dialog(self,surf,npc_name,lines,page,total):
+        bh=112;bx=8;by=SH-bh-8
+        self.panel(surf,bx,by,SW-16,bh,glow=True)
+        pygame.draw.rect(surf,UI_BD,(bx,by-2,len(npc_name)*8+16,18))
+        self.txt(surf,npc_name,bx+8,by,UI_AC,self.fmd,shadow=False)
+        for i,line in enumerate(lines[:4]):
+            col=UI_GD if line.startswith("[") else UI_TX
+            self.txt(surf,line,bx+14,by+22+i*20,col,self.fss)
+        if(pygame.time.get_ticks()//600)%2==0:
+            self.txt(surf,T_("dialog_continue"),SW-130,by+bh-20,UI_AC,self.fsm)
+        if total>1: self.txt(surf,f"{page}/{total}",SW-50,by+4,GR,self.fsm)
+
+    def draw_inventory(self,surf,player,sel,eq_tab,tick):
+        pw,ph=640,440;px=SW//2-pw//2;py=SH//2-ph//2
+        self.panel(surf,px,py,pw,ph,glow=True)
+        # Sekmeler
+        for i,(tname,tcol) in enumerate([(T_("equip_tab"),UI_TX),(T_("gear_tab"),UI_GD)]):
+            active=(i==eq_tab)
+            ts=pygame.Surface((108,24),pygame.SRCALPHA)
+            ts.fill((*UI_AC,80) if active else (*UI_BD,30))
+            pygame.draw.rect(ts,UI_AC if active else UI_BD,(0,0,108,24),2)
+            surf.blit(ts,(px+16+i*114,py+8))
+            self.txt(surf,tname,px+22+i*114,py+11,UI_AC if active else GR,self.fss,shadow=False)
+        self.txt(surf,f"{T_('gold')}:{player.stats.gold}",px+pw-120,py+10,UI_GD,self.fmd)
+
+        if eq_tab==0:
+            # Eşya sekmesi
+            unique:Dict={}
+            for k in player.inventory: unique[k]=unique.get(k,0)+1
+            all_keys=list(unique.keys())
+            for i,(k,cnt) in enumerate(unique.items()):
+                itm=ALL_ITEMS.get(k)
+                if not itm: continue
+                row,col2=divmod(i,5);ix=px+14+col2*120;iy=py+44+row*90
+                if iy+90>py+ph-30: break
+                sel_this=(i==sel)
+                ss=pygame.Surface((116,86),pygame.SRCALPHA)
+                ss.fill((*UI_AC,70) if sel_this else (*UI_BD,28))
+                pygame.draw.rect(ss,UI_AC if sel_this else UI_BD,(0,0,116,86),2)
+                surf.blit(ss,(ix,iy))
+                ic2=itm[1];pygame.draw.rect(surf,ic2,(ix+8,iy+8,40,40))
+                pygame.draw.rect(surf,WH,(ix+8,iy+8,40,40),1)
+                if itm[2]=="equip":
+                    eic=PA.equip_icon(itm[3],ic2);surf.blit(eic,(ix+10,iy+10))
+                self.txt(surf,itm[0][:10],ix+4,iy+52,WH,self.fsm)
+                if cnt>1: self.txt(surf,f"x{cnt}",ix+96,iy+8,UI_GD,self.fsm)
+                if itm[2]=="equip" and k in player.stats.equipment.values():
+                    ep=pygame.Surface((116,86),pygame.SRCALPHA)
+                    ep.fill((40,200,80,35));pygame.draw.rect(ep,(40,200,80,120),(0,0,116,86),3)
+                    surf.blit(ep,(ix,iy))
+                    self.txt(surf,T_("equipped"),ix+56,iy+8,UI_GN,self.fsm)
+            if 0<=sel<len(all_keys):
+                si=ALL_ITEMS.get(all_keys[sel])
+                if si:
+                    self.txt(surf,si[0],px+14,py+ph-62,UI_AC,self.fmd)
+                    self.txt(surf,si[4],px+14,py+ph-44,LGR,self.fss)
+                    if si[2]=="equip":
+                        ek=all_keys[sel]; slot2=EQUIP_ITEMS[ek][3]
+                        cur=player.stats.equipment.get(slot2)
+                        if cur==ek: self.txt(surf,T_("item_unequip"),px+14,py+ph-26,UI_RD,self.fss)
+                        else:       self.txt(surf,f"{T_('item_equip')} ({slot2})",px+14,py+ph-26,UI_GN,self.fss)
+                    elif si[2] in("heal","mana"):
+                        self.txt(surf,T_("item_use"),px+14,py+ph-26,UI_GN,self.fss)
+        else:
+            # Ekipman sekmesi
+            st=player.stats
+            slot_data=[("weapon","Silah",UI_RD),("armor","Zirh",ST_L),("ring","Yuzuk",UI_GD)]
+            for si2,(slot,sname,scol) in enumerate(slot_data):
+                iy=py+48+si2*110
+                ss=pygame.Surface((pw-28,100),pygame.SRCALPHA)
+                ss.fill((*UI_BD,25));pygame.draw.rect(ss,scol,(0,0,pw-28,100),2)
+                surf.blit(ss,(px+14,iy))
+                eic2=PA.equip_icon(slot,scol);surf.blit(eic2,(px+20,iy+30))
+                self.txt(surf,sname,px+64,iy+8,scol,self.fmd)
+                ik=st.equipment.get(slot)
+                if ik and ik in EQUIP_ITEMS:
+                    edata=EQUIP_ITEMS[ik]
+                    self.txt(surf,edata[0],px+64,iy+34,WH,self.fss)
+                    bonus_str=" | ".join(f"{k2.upper()}+{v}" for k2,v in edata[2].items())
+                    self.txt(surf,bonus_str,px+64,iy+56,UI_GN,self.fsm)
+                    self.txt(surf,T_("item_unequip"),px+64,iy+76,UI_RD,self.fsm)
+                else:
+                    self.txt(surf,"— Bos —",px+64,iy+36,GR,self.fss)
+                    self.txt(surf,"Esya sekmesinden ekipman giy",px+64,iy+56,GR,self.fsm)
+            # Ekipman bonusu
+            self.txt(surf,"Ekipman Bonusu:",px+14,py+ph-56,UI_GD,self.fss)
+            stats_show=[("str",HP_R),("int",UI_BL),("agi",UI_GN),("vit",UI_GD),("wis",UI_PR)]
+            for si3,(sk,sc) in enumerate(stats_show):
+                b=st._equip_bonus(sk)
+                if b>0: self.txt(surf,f"+{b}{sk.upper()}",px+14+si3*80,py+ph-36,sc,self.fsm)
+        self.txt(surf,"[Tab]Sekme  [I/ESC]Kapat  [Yon]Sec  [E]Kullan/Giy",px+14,py+ph-12,GR,self.fsm)
+
+    def draw_settings(self,surf,sel,tick):
+        """Ayarlar paneli."""
+        pw,ph=480,360;px=SW//2-pw//2;py=SH//2-ph//2
+        self.panel(surf,px,py,pw,ph,glow=True)
+        self.txt(surf,T_("settings"),px+pw//2-60,py+12,UI_AC,self.flg)
+
+        opts=[
+            (T_("set_fullscreen"), T_("set_on") if CFG.fullscreen else T_("set_off"), "fullscreen"),
+            (T_("set_master"),     f"%d%%" % CFG.master_vol,  "master_vol"),
+            (T_("set_sfx"),        f"%d%%" % CFG.sfx_vol,     "sfx_vol"),
+            (T_("set_music"),      f"%d%%" % CFG.music_vol,   "music_vol"),
+            (T_("set_language"),   CFG.data.get("language","TR"),  "language"),
+            (T_("set_fps"),        T_("set_on") if CFG.show_fps else T_("set_off"), "show_fps"),
+        ]
+        for i,(label,val,_) in enumerate(opts):
+            oy=py+56+i*44
+            sel_this=(i==sel)
+            rs=pygame.Surface((pw-24,38),pygame.SRCALPHA)
+            rs.fill((*UI_AC,50) if sel_this else (*UI_BD,20))
+            if sel_this: pygame.draw.rect(rs,UI_AC,(0,0,pw-24,38),2)
+            surf.blit(rs,(px+12,oy))
+            self.txt(surf,label,px+20,oy+10,UI_AC if sel_this else LGR,self.fss)
+            vt=self.fss.render(val,True,UI_GD if sel_this else GR)
+            surf.blit(vt,(px+pw-vt.get_width()-22,oy+10))
+            if sel_this:
+                self.txt(surf,"<",px+pw-vt.get_width()-42,oy+10,(180,80,80),self.fss)
+                self.txt(surf,">",px+pw-10,oy+10,(80,180,80),self.fss)
+
+        self.txt(surf,T_("set_back"),px+16,py+ph-28,GR,self.fss)
+
+    def draw_mini_quests(self,surf,flags,player_cls):
+        """Yan panel: mini görevler."""
+        mqs=[]
+        # Kütüphane: parşömen topla
+        sc=sum(1 for k in ["sq_scroll1","sq_scroll2","sq_scroll3"] if flags.get(k))
+        if not (flags.get("sq_scroll1") and flags.get("sq_scroll2") and flags.get("sq_scroll3")):
+            mqs.append(("Parşömen Avı",f"{sc}/3 bulundu",UI_PR))
+        else:
+            mqs.append(("Parşömen Avı","Tamamlandı!",UI_GN))
+        # Domuz avı (çayır)
+        if not flags.get("sq_boar_done"):
+            bc=flags.get("sq_boar_count",0)
+            mqs.append(("Domuz Avı",f"{bc}/3 domuz",UI_GD))
+        else:
+            mqs.append(("Domuz Avı","Tamamlandı!",UI_GN))
+        # Balıkçı yardımı
+        if not flags.get("sq_fish_done"):
+            mqs.append(("Balikci Yardimi","Riva ile konuş",UI_CY))
+        else:
+            mqs.append(("Balikci Yardimi","Tamamlandı!",UI_GN))
+
+        if not mqs: return
+        pw=200;row_h=22;ph=14+len(mqs)*row_h
+        px=SW-pw-6;py=SH//2-ph//2-40
+        self.panel(surf,px,py,pw,ph)
+        self.txt(surf,"Yan Görevler",px+8,py+4,UI_GD,self.fsm)
+        for i,(qn,qv,qc) in enumerate(mqs):
+            self.txt(surf,f"• {qn}",px+8,py+14+i*row_h,LGR,self.fsm)
+            self.txt(surf,qv,px+pw-self.fsm.size(qv)[0]-8,py+14+i*row_h,qc,self.fsm)
+
+    def draw_hud(self,surf,player,map_name,chapter,quest_name,tick):
+        st=player.stats;cc=CLASS_COL.get(st.char_class,(100,100,200))
+        ci=CLASS_INFO[st.char_class]
+        # Sol panel (270x130)
+        self.panel(surf,6,6,270,130)
+        pygame.draw.rect(surf,cc,(10,10,3,118))
+        self.txt(surf,f"{ci['name']}  {T_('lvl')}{st.level}",18,10,cc,self.fmd)
+        self.txt(surf,"HP",18,30,HP_G,self.fsm)
+        self.grad_bar(surf,36,30,226,10,st.hp,st.max_hp,(80,15,15),HP_G)
+        self.txt(surf,f"{st.hp}/{st.max_hp}",38,31,(220,255,220),self.fsm)
+        self.txt(surf,"MP",18,44,MP_B,self.fsm)
+        self.grad_bar(surf,36,44,226,10,st.mp,st.max_mp,(10,15,60),UI_CY)
+        self.txt(surf,f"{st.mp}/{st.max_mp}",38,45,(180,220,255),self.fsm)
+        self.txt(surf,"XP",18,58,XP_T,self.fsm)
+        self.grad_bar(surf,36,58,226,8,st.xp,st.xp_next,(15,45,35),XP_T)
+        self.txt(surf,f"ATK:{st.attack}  DEF:{st.defense}  AGI:{st.agi+st._equip_bonus('agi')}",18,72,LGR,self.fsm)
+        gp=int(abs(math.sin(tick*0.003))*15)
+        self.txt(surf,f"{T_('gold')}:{st.gold}",18,86,(230+gp,180,40),self.fsm)
+        if st.skill_points>0:
+            sc=(255,220,50) if (tick//500)%2==0 else (200,160,30)
+            self.txt(surf,f"[U]+{st.skill_points} {T_('skill_pts')}",140,86,sc,self.fsm)
+        by=102
+        if "war_cry" in st.buffs:      self.txt(surf,"SAVAŞ ÇIĞLIĞI",18,by,(255,120,50),self.fsm)
+        elif "holy_shield" in st.buffs:self.txt(surf,"KUTSAL KALKAN", 18,by,(255,220,60),self.fsm)
+        eq_strs=[]
+        for slot,ik in st.equipment.items():
+            if ik and ik in EQUIP_ITEMS: eq_strs.append(EQUIP_ITEMS[ik][0][:8])
+        if eq_strs:
+            eq_y=by if "war_cry" not in st.buffs and "holy_shield" not in st.buffs else by+14
+            self.txt(surf,"  ".join(eq_strs[:2]),18,eq_y,(100,120,160),self.fsm)
+        # Üst merkez
+        mn=self.fmd.render(map_name,True,UI_AC)
+        surf.blit(mn,(SW//2-mn.get_width()//2,6))
+        qn=f"{T_('chapter_label')} {chapter}: {quest_name[:30]}"
+        qt=self.fsm.render(qn,True,UI_GD)
+        surf.blit(qt,(SW//2-qt.get_width()//2,26))
+        atk_name=CLASS_INFO[st.char_class]["atk_name"]
+        at=self.fsm.render(f"{T_('atk_label')} {atk_name}",True,(120,160,120))
+        surf.blit(at,(SW//2-at.get_width()//2,42))
+        # Sağ üst kontroller
+        tips=["[WASD]Hareket","[E]Konuş/Aç","[Spc]Saldırı","[1-4]Yetenek","[I]Envanter","[Q]Görev","[F1]Ayarlar","[F11]TamEkran"]
+        for i,tip in enumerate(tips):
+            t2=self.fsm.render(tip,True,(55,65,75))
+            surf.blit(t2,(SW-t2.get_width()-6,8+i*13))
+
+    def draw_quest_log(self,surf,flags,chapter):
+        pw,ph=560,400;px=SW//2-pw//2;py=SH//2-ph//2
+        self.panel(surf,px,py,pw,ph,glow=True)
+        self.txt(surf,T_("quest_log"),px+16,py+10,UI_GD,self.flg)
+        y_off=50
+        for ch,qdata in QUESTS.items():
+            qname,qdesc=qdata
+            if ch<chapter:
+                pygame.draw.rect(surf,(*UI_GN,28),(px+12,py+y_off-2,pw-24,34))
+                self.txt(surf,f"[✓] Bölüm {ch}: {qname}",px+18,py+y_off,UI_GN,self.fss)
+                self.txt(surf,f"    {T_('quest_done')}",px+18,py+y_off+16,GR,self.fsm)
+            elif ch==chapter:
+                pv=int(abs(math.sin(pygame.time.get_ticks()*0.003))*25)
+                pygame.draw.rect(surf,(*UI_GD,38+pv),(px+12,py+y_off-2,pw-24,34))
+                pygame.draw.rect(surf,UI_GD,(px+12,py+y_off-2,pw-24,34),2)
+                self.txt(surf,f"[►] Bölüm {ch}: {qname}",px+18,py+y_off,UI_GD,self.fmd)
+                self.txt(surf,f"    {qdesc}",px+18,py+y_off+16,UI_TX,self.fsm)
+            else:
+                self.txt(surf,f"[?] Bölüm {ch}: ???",px+18,py+y_off,(55,55,65),self.fss)
+            y_off+=38
+        # Mini görevler
+        self.txt(surf,"─── YAN GÖREVLER ───",px+16,py+y_off+4,UI_PR,self.fss)
+        y_off+=26
+        mini=[
+            ("Parşömen Avı","Gizemli Kütüphane: 3 parşömen bul",
+             all(flags.get(k) for k in ["sq_scroll1","sq_scroll2","sq_scroll3"])),
+            ("Domuz Avı","Güney Çayırı: 3 domuz öldür", flags.get("sq_boar_done",False)),
+            ("Balıkçı Yardımı","Batı Nehri: Riva ile konuş", flags.get("sq_fish_done",False)),
+        ]
+        for qn,qdesc,done in mini:
+            col=UI_GN if done else LGR
+            sym="✓" if done else "○"
+            self.txt(surf,f"[{sym}] {qn}",px+18,py+y_off,col,self.fss)
+            if not done: self.txt(surf,f"    {qdesc}",px+18,py+y_off+16,GR,self.fsm)
+            y_off+=34 if not done else 24
+            if py+y_off>py+ph-30: break
+        self.txt(surf,"[Q/ESC] Kapat",px+14,py+ph-22,GR,self.fss)
 
 
 # ─── Game ────────────────────────────────────────────────────────
 class Game:
     def __init__(self):
         pygame.init()
-        self.screen=pygame.display.set_mode((SW,SH));pygame.display.set_caption(TITLE)
-        self.clock=pygame.time.Clock();self.ui=UI();self.ps=PS();self._reset()
+        SoundManager.init()
+        flags=pygame.FULLSCREEN if CFG.fullscreen else 0
+        self.screen=pygame.display.set_mode((SW,SH),flags)
+        pygame.display.set_caption(TITLE)
+        self.clock=pygame.time.Clock()
+        self.ui=UI(); self.ps=PS()
+        self.fps_font=pygame.font.SysFont("monospace",12,bold=True)
+        self._reset()
+
+    def _toggle_fullscreen(self):
+        CFG.fullscreen = not CFG.fullscreen
+        CFG.save()
+        flags=pygame.FULLSCREEN if CFG.fullscreen else 0
+        self.screen=pygame.display.set_mode((SW,SH),flags)
+        SoundManager.play("menu_sel")
 
     def _reset(self):
         self.maps={
@@ -1701,22 +2097,32 @@ class Game:
             "ruins":build_ruins(),"desert":build_desert(),"ice_cave":build_ice_cave(),
             "shadow_castle":build_shadow_castle(),"village_dungeon":build_village_dungeon(),
             "south_meadow":build_south_meadow(),"west_river":build_west_river(),
+            "mystic_library":build_mystic_library(),
         }
         self.cur_key="ashveil";self.cur_map=self.maps["ashveil"]
         self.state="title";self.tick=0
         self.class_sel=0;self.stat_sel=0;self.free_pts=10
         self.temp_stats:Optional[PlayerStats]=None;self.is_lu=False
         self.story_shown=0;self.story_timer=0
-        self.flags={"ch":1,"speak_aldric":False,"earth_crystal":False,
-                    "speak_oracle":False,"water_crystal":False,"malachar_defeated":False}
+        self.flags={
+            "ch":1,"speak_aldric":False,"earth_crystal":False,
+            "speak_oracle":False,"water_crystal":False,"malachar_defeated":False,
+            # Mini görevler
+            "sq_scroll1":False,"sq_scroll2":False,"sq_scroll3":False,  # Gizemli Kütüphane
+            "sq_boar_done":False,   # Çayır görevi: 3 domuz öldür
+            "sq_boar_count":0,
+            "sq_fish_done":False,   # Nehir görevi: balıkçıya yardım
+        }
         self.player:Optional[Player]=None
         self.cam_x=0;self.cam_y=0;self.move_cd=0
         self.dlg_npc=None;self.dlg_lines=[];self.dlg_page=0
         self.hit_fx=[];self.dmg_nums=[]
         self.levelup_timer=0;self.ch_announce=0
         self.trans_alpha=0;self.pending_trans=None;self.transitioning=False;self.entering_name=""
-        self.inv_sel=0;self.inv_tab=0  # 0=esyalar 1=ekipman
+        self.inv_sel=0;self.inv_tab=0
         self.projectiles:List[Projectile]=[]
+        self.settings_sel=0  # Ayarlar menüsü seçimi
+        self.settings_open=False
 
     def _start_game(self):
         st=self.temp_stats;st.hp=st.max_hp;st.mp=st.max_mp
@@ -1811,6 +2217,7 @@ class Game:
             is_crit=random.random()<(st.crit+0.10)
             if is_crit: dmg=int(dmg*2.0)
             pr=self._proj(cx,cy,float(ox),float(oy),7,"arrow",dmg)
+            SoundManager.play("arrow")
             if is_crit and pr:
                 self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":50,"col":UI_GD,"txt":"KRIT!"})
             self.ps.emit(cx,cy,4,(80,220,80),3.0,15)
@@ -1841,6 +2248,7 @@ class Game:
         self.hit_fx.append({"x":e.px+TILE//2,"y":e.py+TILE//2,"f":0,"mf":20})
         self.dmg_nums.append({"x":e.px+TILE//2,"y":e.py,"v":dmg,"l":45,"col":col,"txt":"KRIT!" if crit else None})
         self.ps.emit_hit(e.px+TILE//2,e.py+TILE//2)
+        SoundManager.play("hit_heavy" if e.is_boss else "hit")
         if e.hp<=0: self._kill(e)
 
     def _kill(self,e):
@@ -1852,8 +2260,12 @@ class Game:
             else: self.player.inventory.append(item)
         lv=self.player.stats.gain_xp(e.xp_r);self.player.stats.gold+=random.randint(1,4)
         self.ps.emit_xp(e.px+TILE//2,e.py+TILE//2);self.ps.emit_gold(e.px+TILE//2,e.py+TILE//2)
-        if lv: self.levelup_timer=180
-        if e.is_boss and e.kind=="malachar": self.flags["malachar_defeated"]=True;self.state="victory"
+        # Mini görev: domuz sayacı
+        if e.kind=="boar" and not self.flags.get("sq_boar_done"):
+            self.flags["sq_boar_count"]=self.flags.get("sq_boar_count",0)+1
+            if self.flags["sq_boar_count"]>=3: self.flags["sq_boar_done"]=True
+        if lv: self.levelup_timer=180; SoundManager.play("level_up")
+        if e.is_boss and e.kind=="malachar": self.flags["malachar_defeated"]=True;self.state="victory";SoundManager.play("victory")
 
     def _quest_item(self,item):
         if item=="earth_c" and not self.flags["earth_crystal"]:
@@ -1868,6 +2280,7 @@ class Game:
         p=self.player;st=p.stats
         if not st.can_use(slot): return
         ab=ABILITIES[st.char_class][slot];st.mp-=ab["mp"];st.ab_cds[slot]=ab["cd"]
+        SoundManager.play("spell")
         cx=p.px+TILE//2;cy=p.py+TILE//2
         d=p.direction;ox,oy={"right":(1,0),"left":(-1,0),"up":(0,-1),"down":(0,1)}.get(d,(0,1))
         aid=ab["id"]
@@ -2008,7 +2421,7 @@ class Game:
                 p.stats.hp-=dmg;p.stats.hp=max(0,p.stats.hp);p.invincible=40
                 self.ps.emit_hit(ppx,ppy)
                 self.dmg_nums.append({"x":ppx,"y":ppy-TILE//2,"v":dmg,"l":40,"col":HP_R})
-                if p.stats.hp<=0: self.state="gameover"
+                if p.stats.hp<=0: self.state="gameover";SoundManager.play("death")
 
     def _interact(self):
         p=self.player;d=p.direction
@@ -2021,14 +2434,23 @@ class Game:
                     self.flags["speak_aldric"]=True;self._advance(2)
                 elif npc.name=="Oracle Nyx" and not self.flags.get("speak_oracle") and self.flags.get("earth_crystal"):
                     self.flags["speak_oracle"]=True;self._advance(5)
+                elif npc.name=="Balikci Riva" and not self.flags.get("sq_fish_done"):
+                    self.flags["sq_fish_done"]=True;SoundManager.play("chest")
+                    self.dmg_nums.append({"x":npc.tx*TILE,"y":npc.ty*TILE-TILE,"v":None,"l":100,"col":UI_CY,"txt":"Yan Görev Tamamlandi!"})
                 return
         if(itx,ity) in self.cur_map.chests:
             loot=self.cur_map.chests.pop((itx,ity))
             for ik in loot:
                 if ik=="gold": p.stats.gold+=ITEMS["gold"][3]
                 elif ik in("earth_c","water_c"): p.quest_items.append(ik);self._quest_item(ik)
+                elif ik in("scroll1","scroll2","scroll3"):
+                    p.inventory.append(ik)
+                    flag_k="sq_"+ik
+                    if not self.flags.get(flag_k):
+                        self.flags[flag_k]=True;SoundManager.play("spell")
+                        self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":100,"col":UI_PR,"txt":f"Parsomen Bulundu!"})
                 else: p.inventory.append(ik)
-            self.cur_map.set(itx,ity,T.FLOOR);self.ps.emit_gold(itx*TILE+TILE//2,ity*TILE+TILE//2)
+            self.cur_map.set(itx,ity,T.FLOOR);self.ps.emit_gold(itx*TILE+TILE//2,ity*TILE+TILE//2);SoundManager.play("chest")
             self.dmg_nums.append({"x":itx*TILE+TILE//2,"y":ity*TILE,"v":None,"l":70,"col":UI_GD,"txt":"Sandik Acildi!"})
 
     def _inv_use_item(self):
@@ -2038,8 +2460,10 @@ class Game:
         ik=u[self.inv_sel];itm=ALL_ITEMS.get(ik)
         if not itm: return
         typ=itm[2]
-        if typ=="heal": p.stats.heal(itm[3]);p.inventory.remove(ik);self.ps.emit_magic(p.px+TILE//2,p.py)
+        if typ=="heal": p.stats.heal(itm[3]);p.inventory.remove(ik);self.ps.emit_magic(p.px+TILE//2,p.py);SoundManager.play("heal")
         elif typ=="mana": p.stats.restore_mp(itm[3]);p.inventory.remove(ik)
+        elif typ=="quest_sq":
+            self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":60,"col":UI_PR,"txt":"Kutuphaneciye götür!"})
         elif typ.startswith("stat_"): p.stats.apply_item(typ,itm[3]);p.inventory.remove(ik)
         elif typ=="equip":
             old=p.stats.equip(ik)
@@ -2060,17 +2484,41 @@ class Game:
             self.tick=pygame.time.get_ticks();self.clock.tick(FPS)
             for ev in pygame.event.get():
                 if ev.type==pygame.QUIT: running=False;break
+                if ev.type==pygame.KEYDOWN and ev.key==pygame.K_F11:
+                    self._toggle_fullscreen()
+                if ev.type==pygame.KEYDOWN and ev.key==pygame.K_F1 and self.state not in("title","story","class_select","stat_alloc"):
+                    self.settings_open=not self.settings_open
+                    self.settings_sel=0;SoundManager.play("open_ui")
+                # Settings menü navigasyonu
+                if ev.type==pygame.KEYDOWN and self.settings_open:
+                    sk2=ev.key
+                    opts2=["fullscreen","master_vol","sfx_vol","music_vol","language","show_fps"]
+                    if sk2==pygame.K_ESCAPE: self.settings_open=False;CFG.save();SoundManager.play("menu_back")
+                    elif sk2 in(pygame.K_UP,pygame.K_w): self.settings_sel=max(0,self.settings_sel-1);SoundManager.play("menu_sel")
+                    elif sk2 in(pygame.K_DOWN,pygame.K_s): self.settings_sel=min(len(opts2)-1,self.settings_sel+1);SoundManager.play("menu_sel")
+                    elif sk2 in(pygame.K_RIGHT,pygame.K_d,pygame.K_RETURN):
+                        key2=opts2[self.settings_sel]
+                        if key2=="fullscreen": self._toggle_fullscreen()
+                        elif key2=="master_vol": CFG.data["master_vol"]=min(100,CFG.data.get("master_vol",80)+10);CFG.save()
+                        elif key2=="sfx_vol": CFG.data["sfx_vol"]=min(100,CFG.data.get("sfx_vol",80)+10);CFG.save()
+                        elif key2=="music_vol": CFG.data["music_vol"]=min(100,CFG.data.get("music_vol",60)+10);CFG.save()
+                        elif key2=="language": CFG.data["language"]="EN" if CFG.data.get("language","TR")=="TR" else "TR";CFG.save()
+                        elif key2=="show_fps": CFG.data["show_fps"]=not CFG.data.get("show_fps",False);CFG.save()
+                        SoundManager.play("menu_sel")
+                    elif sk2 in(pygame.K_LEFT,pygame.K_a):
+                        key2=opts2[self.settings_sel]
+                        if key2=="master_vol": CFG.data["master_vol"]=max(0,CFG.data.get("master_vol",80)-10);CFG.save()
+                        elif key2=="sfx_vol": CFG.data["sfx_vol"]=max(0,CFG.data.get("sfx_vol",80)-10);CFG.save()
+                        elif key2=="music_vol": CFG.data["music_vol"]=max(0,CFG.data.get("music_vol",60)-10);CFG.save()
+                        SoundManager.play("menu_sel")
                 if ev.type==pygame.KEYDOWN:
                     k=ev.key
-                    if k==pygame.K_F8:
-                        pygame.image.save(self.screen, f"screenshot_{self.tick}.png")
-                        print(f"Screenshot saved: screenshot_{self.tick}.png")
                     if self.state=="title":
                         if k in(pygame.K_RETURN,pygame.K_e): self.state="story"
                     elif self.state=="story":
                         if k==pygame.K_RETURN:
                             if self.story_shown<len(STORY_LINES): self.story_shown=len(STORY_LINES)
-                            else: self.state="class_select"
+                            else: self.state="class_select";SoundManager.play("menu_sel")
                         elif k==pygame.K_SPACE: self.story_shown=min(self.story_shown+1,len(STORY_LINES))
                     elif self.state=="class_select":
                         ks=list(CLASS_INFO.keys())
@@ -2126,7 +2574,11 @@ class Game:
                         if k==pygame.K_ESCAPE: self._reset()
                     elif self.state=="playing":
                         if k==pygame.K_ESCAPE: running=False
-                        elif k==pygame.K_i: self.inv_sel=0;self.inv_tab=0;self.state="inventory"
+                        elif k==pygame.K_F11: self._toggle_fullscreen()
+                        elif k==pygame.K_F1:
+                            self.settings_open=not self.settings_open
+                            self.settings_sel=0;SoundManager.play("open_ui")
+                        elif k==pygame.K_i: self.inv_sel=0;self.inv_tab=0;self.state="inventory";SoundManager.play("open_ui")
                         elif k==pygame.K_q: self.state="quest_log"
                         elif k==pygame.K_e: self._interact()
                         elif k==pygame.K_SPACE: self._auto_attack()
@@ -2239,6 +2691,17 @@ class Game:
                     self.ui.draw_victory(self.screen,self.tick)
 
             if self.trans_alpha>0: self.ui.draw_transition(self.screen,self.trans_alpha,self.entering_name)
+            # Settings overlay
+            if self.settings_open:
+                self.ui.draw_settings(self.screen,self.settings_sel,self.tick)
+            # FPS göstergesi
+            if CFG.show_fps:
+                fps_val=int(self.clock.get_fps())
+                fp=self.fps_font.render(f"FPS:{fps_val}",True,(100,200,100))
+                self.screen.blit(fp,(SW-fp.get_width()-4,SH-fp.get_height()-4))
+            # Mini görev yan paneli (sadece playing)
+            if self.state=="playing" and self.player and not self.settings_open:
+                self.ui.draw_mini_quests(self.screen,self.flags,self.player.stats.char_class)
             pygame.display.flip()
 
         pygame.quit();sys.exit()
@@ -2246,7 +2709,7 @@ class Game:
 
 if __name__=="__main__":
     print("="*56)
-    print("  KARANLIK TAÇ'IN LANETİ  v4.0")
+    print("  KARANLIK TAC'IN LANETI  v4.0")
     print("  pip install pygame  |  python pixel_rpg.py")
     print("  Yeni: Sinifa ozgun saldiri | Ekipman Sistemi")
     print("  Yeni: Gorunmez harita gecisleri | Genis orman")
