@@ -264,9 +264,78 @@ class SoundManager:
         try: s.set_volume(min(1.0,vol)); s.play()
         except Exception: pass
 
+    # Ambiyans müziği için basit loop thread
+    _music_thread = None
+    _music_stop   = False
+    _music_channel = None
+
+    @classmethod
+    def play_music(cls, theme:str="village"):
+        """Prosedürel ambient müzik loop — ayrı kanalda."""
+        if not cls._enabled: return
+        try:
+            import numpy as np, threading
+            sr = cls.SR
+            # Her temaya özel nota dizisi ve süre
+            themes = {
+                "village":   ([261,329,392,261,329,392,440,392], 0.30, "sine",  0.18),
+                "forest":    ([196,220,247,196,220,261,220,196], 0.40, "sine",  0.14),
+                "dungeon":   ([110,123,138,110,123,110,103,110], 0.50, "tri",   0.12),
+                "battle":    ([196,220,165,196,247,220,196,165], 0.22, "square",0.10),
+                "castle":    ([138,155,174,138,155,130,138,174], 0.45, "saw",   0.09),
+                "victory":   ([523,659,784,659,523,659,784,880], 0.20, "sine",  0.20),
+                "library":   ([220,247,277,247,220,196,220,247], 0.45, "sine",  0.13),
+            }
+            if theme not in themes: theme = "village"
+            notes, dur, wave, vol = themes[theme]
+            # Ses parçalarını oluştur
+            segs = []
+            for freq in notes:
+                n = int(sr*dur)
+                t = np.linspace(0, dur, n, dtype=np.float32)
+                if wave=="sine":   w = np.sin(2*np.pi*freq*t)
+                elif wave=="tri":  w = 2*np.abs(2*(t*freq - np.floor(t*freq+0.5)))-1
+                elif wave=="square": w = np.sign(np.sin(2*np.pi*freq*t))*0.5
+                else:              w = 2*(t*freq - np.floor(t*freq+0.5))
+                # Zarif giriş/çıkış
+                fade = min(int(sr*0.06), n//4)
+                env  = np.ones(n, dtype=np.float32)
+                env[:fade]  = np.linspace(0,1,fade)
+                env[-fade:] = np.linspace(1,0,fade)
+                w = w * env * vol
+                segs.append(w)
+            loop = np.concatenate(segs).astype(np.float32)
+            loop = np.clip(loop, -1, 1)
+            pcm  = (loop * 32767).astype(np.int16)
+            stereo = np.column_stack([pcm, pcm])
+            snd = pygame.sndarray.make_sound(stereo)
+            # Mevcut müziği durdur
+            cls.stop_music()
+            mv = CFG.data.get("master_vol",80) * CFG.data.get("music_vol",60) / 10000.0
+            snd.set_volume(min(1.0, mv))
+            cls._music_channel = snd.play(loops=-1)
+        except Exception as e:
+            pass  # Sessizce geç
+
+    @classmethod
+    def stop_music(cls):
+        try:
+            if cls._music_channel:
+                cls._music_channel.stop()
+                cls._music_channel = None
+        except Exception: pass
+
+    @classmethod
+    def update_music_volume(cls):
+        try:
+            if cls._music_channel:
+                mv = CFG.data.get("master_vol",80) * CFG.data.get("music_vol",60) / 10000.0
+                cls._music_channel.set_volume(min(1.0, mv))
+        except Exception: pass
+
     @classmethod
     def set_volume(cls,master:int,sfx:int):
-        pass  # dinamik olarak play()de uygulanıyor
+        cls.update_music_volume()
 
 # ─── Renkler ────────────────────────────────────────────────────
 BK=(0,0,0);WH=(255,255,255);DKG=(14,8,22)
@@ -1927,6 +1996,28 @@ class UI:
                 if b>0: self.txt(surf,f"+{b}{sk.upper()}",px+14+si3*80,py+ph-36,sc,self.fsm)
         self.txt(surf,"[Tab]Sekme  [I/ESC]Kapat  [Yon]Sec  [E]Kullan/Giy",px+14,py+ph-12,GR,self.fsm)
 
+    def draw_pause(self,surf,tick):
+        """ESC ile açılan duraklama menüsü."""
+        ov=pygame.Surface((SW,SH),pygame.SRCALPHA); ov.fill((0,0,0,160)); surf.blit(ov,(0,0))
+        pw,ph=360,260; px=SW//2-pw//2; py=SH//2-ph//2
+        self.panel(surf,px,py,pw,ph,glow=True)
+        self.txt(surf,"OYUN DURAKLATILDI",px+pw//2-110,py+14,UI_AC,self.flg)
+        opts=[
+            ("[ DEVAM ]",  (100,220,100)),
+            ("[ AYARLAR ]",(180,140,250)),
+            ("[ ANA MENU ]",(220,150,60)),
+            ("[ CIKIS ]",  (220,80,80)),
+        ]
+        for i,(label,col) in enumerate(opts):
+            oy=py+64+i*46
+            gv=int(abs(math.sin(tick*0.003))*25)
+            sel_this=(i==self._pause_sel)
+            ss=pygame.Surface((pw-28,38),pygame.SRCALPHA)
+            ss.fill((*col,70 if sel_this else 25))
+            pygame.draw.rect(ss,col if sel_this else (*col[:3],80),(0,0,pw-28,38),2 if sel_this else 1)
+            surf.blit(ss,(px+14,oy))
+            self.txt(surf,label,px+pw//2-len(label)*5,oy+9,col if sel_this else LGR,self.fmd)
+
     def draw_settings(self,surf,sel,tick):
         """Ayarlar paneli."""
         pw,ph=480,360;px=SW//2-pw//2;py=SH//2-ph//2
@@ -2123,12 +2214,24 @@ class Game:
         self.projectiles:List[Projectile]=[]
         self.settings_sel=0  # Ayarlar menüsü seçimi
         self.settings_open=False
+        self.pause_open=False
+        self._pause_sel=0  # Pause menüsü: 0=devam,1=ayarlar,2=ana menu,3=cikis
+
+    # Harita → müzik teması eşleşmesi
+    MAP_MUSIC = {
+        "ashveil":"village","dark_forest":"forest","ruins":"dungeon",
+        "desert":"battle","ice_cave":"dungeon","shadow_castle":"castle",
+        "village_dungeon":"dungeon","south_meadow":"village",
+        "west_river":"village","mystic_library":"library",
+    }
 
     def _start_game(self):
         st=self.temp_stats;st.hp=st.max_hp;st.mp=st.max_mp
         sx,sy=_snap(self.maps["ashveil"],29,25)
         self.player=Player(sx,sy,st)
         self.cur_key="ashveil";self.cur_map=self.maps["ashveil"];self.state="playing"
+        SoundManager.play_music(self.MAP_MUSIC.get("ashveil","village"))
+        SoundManager.play_music(self.MAP_MUSIC.get("ashveil","village"))
 
     def _cam(self):
         if not self.player: return
@@ -2158,6 +2261,7 @@ class Game:
         p=self.player;p.tx=tx;p.ty=ty;p.px=tx*TILE;p.py=ty*TILE
         self.pending_trans=None;self.transitioning=False;self.trans_alpha=0
         self.projectiles.clear();self._check_ch()
+        SoundManager.play_music(self.MAP_MUSIC.get(dst,"village"))
 
     def _check_ch(self):
         ch=self.flags["ch"]
@@ -2481,105 +2585,152 @@ class Game:
     def run(self):
         running=True
         while running:
-            self.tick=pygame.time.get_ticks();self.clock.tick(FPS)
+            self.tick=pygame.time.get_ticks(); self.clock.tick(FPS)
             for ev in pygame.event.get():
-                if ev.type==pygame.QUIT: running=False;break
-                if ev.type==pygame.KEYDOWN and ev.key==pygame.K_F11:
-                    self._toggle_fullscreen()
-                if ev.type==pygame.KEYDOWN and ev.key==pygame.K_F1 and self.state not in("title","story","class_select","stat_alloc"):
-                    self.settings_open=not self.settings_open
-                    self.settings_sel=0;SoundManager.play("open_ui")
-                # Settings menü navigasyonu
-                if ev.type==pygame.KEYDOWN and self.settings_open:
-                    sk2=ev.key
-                    opts2=["fullscreen","master_vol","sfx_vol","music_vol","language","show_fps"]
-                    if sk2==pygame.K_ESCAPE: self.settings_open=False;CFG.save();SoundManager.play("menu_back")
-                    elif sk2 in(pygame.K_UP,pygame.K_w): self.settings_sel=max(0,self.settings_sel-1);SoundManager.play("menu_sel")
-                    elif sk2 in(pygame.K_DOWN,pygame.K_s): self.settings_sel=min(len(opts2)-1,self.settings_sel+1);SoundManager.play("menu_sel")
-                    elif sk2 in(pygame.K_RIGHT,pygame.K_d,pygame.K_RETURN):
-                        key2=opts2[self.settings_sel]
-                        if key2=="fullscreen": self._toggle_fullscreen()
-                        elif key2=="master_vol": CFG.data["master_vol"]=min(100,CFG.data.get("master_vol",80)+10);CFG.save()
-                        elif key2=="sfx_vol": CFG.data["sfx_vol"]=min(100,CFG.data.get("sfx_vol",80)+10);CFG.save()
-                        elif key2=="music_vol": CFG.data["music_vol"]=min(100,CFG.data.get("music_vol",60)+10);CFG.save()
-                        elif key2=="language": CFG.data["language"]="EN" if CFG.data.get("language","TR")=="TR" else "TR";CFG.save()
-                        elif key2=="show_fps": CFG.data["show_fps"]=not CFG.data.get("show_fps",False);CFG.save()
-                        SoundManager.play("menu_sel")
-                    elif sk2 in(pygame.K_LEFT,pygame.K_a):
-                        key2=opts2[self.settings_sel]
-                        if key2=="master_vol": CFG.data["master_vol"]=max(0,CFG.data.get("master_vol",80)-10);CFG.save()
-                        elif key2=="sfx_vol": CFG.data["sfx_vol"]=max(0,CFG.data.get("sfx_vol",80)-10);CFG.save()
-                        elif key2=="music_vol": CFG.data["music_vol"]=max(0,CFG.data.get("music_vol",60)-10);CFG.save()
-                        SoundManager.play("menu_sel")
+                if ev.type==pygame.QUIT:
+                    running=False; break
+
                 if ev.type==pygame.KEYDOWN:
                     k=ev.key
+
+                    # ── Evrensel kısayollar (her state'te çalışır) ──
+                    if k==pygame.K_F11:
+                        self._toggle_fullscreen(); continue
+
+                    # ── Settings overlay açıkken ──
+                    if self.settings_open:
+                        opts_s=["fullscreen","master_vol","sfx_vol","music_vol","language","show_fps"]
+                        if k==pygame.K_ESCAPE or k==pygame.K_F1:
+                            self.settings_open=False; CFG.save(); SoundManager.play("menu_back")
+                        elif k in(pygame.K_UP,pygame.K_w):
+                            self.settings_sel=max(0,self.settings_sel-1); SoundManager.play("menu_sel")
+                        elif k in(pygame.K_DOWN,pygame.K_s):
+                            self.settings_sel=min(len(opts_s)-1,self.settings_sel+1); SoundManager.play("menu_sel")
+                        elif k in(pygame.K_RIGHT,pygame.K_d,pygame.K_RETURN):
+                            key2=opts_s[self.settings_sel]
+                            if key2=="fullscreen": self._toggle_fullscreen()
+                            elif key2=="master_vol": CFG.data["master_vol"]=min(100,CFG.data.get("master_vol",80)+10); SoundManager.update_music_volume()
+                            elif key2=="sfx_vol":   CFG.data["sfx_vol"]=min(100,CFG.data.get("sfx_vol",80)+10)
+                            elif key2=="music_vol": CFG.data["music_vol"]=min(100,CFG.data.get("music_vol",60)+10); SoundManager.update_music_volume()
+                            elif key2=="language":  CFG.data["language"]="EN" if CFG.data.get("language","TR")=="TR" else "TR"
+                            elif key2=="show_fps":  CFG.data["show_fps"]=not CFG.data.get("show_fps",False)
+                            CFG.save(); SoundManager.play("menu_sel")
+                        elif k in(pygame.K_LEFT,pygame.K_a):
+                            key2=opts_s[self.settings_sel]
+                            if key2=="master_vol": CFG.data["master_vol"]=max(0,CFG.data.get("master_vol",80)-10); SoundManager.update_music_volume()
+                            elif key2=="sfx_vol":  CFG.data["sfx_vol"]=max(0,CFG.data.get("sfx_vol",80)-10)
+                            elif key2=="music_vol":CFG.data["music_vol"]=max(0,CFG.data.get("music_vol",60)-10); SoundManager.update_music_volume()
+                            CFG.save(); SoundManager.play("menu_sel")
+                        continue  # Settings açıkken başka input geçmesin
+
+                    # ── Pause menüsü açıkken ──
+                    if self.pause_open:
+                        if k in(pygame.K_UP,pygame.K_w):
+                            self._pause_sel=max(0,self._pause_sel-1); SoundManager.play("menu_sel")
+                        elif k in(pygame.K_DOWN,pygame.K_s):
+                            self._pause_sel=min(3,self._pause_sel+1); SoundManager.play("menu_sel")
+                        elif k in(pygame.K_RETURN,pygame.K_e,pygame.K_SPACE):
+                            if self._pause_sel==0:   # Devam
+                                self.pause_open=False; SoundManager.play("menu_back")
+                            elif self._pause_sel==1: # Ayarlar
+                                self.settings_open=True; self.settings_sel=0; SoundManager.play("open_ui")
+                            elif self._pause_sel==2: # Ana Menü
+                                self._reset(); SoundManager.play("menu_back")
+                            elif self._pause_sel==3: # Çıkış
+                                running=False
+                        elif k==pygame.K_ESCAPE:
+                            self.pause_open=False; SoundManager.play("menu_back")
+                        continue
+
+                    # ── State'e göre input ──
                     if self.state=="title":
-                        if k in(pygame.K_RETURN,pygame.K_e): self.state="story"
+                        if k in(pygame.K_RETURN,pygame.K_e):
+                            self.state="story"; SoundManager.play("menu_sel")
+                        elif k==pygame.K_F1:
+                            self.settings_open=True; self.settings_sel=0; SoundManager.play("open_ui")
+
                     elif self.state=="story":
                         if k==pygame.K_RETURN:
                             if self.story_shown<len(STORY_LINES): self.story_shown=len(STORY_LINES)
-                            else: self.state="class_select";SoundManager.play("menu_sel")
-                        elif k==pygame.K_SPACE: self.story_shown=min(self.story_shown+1,len(STORY_LINES))
+                            else: self.state="class_select"; SoundManager.play("menu_sel")
+                        elif k==pygame.K_SPACE:
+                            self.story_shown=min(self.story_shown+1,len(STORY_LINES))
+                        elif k==pygame.K_ESCAPE:
+                            self.state="title"
+
                     elif self.state=="class_select":
                         ks=list(CLASS_INFO.keys())
-                        if k in(pygame.K_LEFT,pygame.K_a): self.class_sel=max(0,self.class_sel-1)
-                        elif k in(pygame.K_RIGHT,pygame.K_d): self.class_sel=min(len(ks)-1,self.class_sel+1)
+                        if k in(pygame.K_LEFT,pygame.K_a): self.class_sel=max(0,self.class_sel-1); SoundManager.play("menu_sel")
+                        elif k in(pygame.K_RIGHT,pygame.K_d): self.class_sel=min(len(ks)-1,self.class_sel+1); SoundManager.play("menu_sel")
                         elif k in(pygame.K_RETURN,pygame.K_e):
-                            self.temp_stats=PlayerStats(ks[self.class_sel]);self.free_pts=10;self.stat_sel=0;self.is_lu=False;self.state="stat_alloc"
+                            self.temp_stats=PlayerStats(ks[self.class_sel]); self.free_pts=10; self.stat_sel=0; self.is_lu=False; self.state="stat_alloc"; SoundManager.play("menu_sel")
+                        elif k==pygame.K_ESCAPE:
+                            self.state="story"
+
                     elif self.state=="stat_alloc":
-                        st=self.temp_stats;sk_m=["str","int","agi","vit","wis"];sk=sk_m[self.stat_sel];rsk="int_" if sk=="int" else sk
+                        st=self.temp_stats; sk_m=["str","int","agi","vit","wis"]; sk=sk_m[self.stat_sel]; rsk="int_" if sk=="int" else sk
                         if k in(pygame.K_UP,pygame.K_w): self.stat_sel=max(0,self.stat_sel-1)
                         elif k in(pygame.K_DOWN,pygame.K_s): self.stat_sel=min(4,self.stat_sel+1)
                         elif k in(pygame.K_RIGHT,pygame.K_d):
-                            if self.free_pts>0: setattr(st,rsk,getattr(st,rsk)+1);self.free_pts-=1
+                            if self.free_pts>0: setattr(st,rsk,getattr(st,rsk)+1); self.free_pts-=1; SoundManager.play("menu_sel")
                         elif k in(pygame.K_LEFT,pygame.K_a):
-                            if getattr(st,rsk)>2: setattr(st,rsk,getattr(st,rsk)-1);self.free_pts+=1
+                            if getattr(st,rsk)>2: setattr(st,rsk,getattr(st,rsk)-1); self.free_pts+=1; SoundManager.play("menu_sel")
                         elif k==pygame.K_RETURN:
-                            if self.is_lu: self.player.stats.skill_points=0;self.state="playing"
+                            if self.is_lu: self.player.stats.skill_points=0; self.state="playing"
                             else: self._start_game()
+                        elif k==pygame.K_ESCAPE:
+                            self.state="class_select"
+
                     elif self.state=="dialog":
                         if k in(pygame.K_e,pygame.K_RETURN,pygame.K_SPACE):
                             self.dlg_page+=1
                             if self.dlg_page*4>=len(self.dlg_lines): self.state="playing"
+                        elif k==pygame.K_ESCAPE:
+                            self.state="playing"
+
                     elif self.state=="inventory":
                         u=list(dict.fromkeys(self.player.inventory))
-                        if k==pygame.K_TAB: self.inv_tab=1-self.inv_tab
+                        if k==pygame.K_TAB: self.inv_tab=1-self.inv_tab; SoundManager.play("menu_sel")
                         elif k in(pygame.K_LEFT,pygame.K_a): self.inv_sel=max(0,self.inv_sel-1)
-                        elif k in(pygame.K_RIGHT,pygame.K_d): self.inv_sel=min(len(u)-1,self.inv_sel+1)
+                        elif k in(pygame.K_RIGHT,pygame.K_d): self.inv_sel=min(max(0,len(u)-1),self.inv_sel+1)
                         elif k in(pygame.K_UP,pygame.K_w): self.inv_sel=max(0,self.inv_sel-5)
-                        elif k in(pygame.K_DOWN,pygame.K_s): self.inv_sel=min(len(u)-1,self.inv_sel+5)
+                        elif k in(pygame.K_DOWN,pygame.K_s): self.inv_sel=min(max(0,len(u)-1),self.inv_sel+5)
                         elif k==pygame.K_e:
                             if self.inv_tab==0: self._inv_use_item()
                             elif self.inv_tab==1:
-                                # Ekipman sekmesinde slot seçili ekipmanı çıkar
-                                slots=["weapon","armor","ring"];slot=slots[min(self.stat_sel,2)]
+                                slots=["weapon","armor","ring"]; slot=slots[min(self.stat_sel,2)]
                                 old=self.player.stats.unequip(slot)
                                 if old: self.player.inventory.append(old)
                         elif k in(pygame.K_i,pygame.K_ESCAPE): self.state="playing"
+
                     elif self.state=="quest_log":
                         if k in(pygame.K_q,pygame.K_ESCAPE): self.state="playing"
+
                     elif self.state=="levelup_alloc":
-                        st=self.player.stats;sk_m=["str","int","agi","vit","wis"];sk=sk_m[self.stat_sel];rsk="int_" if sk=="int" else sk;fp=st.skill_points
+                        st=self.player.stats; sk_m=["str","int","agi","vit","wis"]; sk=sk_m[self.stat_sel]; rsk="int_" if sk=="int" else sk; fp=st.skill_points
                         if k in(pygame.K_UP,pygame.K_w): self.stat_sel=max(0,self.stat_sel-1)
                         elif k in(pygame.K_DOWN,pygame.K_s): self.stat_sel=min(4,self.stat_sel+1)
                         elif k in(pygame.K_RIGHT,pygame.K_d):
-                            if fp>0: setattr(st,rsk,min(30,getattr(st,rsk)+1));st.skill_points-=1
+                            if fp>0: setattr(st,rsk,min(30,getattr(st,rsk)+1)); st.skill_points-=1; SoundManager.play("menu_sel")
                         elif k in(pygame.K_LEFT,pygame.K_a):
-                            if getattr(st,rsk)>2: setattr(st,rsk,getattr(st,rsk)-1);st.skill_points+=1
+                            if getattr(st,rsk)>2: setattr(st,rsk,getattr(st,rsk)-1); st.skill_points+=1
                         elif k==pygame.K_RETURN:
                             if st.skill_points==0: self.state="playing"
+
                     elif self.state=="gameover":
                         if k==pygame.K_r: self._reset()
+
                     elif self.state=="victory":
-                        if k==pygame.K_ESCAPE: self._reset()
+                        if k in(pygame.K_ESCAPE,pygame.K_RETURN): self._reset()
+
                     elif self.state=="playing":
-                        if k==pygame.K_ESCAPE: running=False
-                        elif k==pygame.K_F11: self._toggle_fullscreen()
+                        if k==pygame.K_ESCAPE:
+                            self.pause_open=True; self._pause_sel=0; SoundManager.play("open_ui")
                         elif k==pygame.K_F1:
-                            self.settings_open=not self.settings_open
-                            self.settings_sel=0;SoundManager.play("open_ui")
-                        elif k==pygame.K_i: self.inv_sel=0;self.inv_tab=0;self.state="inventory";SoundManager.play("open_ui")
-                        elif k==pygame.K_q: self.state="quest_log"
+                            self.settings_open=True; self.settings_sel=0; SoundManager.play("open_ui")
+                        elif k==pygame.K_i:
+                            self.inv_sel=0; self.inv_tab=0; self.state="inventory"; SoundManager.play("open_ui")
+                        elif k==pygame.K_q: self.state="quest_log"; SoundManager.play("open_ui")
                         elif k==pygame.K_e: self._interact()
                         elif k==pygame.K_SPACE: self._auto_attack()
                         elif k in(pygame.K_1,pygame.K_KP1): self._use_ability(0)
@@ -2588,13 +2739,12 @@ class Game:
                         elif k in(pygame.K_4,pygame.K_KP4): self._use_ability(3)
                         elif k==pygame.K_u:
                             if self.player and self.player.stats.skill_points>0:
-                                self.stat_sel=0;self.temp_stats=self.player.stats;self.is_lu=True;self.state="levelup_alloc"
-
+                                self.stat_sel=0; self.temp_stats=self.player.stats; self.is_lu=True; self.state="levelup_alloc"
             if self.state=="story":
                 self.story_timer+=1
                 if self.story_timer%35==0: self.story_shown=min(self.story_shown+1,len(STORY_LINES))
 
-            if self.state=="playing" and self.player:
+            if self.state=="playing" and self.player and not self.pause_open:
                 p=self.player;keys=pygame.key.get_pressed();any_d=False
                 if keys[pygame.K_LEFT] or keys[pygame.K_a]: p.direction="left";any_d=True
                 elif keys[pygame.K_RIGHT] or keys[pygame.K_d]: p.direction="right";any_d=True
@@ -2691,6 +2841,9 @@ class Game:
                     self.ui.draw_victory(self.screen,self.tick)
 
             if self.trans_alpha>0: self.ui.draw_transition(self.screen,self.trans_alpha,self.entering_name)
+            # Pause overlay
+            if self.pause_open and self.state=="playing":
+                self.ui.draw_pause(self.screen,self.tick)
             # Settings overlay
             if self.settings_open:
                 self.ui.draw_settings(self.screen,self.settings_sel,self.tick)
