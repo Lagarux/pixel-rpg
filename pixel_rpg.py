@@ -972,11 +972,14 @@ class NPC(Entity):
         super().__init__(tx,ty);self.name=name;self.color=color;self.dialog_fn=dialog_fn;self.style=style
     def get_dialog(self,flags): return self.dialog_fn(flags)
     def draw(self,surf,cx,cy):
-        surf.blit(PA.npc_surf(self.color,self.frame,self.style),(self.px-cx,self.py-cy))
+        sx=self.px-cx; sy=self.py-cy
+        if not(-TILE<=sx<SW+TILE and -TILE<=sy<SH+TILE): return
+        surf.blit(PA.npc_surf(self.color,self.frame,self.style),(sx,sy))
         fnt=pygame.font.SysFont("monospace",9,bold=True);tag=fnt.render(self.name,True,WH)
-        tx2=self.px-cx+TILE//2-tag.get_width()//2;ty2=self.py-cy-14
-        bg=pygame.Surface((tag.get_width()+4,tag.get_height()+2),pygame.SRCALPHA)
-        bg.fill((0,0,0,160));surf.blit(bg,(tx2-2,ty2-1));surf.blit(tag,(tx2,ty2))
+        tx2=sx+TILE//2-tag.get_width()//2;ty2=sy-14
+        if 0<=tx2<SW and 0<=ty2<SH:
+            bg=pygame.Surface((tag.get_width()+4,tag.get_height()+2),pygame.SRCALPHA)
+            bg.fill((0,0,0,160));surf.blit(bg,(tx2-2,ty2-1));surf.blit(tag,(tx2,ty2))
 
 class Enemy(Entity):
     def __init__(self,tx,ty,kind,hp,atk,xp,agro=5,loot=None,is_boss=False):
@@ -986,7 +989,9 @@ class Enemy(Entity):
         self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
     def draw(self,surf,cx,cy):
         if not self.alive: return
-        sp=PA.enemy_surf(self.kind,self.frame);bx=self.px-cx;by=self.py-cy
+        bx=self.px-cx; by=self.py-cy
+        if not(-TILE*2<=bx<SW+TILE*2 and -TILE*2<=by<SH+TILE*2): return
+        sp=PA.enemy_surf(self.kind,self.frame)
         if self.kind=="malachar": surf.blit(sp,(bx-TILE//2,by-TILE//2))
         else: surf.blit(sp,(bx,by))
         if self.frozen>0:
@@ -1109,223 +1114,340 @@ def _add_trans(m,tiles,dst,dtx,dty,ground=T.GRASS,hint_dir=(1,0)):
         m.trans_hints[(tx,ty)]=(hint_dir[0],hint_dir[1],dst)
 
 # ─── Haritalar ───────────────────────────────────────────────────
+
+# ─── Yardımcı: Tek Şerit Geçiş ─────────────────────────────────
+def _trans_strip(m, axis, fixed, start, end, dst, dtx, dty, ground=None, hint=None):
+    """
+    Haritanın bir kenarına TEK TILE sırası geçiş koyar.
+    axis='x' → dikey şerit (fixed=tx, start/end=ty aralığı)
+    axis='y' → yatay şerit (fixed=ty, start/end=tx aralığı)
+    Geçiş tile'ları normal zemin olur, karakteri bloke etmez.
+    Spawn noktası (dtx,dty) güvenli konuma snap edilir.
+    """
+    if ground is None:
+        ground = T.GRASS
+    if hint is None:
+        hint = (1,0) if axis=='x' else (0,1)
+    tiles = []
+    if axis == 'x':
+        for ty in range(start, end):
+            m.set(fixed, ty, ground)
+            m.transitions[(fixed,ty)] = (dst, dtx, dty)
+            m.trans_hints[(fixed,ty)] = (hint[0], hint[1], dst)
+    else:
+        for tx in range(start, end):
+            m.set(tx, fixed, ground)
+            m.transitions[(tx,fixed)] = (dst, dtx, dty)
+            m.trans_hints[(tx,fixed)] = (hint[0], hint[1], dst)
+
+
 def build_ashveil():
-    m = GameMap(60, 50, "Ashveil Koyu")
-    _rect(m, 0, 0, 60, 50, T.GRASS)
+    m = GameMap(62, 52, "Ashveil Koyu")
+    _rect(m, 0, 0, 62, 52, T.GRASS)
     # Göl
     for ty in range(3, 12):
-        for tx in range(2, 14):
-            if (tx-7)**2 + (ty-7)**2 < 20: m.set(tx, ty, T.WATER)
+        for tx in range(2, 15):
+            if (tx-8)**2 + (ty-7)**2 < 22: m.set(tx, ty, T.WATER)
     for ty in range(2, 13):
-        for tx in range(1, 16):
-            if m.get(tx,ty)==T.GRASS:
-                if any(m.get(tx+dx,ty+dy)==T.WATER for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
-                    m.set(tx,ty,T.SAND)
+        for tx in range(1, 17):
+            if m.get(tx,ty)==T.GRASS and any(m.get(tx+dx,ty+dy)==T.WATER for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
+                m.set(tx, ty, T.SAND)
     # Ana yollar
-    _path(m, 2, 23, 58, 23, T.STONE, 2)
-    _path(m, 29, 2, 29, 48, T.STONE, 2)
-    # Evler (yol bağlantılı)
-    _room(m, 15,  7, 10, 8, T.WALL, T.FLOOR, "south")
-    _room(m, 33,  7, 10, 8, T.WALL, T.FLOOR, "south")
-    _room(m, 15, 28, 10, 8, T.WALL, T.FLOOR, "north")
-    _room(m, 33, 28, 10, 8, T.WALL, T.FLOOR, "north")
-    # Ev-yol bağlantıları
-    _path(m, 19, 15, 19, 23, T.STONE, 2)
-    _path(m, 37, 15, 37, 23, T.STONE, 2)
-    _path(m, 19, 28, 19, 23, T.STONE, 2)
-    _path(m, 37, 28, 37, 23, T.STONE, 2)
-    # Sandıklar ev içinde
-    m.set(17, 10, T.CHEST); m.chests[(17,10)] = ["hp_pot","gold"]
-    m.set(35, 10, T.CHEST); m.chests[(35,10)] = ["mp_pot","iron_sword"]
-    m.set(17, 30, T.CHEST); m.chests[(17,30)] = ["leather_armor","gold"]
-    # Sabit orman koridoru (sağ, y=19..27 tamamen açık)
-    for ty in range(0, 50):
-        for tx in range(42, 60):
-            if 19 <= ty <= 27:
+    _path(m, 2, 24, 60, 24, T.STONE, 2)
+    _path(m, 30, 2, 30, 50, T.STONE, 2)
+    # Evler — yoldan uzak, bağlantılı
+    _room(m, 16,  7, 10, 8, T.WALL, T.FLOOR, "south")
+    _room(m, 34,  7, 10, 8, T.WALL, T.FLOOR, "south")
+    _room(m, 16, 30, 10, 8, T.WALL, T.FLOOR, "north")
+    _room(m, 34, 30, 10, 8, T.WALL, T.FLOOR, "north")
+    _path(m, 20, 15, 20, 24, T.STONE, 2)
+    _path(m, 38, 15, 38, 24, T.STONE, 2)
+    _path(m, 20, 30, 20, 24, T.STONE, 2)
+    _path(m, 38, 30, 38, 24, T.STONE, 2)
+    # Sandıklar
+    m.set(18, 10, T.CHEST); m.chests[(18,10)] = ["hp_pot","gold"]
+    m.set(36, 10, T.CHEST); m.chests[(36,10)] = ["mp_pot","iron_sword"]
+    m.set(18, 32, T.CHEST); m.chests[(18,32)] = ["leather_armor","gold"]
+    # Zindan — taş yol üzerinde
+    _path(m, 28, 44, 34, 44, T.DIRT, 2)
+    _trans_strip(m, 'y', 46, 28, 34, "village_dungeon", 19, 3, T.DIRT, (0,1))
+
+    # ── SAĞDA SABİT ORMAN KORİDORU (y=20..28 geçit) ──
+    for ty in range(0, 52):
+        for tx in range(44, 62):
+            if 20 <= ty <= 28:
                 m.set(tx, ty, T.GRASS)
             else:
-                col = (tx-42) % 4; row = ty % 4
-                if col < 2 and row < 2: m.set(tx, ty, T.TREE)
-    for tx in range(38, 60):
-        m.set(tx, 22, T.STONE); m.set(tx, 23, T.STONE)
-    for ty in range(19, 28):
-        for tx in range(38, 60):
-            if m.get(tx,ty) == T.TREE: m.set(tx,ty,T.GRASS)
-    # Sınır ağaçları (geçişlerden ÖNCE)
-    for tx in range(0, 60): m.set(tx,0,T.TREE); m.set(tx,1,T.TREE)
-    for ty in range(0, 50): m.set(0,ty,T.TREE); m.set(1,ty,T.TREE)
-    # Geçişler (x=2,3'ten başlıyor, sınır ağacının üstüne yazılmıyor)
-    _add_trans(m, [(58,ty) for ty in range(20,27)]+[(59,ty) for ty in range(20,27)],
-               "dark_forest", 3, 22, T.GRASS, (1,0))
-    _add_trans(m, [(tx,48) for tx in range(20,32)]+[(tx,49) for tx in range(20,32)],
-               "south_meadow", 20, 3, T.GRASS, (0,1))
-    _add_trans(m, [(2,ty) for ty in range(20,29)]+[(3,ty) for ty in range(20,29)],
-               "west_river", 52, 22, T.GRASS, (-1,0))
-    _add_trans(m, [(27,46),(28,46),(29,46),(30,46),(27,47),(28,47),(29,47),(30,47)],
-               "village_dungeon", 18, 3, T.DIRT, (0,1))
+                col = (tx-44) % 6; row = ty % 6
+                if col < 3 and row < 3:
+                    m.set(tx, ty, T.TREE)
+    for tx in range(40, 62):
+        m.set(tx, 23, T.STONE); m.set(tx, 24, T.STONE)
+    for ty in range(20, 29):
+        for tx in range(40, 62):
+            if m.get(tx, ty) == T.TREE: m.set(tx, ty, T.GRASS)
+
+    # Sınır
+    for tx in range(0,62): m.set(tx,0,T.TREE); m.set(tx,1,T.TREE)
+    for ty in range(0,52): m.set(0,ty,T.TREE); m.set(1,ty,T.TREE)
+
+    # ── GEÇİŞLER (tek tile şeridi, karşı taraf güvenli spawn) ──
+    # Sağ → Karanlık Orman  (y=20..28, x=60)
+    _trans_strip(m,'x',60, 21,28, "dark_forest", 5,22, T.GRASS,(1,0))
+    # Güney → Çayır  (x=22..38, y=50)
+    _trans_strip(m,'y',50, 22,38, "south_meadow",22, 3, T.GRASS,(0,1))
+    # Batı → Nehir  (y=20..28, x=2)
+    _trans_strip(m,'x',2,  21,28, "west_river",  52,22, T.GRASS,(-1,0))
+
     # NPCler
     def aldric_d(f):
-        if f.get("ch",1)>=6: return ["Kahraman! Krallik sana borclu."]
-        if f.get("water_crystal"): return ["Su kristali bulundu!","Golge Kalesine git."]
-        if f.get("earth_crystal"): return ["Bir kristal bulundu!","Col Yoluna git, Oracle Nyx seni bekliyor."]
-        return ["Ah genc kahraman! Sonunda geldin.","Malachar'in muhuru cozuluyor.",
-                "Dort Kutsal Kristali bulmalısin.","Doğudaki Karanlik Ormandan basla.","[ Gorev Guncellendi! ]"]
-    m.npcs.append(NPC(22, 19, "Yasli Aldric", (160,100,60), aldric_d, "elder"))
-    def smith_d(f): return ["Iyi silahlar icin altin getir.","Sandıklardan ekipman bulabilirsin.","[I] ile ekipmanı giyin!"]
-    m.npcs.append(NPC(17, 13, "Demirci Boran", (140,90,50), smith_d, "guard"))
-    def inn_d(f): return ["Konaklamak ister misin?","Bol sans!"]
-    m.npcs.append(NPC(37, 13, "Hanci Mira", (180,130,160), inn_d))
+        if f.get("ch",1)>=6: return ["Kahraman! Krallık sana borçlu.","Malachar sonsuza dek hapsedildi."]
+        if f.get("water_crystal"): return ["Su Kristali bulundu!","Gölge Kalesi portalı Buz Mağarasında.","Çabuk ol!"]
+        if f.get("earth_crystal"): return ["Bir kristal bulundu!","Çöl Yoluna git.","Oracle Nyx seni bekliyor.","[ Görev Güncellendi! ]"]
+        return ["Ah genç kahraman! Sonunda geldin.","Malachar'ın mühürü çözülüyor.","Dört Kutsal Kristal toplanmalı.","Doğudaki Karanlık Orman'dan başla.","[ Görev Güncellendi! ]"]
+    m.npcs.append(NPC(24,19,"Yasli Aldric",(160,100,60),aldric_d,"elder"))
+    def smith_d(f): return ["İyi silahlar için altın getir.","Sandıklardan ekipman bulabilirsin.","[I] → Ekipman sekmesi → Giy."]
+    m.npcs.append(NPC(18,13,"Demirci Boran",(140,90,50),smith_d,"guard"))
+    def inn_d(f): return ["Konaklamak ister misin?","Yorgunluk geçer, HP yenilenir.","Bol şans kahraman!"]
+    m.npcs.append(NPC(38,13,"Hanci Mira",(180,130,160),inn_d))
     def guard_d(f):
-        if not f.get("speak_aldric"): return ["Dur! Once Yasli Aldric'i gor."]
-        return ["Gecebilirsin.","Doğuda Karanlik Orman var."]
-    m.npcs.append(NPC(54, 19, "Koy Muhafizi", (100,120,180), guard_d, "guard"))
-    def south_d(f): return ["Guneyde guzel cayirlar var."]
-    m.npcs.append(NPC(22, 45, "Yolcu", (160,180,140), south_d))
-    def west_d(f): return ["Batida nehir ve kopru var.","Balikci Riva orada yasiyor."]
-    m.npcs.append(NPC(6, 25, "Koy Yerlisi", (140,160,180), west_d))
+        if not f.get("speak_aldric"): return ["Dur! Önce Yaşlı Aldric'i gör.","O seni bekliyordu."]
+        return ["Geçebilirsin kahraman.","Doğuda Karanlık Orman var.","Dikkatli ol."]
+    m.npcs.append(NPC(56,22,"Koy Muhafizi",(100,120,180),guard_d,"guard"))
+    def south_d(f): return ["Güneyde güzel çayırlar var.","Çiftçi Torben'i ziyaret edebilirsin."]
+    m.npcs.append(NPC(24,48,"Yolcu",(160,180,140),south_d))
+    def west_d(f): return ["Batıda nehir ve köprü var.","Balıkçı Riva orada yaşıyor.","Nehrin kuzeyinde gizemli bir kütüphane varmış."]
+    m.npcs.append(NPC(4,24,"Koy Yerlisi",(140,160,180),west_d))
     m.enemies += [
-        Enemy(46,10,"slime",20,4,12,agro=4,loot=["gold"]),
-        Enemy(50, 8,"slime",20,4,12,agro=4),
-        Enemy(54,14,"goblin",35,7,22,agro=5,loot=["hp_pot"]),
+        Enemy(48,12,"slime",20,4,12,agro=4,loot=["gold"]),
+        Enemy(52,8, "slime",20,4,12,agro=4),
+        Enemy(56,14,"goblin",35,7,22,agro=5,loot=["hp_pot"]),
     ]
     _snap_all(m); return m
 
 
 def build_dark_forest():
-    """Sabit orman tasarımı."""
-    m = GameMap(56, 44, "Karanlik Orman", ambient=(0,20,0))
-    _rect(m, 0, 0, 56, 44, T.GRASS)
-    # Kenar ağaçları
-    for ty in range(44):
+    """Karanlık Orman — sabit tasarım, güney/batı çıkışları var."""
+    m = GameMap(58, 48, "Karanlik Orman", ambient=(0,20,0))
+    _rect(m, 0, 0, 58, 48, T.GRASS)
+    # Kenar 2 tile ağaç
+    for ty in range(48):
         m.set(0,ty,T.DARK_TREE); m.set(1,ty,T.DARK_TREE)
-        m.set(54,ty,T.DARK_TREE); m.set(55,ty,T.DARK_TREE)
-    for tx in range(56):
+        m.set(56,ty,T.DARK_TREE); m.set(57,ty,T.DARK_TREE)
+    for tx in range(58):
         m.set(tx,0,T.DARK_TREE); m.set(tx,1,T.DARK_TREE)
-        m.set(tx,42,T.DARK_TREE); m.set(tx,43,T.DARK_TREE)
-    # Sabit ağaç grupları (köşelerde, merkezden uzak)
+        m.set(tx,46,T.DARK_TREE); m.set(tx,47,T.DARK_TREE)
+    # Sabit ağaç grupları — köşelerde, yollardan uzak
     for tx,ty in [
-        (4,4),(5,4),(6,4),(4,5),(5,5),(4,6),(8,4),(9,4),(10,4),(8,5),(9,5),
-        (4,8),(5,8),(4,9),(5,9),(4,10),(8,8),(9,8),(10,8),(8,9),(9,9),
-        (42,4),(43,4),(44,4),(42,5),(43,5),(46,4),(47,4),(48,4),(46,5),(47,5),
-        (42,8),(43,8),(44,8),(42,9),(43,9),(46,8),(47,8),(48,8),(46,9),(47,9),
-        (4,30),(5,30),(6,30),(4,31),(5,31),(8,30),(9,30),(10,30),(8,31),(9,31),
-        (4,34),(5,34),(4,35),(5,35),(8,34),(9,34),(10,34),(8,35),(9,35),
-        (42,30),(43,30),(44,30),(42,31),(43,31),(46,30),(47,30),(48,30),
-        (42,34),(43,34),(44,34),(42,35),(43,35),(46,34),(47,34),(48,34),
-    ]: m.set(tx,ty,T.DARK_TREE)
-    # Ana yollar (tamamen temiz)
-    for ty in range(17,26):
-        for tx in range(56):
+        (4,4),(5,4),(6,4),(4,5),(5,5),(8,4),(9,4),(10,4),(8,5),(9,5),
+        (4,8),(5,8),(4,9),(5,9),(8,8),(9,8),(10,8),(8,9),(9,9),
+        (44,4),(45,4),(46,4),(44,5),(45,5),(48,4),(49,4),(50,4),(48,5),(49,5),
+        (44,8),(45,8),(46,8),(44,9),(45,9),(48,8),(49,8),(50,8),(48,9),(49,9),
+        (4,34),(5,34),(6,34),(4,35),(5,35),(8,34),(9,34),(10,34),(8,35),(9,35),
+        (4,38),(5,38),(4,39),(5,39),(8,38),(9,38),(10,38),(8,39),(9,39),
+        (44,34),(45,34),(46,34),(44,35),(45,35),(48,34),(49,34),(50,34),
+        (44,38),(45,38),(46,38),(44,39),(45,39),(48,38),(49,38),(50,38),
+    ]:
+        m.set(tx,ty,T.DARK_TREE)
+    # Ana yollar — tamamen temiz
+    for ty in range(18,28):
+        for tx in range(58):
             if m.get(tx,ty)==T.DARK_TREE: m.set(tx,ty,T.GRASS)
-    _path(m, 0, 21, 56, 21, T.DIRT, 2)
-    for ty in range(44):
-        for tx in range(24,32):
+    _path(m,0,22,58,22,T.DIRT,2)
+    for ty in range(48):
+        for tx in range(25,33):
             if m.get(tx,ty)==T.DARK_TREE: m.set(tx,ty,T.GRASS)
-    _path(m, 27, 0, 27, 44, T.DIRT, 2)
-    # Geçişler
-    _add_trans(m, [(2,ty) for ty in range(18,26)]+[(3,ty) for ty in range(18,26)],
-               "ashveil", 57, 23, T.GRASS, (-1,0))
-    _add_trans(m, [(tx,2) for tx in range(24,32)]+[(tx,3) for tx in range(24,32)],
-               "ruins", 16, 44, T.GRASS, (0,-1))
-    # Sandıklar (açık alanlarda)
-    m.set(16, 14, T.CHEST); m.chests[(16,14)] = ["hp_pot","fine_bow"]
-    m.set(38, 14, T.CHEST); m.chests[(38,14)] = ["mp_pot","power_ring"]
-    m.set(16, 28, T.CHEST); m.chests[(16,28)] = ["leather_armor","gold"]
+    _path(m,28,0,28,48,T.DIRT,2)
+
+    # ── GEÇİŞLER ──
+    # Sol → Ashveil  (y=21..27, x=2)
+    _trans_strip(m,'x',2, 21,27, "ashveil",   59,24, T.GRASS,(-1,0))
+    # Kuzey → Antik Harabeler  (x=25..31, y=2)
+    _trans_strip(m,'y',2, 25,31, "ruins",      16,46, T.GRASS,(0,-1))
+    # Güney → Kayalık Geçit  (x=25..31, y=46)
+    _trans_strip(m,'y',46,25,31, "rocky_pass",  28, 3, T.GRASS,(0,1))
+    # Batı alt → Sisli Bataklık  (y=32..40, x=2)
+    _trans_strip(m,'x',2, 32,40, "misty_swamp", 55,20, T.GRASS,(-1,0))
+
+    # Sandıklar
+    m.set(16,14,T.CHEST); m.chests[(16,14)] = ["hp_pot","fine_bow"]
+    m.set(40,14,T.CHEST); m.chests[(40,14)] = ["mp_pot","power_ring"]
+    m.set(16,30,T.CHEST); m.chests[(16,30)] = ["leather_armor","gold"]
+
     def roland_d(f):
-        if f.get("ch",1)>=3: return ["Iyi is cikardin. Harabeler seni bekliyor."]
-        return ["Ugh... Saldiriya ugradim.","Harabelerde Toprak Kristali var.",
-                "Kuzeye git!","Dikkat et — Taş Golem orayi koruyor!","[ Gorev Guncellendi! ]"]
-    m.npcs.append(NPC(20, 21, "Sir Roland", (130,160,130), roland_d, "knight"))
+        if f.get("ch",1)>=3: return ["İyi iş çıkardın.","Harabeler seni bekliyor.","Güneyde de keşfedilmemiş yerler var..."]
+        return ["Ugh... Saldırıya uğradım.","Harabelerde Toprak Kristali var.","Kuzeye git!","Dikkat et — Taş Golem orayı koruyor!","[ Görev Güncellendi! ]"]
+    m.npcs.append(NPC(22,22,"Sir Roland",(130,160,130),roland_d,"knight"))
+
     m.enemies += [
         Enemy(16,12,"wolf",35,8,20,agro=5,loot=["gold"]),
-        Enemy(36,12,"wolf",35,8,20,agro=5),
-        Enemy(40,18,"goblin",40,9,25,agro=5,loot=["hp_pot"]),
-        Enemy(16,30,"skeleton",50,11,32,agro=6,loot=["mp_pot"]),
-        Enemy(38,30,"goblin",45,10,28,agro=6,loot=["gold"]),
+        Enemy(38,12,"wolf",35,8,20,agro=5),
+        Enemy(42,18,"goblin",40,9,25,agro=5,loot=["hp_pot"]),
+        Enemy(16,32,"skeleton",50,11,32,agro=6,loot=["mp_pot"]),
+        Enemy(40,32,"goblin",45,10,28,agro=6,loot=["gold"]),
         Enemy(30,28,"wolf",42,9,22,agro=5,loot=["gold"]),
     ]
     _snap_all(m); return m
 
 
-def build_ruins():
-    """Antik Harabeler — tek bağlantılı zemin, kesin erişilebilir geçişler."""
-    m = GameMap(58, 52, "Antik Harabeler", ambient=(20,10,0))
-    # Tümü zemin başlangıçta, sonra duvar ekle
-    _rect(m, 0, 0, 58, 52, T.STONE)
-
-    # 3x3 ızgara oda iç zeminleri (aralarında koridor bırakarak)
-    # Sütun x: 2-14, 18-30, 34-52  |  Satır y: 2-12, 16-26, 30-46
-    room_coords = [
-        (2,2,13,11),   # r0c0
-        (18,2,13,11),  # r0c1
-        (34,2,19,11),  # r0c2
-        (2,16,13,11),  # r1c0
-        (18,16,13,11), # r1c1
-        (34,16,19,11), # r1c2
-        (2,30,13,17),  # r2c0
-        (18,30,13,17), # r2c1
-        (34,30,19,17), # r2c2 (boss)
-    ]
-    for rx,ry,rw,rh in room_coords:
-        _rect(m, rx, ry, rw, rh, T.FLOOR)
-
-    # Yatay koridorlar (geniş, garantili bağlantı)
-    _rect(m, 15, 5, 3, 5, T.FLOOR)   # r0: c0-c1
-    _rect(m, 31, 5, 3, 5, T.FLOOR)   # r0: c1-c2
-    _rect(m, 15,19, 3, 5, T.FLOOR)   # r1: c0-c1
-    _rect(m, 31,19, 3, 5, T.FLOOR)   # r1: c1-c2
-    _rect(m, 15,33, 3, 9, T.FLOOR)   # r2: c0-c1
-    _rect(m, 31,33, 3, 9, T.FLOOR)   # r2: c1-c2
-
-    # Dikey koridorlar
-    _rect(m,  6,13, 5, 3, T.FLOOR)   # c0: r0-r1
-    _rect(m,  6,27, 5, 3, T.FLOOR)   # c0: r1-r2
-    _rect(m, 22,13, 5, 3, T.FLOOR)   # c1: r0-r1
-    _rect(m, 22,27, 5, 3, T.FLOOR)   # c1: r1-r2
-    _rect(m, 40,13, 5, 3, T.FLOOR)   # c2: r0-r1
-    _rect(m, 40,27, 5, 3, T.FLOOR)   # c2: r1-r2
-
-    # RUINS_WALL (stone→wall komşu floora)
-    for ty in range(52):
-        for tx in range(58):
+def build_rocky_pass():
+    """Kayalık Geçit — Karanlık Orman'ın güneyinde, çöle bağlı."""
+    m = GameMap(48, 38, "Kayalik Gecit", ambient=(15,10,5))
+    _rect(m, 0, 0, 48, 38, T.STONE)
+    # Yürünebilir zemin (dağ geçidi)
+    # Tüm iç alanı zemin yap, sonra kayalar ekle
+    _rect(m, 2, 2, 44, 34, T.DIRT)
+    # Sabit kayalar (bloke etmez, sadece dekor)
+    for tx,ty in [(10,5),(11,5),(18,5),(19,5),(28,5),(29,5),(36,5),(37,5),
+                  (10,14),(11,14),(18,14),(19,14),(30,14),(31,14),
+                  (10,22),(11,22),(22,22),(23,22),(34,22),(35,22)]:
+        m.set(tx,ty,T.RUINS_WALL)
+    # Sabit kayalar (dekoratif, yolları kapatmaz)
+    for tx,ty in [(12,4),(13,4),(20,4),(21,4),(28,4),(29,4),(36,4),(37,4),
+                  (12,18),(13,18),(20,18),(21,18),(30,18),(31,18),
+                  (10,28),(11,28),(22,28),(23,28),(34,28),(35,28)]:
+        m.set(tx,ty,T.RUINS_WALL)
+    # Duvar düzelt
+    for ty in range(38):
+        for tx in range(48):
             if m.get(tx,ty)==T.STONE:
-                if any(m.get(tx+dx,ty+dy)==T.FLOOR for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
+                if any(m.get(tx+dx,ty+dy)==T.DIRT for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
                     m.set(tx,ty,T.RUINS_WALL)
 
-    # Boss odası ayrımı (r2c2 = (34,30,19,17)) → iç alan bölünür
-    # Boss alan: x=43..52, y=38..46
-    for tx2 in range(34,53): m.set(tx2,38,T.RUINS_WALL)
-    for ty2 in range(38,47): m.set(34,ty2,T.RUINS_WALL); m.set(52,ty2,T.RUINS_WALL)
-    m.set(47,38,T.DOOR); m.set(48,38,T.DOOR)
-    _rect(m, 35,39, 17, 7, T.FLOOR)
+    # Dış çerçeve
+    for tx in range(48): m.set(tx,0,T.RUINS_WALL); m.set(tx,37,T.RUINS_WALL)
+    for ty in range(38): m.set(0,ty,T.RUINS_WALL); m.set(47,ty,T.RUINS_WALL)
+    # GEÇİŞLER
+    _trans_strip(m,'y',1, 20,28, "dark_forest",  27,45, T.DIRT,(0,-1))
+    _trans_strip(m,'y',36,20,28, "desert",        20, 4, T.DIRT,(0,1))
+    _trans_strip(m,'x',46,15,23, "ruins",          2,21, T.DIRT,(1,0))
 
-    # Geçişler — oda ZEMİNİNDEN (kesin erişilebilir)
-    # Güney çıkış: r2c0 zemin içinden (x=4..13, y=46 sondan bir önceki satır)
-    _add_trans(m, [(tx,46) for tx in range(3,13)]+[(tx,47) for tx in range(3,13)],
-               "dark_forest", 26, 4, T.FLOOR, (0,1))
-    # Doğu çıkış: r1c2 zemin içinden (x=52, y=18..25)
-    _add_trans(m, [(52,ty) for ty in range(18,26)]+[(53,ty) for ty in range(18,26)],
-               "desert", 3, 23, T.FLOOR, (1,0))
+    m.set(8,  4, T.CHEST); m.chests[(8, 4)]  = ["hp_pot","hp_pot","gold"]
+    m.set(36, 4, T.CHEST); m.chests[(36,4)]  = ["mp_pot","power_ring"]
+    m.set(24,28, T.CHEST); m.chests[(24,28)] = ["hp_pot","iron_sword","gold"]
 
-    # Sandıklar (oda içlerinde)
-    m.set(5,  5,  T.CHEST); m.chests[(5,5)]   = ["hp_pot","mp_pot"]
-    m.set(21, 5,  T.CHEST); m.chests[(21,5)]  = ["arcane_staff","gold"]
-    m.set(40, 5,  T.CHEST); m.chests[(40,5)]  = ["mage_robe","gold"]
-    m.set(5,  20, T.CHEST); m.chests[(5,20)]  = ["hp_pot","power_ring"]
-    m.set(48, 43, T.CHEST); m.chests[(48,43)] = ["earth_c","hp_pot","hp_pot"]
+    def scout_d(f): return ["Bu geçit tehlikeli ama geçilebilir.","Güneyden çöle ulaşabilirsin.","Doğuda harabeler var.","Dikkatli ol!"]
+    m.npcs.append(NPC(24,16,"Gecit Gozcusu",(160,140,100),scout_d,"guard"))
+
+    m.enemies += [
+        Enemy(14, 6,"goblin",42,9,26,agro=5,loot=["gold"]),
+        Enemy(30, 6,"goblin",42,9,26,agro=5),
+        Enemy(10,18,"wolf",  38,9,22,agro=5,loot=["hp_pot"]),
+        Enemy(36,18,"wolf",  38,9,22,agro=5),
+        Enemy(14,26,"skeleton",52,11,30,agro=5,loot=["mp_pot"]),
+        Enemy(32,26,"skeleton",52,11,30,agro=5,loot=["gold"]),
+    ]
+    _snap_all(m); return m
+
+
+def build_misty_swamp():
+    """Sisli Bataklık — Karanlık Orman'ın batısında."""
+    m = GameMap(58, 42, "Sisli Bataklik", ambient=(10,20,10))
+    _rect(m, 0, 0, 58, 42, T.GRASS)
+    # Bataklık su alanları (sabit)
+    swamp_pools = [
+        (4,4,8,6),(16,2,10,7),(30,4,8,5),(44,2,10,8),
+        (2,18,6,8),(14,16,8,8),(28,14,10,10),(42,16,10,8),
+        (4,28,8,8),(20,28,8,8),(34,26,10,10),(46,28,8,8),
+    ]
+    for rx,ry,rw,rh in swamp_pools:
+        for ty in range(ry,ry+rh):
+            for tx in range(rx,rx+rw):
+                if 0<=tx<58 and 0<=ty<42: m.set(tx,ty,T.WATER)
+    # Kum adacıkları (yürünebilir)
+    for tx,ty in [(8,6),(9,6),(8,7),(12,8),(13,8),(12,9),
+                  (22,9),(23,9),(26,6),(27,6),(36,7),(37,7),
+                  (46,10),(47,10),(48,9),(10,22),(11,22),(10,23),
+                  (20,20),(21,20),(22,21),(30,18),(31,18),(38,20),
+                  (48,20),(49,20),(50,21),(8,32),(9,32),(14,30),
+                  (26,32),(27,32),(40,28),(41,28),(50,32)]:
+        m.set(tx,ty,T.SAND)
+    # Bataklık yolu (ana geçit)
+    _path(m, 2,20, 56,20, T.DIRT, 2)
+    _path(m,28, 2, 28,40, T.DIRT, 2)
+    # Kıyı şeridi
+    for ty in range(42):
+        for tx in range(58):
+            if m.get(tx,ty)==T.GRASS:
+                if any(m.get(tx+dx,ty+dy)==T.WATER for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
+                    m.set(tx,ty,T.SAND)
+
+    # GEÇİŞLER
+    # Doğu → Karanlık Orman  (y=19..27, x=56)
+    _trans_strip(m,'x',56,19,27, "dark_forest",  3,34, T.GRASS,(1,0))
+    # Kuzey → Ashveil  (x=25..31, y=2) – opsiyonel kısa yol
+    _trans_strip(m,'y',2, 25,31, "ashveil",      3,24, T.GRASS,(0,-1))
+
+    m.set(26,20, T.CHEST); m.chests[(26,20)] = ["hp_pot","mp_pot","gold"]
+    m.set(48,20, T.CHEST); m.chests[(48,20)] = ["hp_pot","power_ring"]
+    m.set(10,20, T.CHEST); m.chests[(10,20)] = ["hp_pot","gold","gold"]
+    m.set(46,20, T.CHEST); m.chests[(46,20)] = ["mp_pot","fine_bow"]
+
+    def witch_d(f): return ["Bataklığa hoş geldin yolcu.","Burada huzur vardır — bir de tehlike.","Batılarda kadim güçler uyur.","Dikkatli bas her adımı."]
+    m.npcs.append(NPC(30,19,"Bataklık Cadısı",(100,160,100),witch_d,"oracle"))
+
+    m.enemies += [
+        Enemy(10,20,"slime",   30, 6,18,agro=4,loot=["gold"]),
+        Enemy(38,22,"slime",   30, 6,18,agro=4),
+        Enemy(12,18,"goblin",  42, 9,26,agro=5,loot=["hp_pot"]),
+        Enemy(44,18,"goblin",  42, 9,26,agro=5,loot=["gold"]),
+        Enemy(10,30,"skeleton",52,11,30,agro=5,loot=["mp_pot"]),
+        Enemy(44,30,"skeleton",52,11,30,agro=5,loot=["gold"]),
+        Enemy(26,10,"boar",    45,10,28,agro=5,loot=["gold"]),
+        Enemy(32,32,"boar",    45,10,28,agro=5),
+    ]
+    _snap_all(m); return m
+
+
+def build_ruins():
+    m = GameMap(58, 52, "Antik Harabeler", ambient=(20,10,0))
+    _rect(m, 0, 0, 58, 52, T.STONE)
+    # Tüm iç alanı tek büyük zemin yap (duvarlar sonra)
+    _rect(m, 2, 2, 54, 48, T.FLOOR)
+    # Bölücü duvarlar (yatay — odaları ayırır)
+    for tx in range(2,56):  m.set(tx,13,T.RUINS_WALL); m.set(tx,27,T.RUINS_WALL)
+    # Bölücü duvarlar (dikey)
+    for ty in range(2,50):  m.set(15,ty,T.RUINS_WALL); m.set(30,ty,T.RUINS_WALL)
+    # Kapılar (her bölücü duvarda)
+    for tx in [8,22,42]:    m.set(tx,13,T.FLOOR); m.set(tx+1,13,T.FLOOR)
+    for tx in [8,22,42]:    m.set(tx,27,T.FLOOR); m.set(tx+1,27,T.FLOOR)
+    for ty in [7,20,36]:    m.set(15,ty,T.FLOOR); m.set(15,ty+1,T.FLOOR)
+    for ty in [7,20,36]:    m.set(30,ty,T.FLOOR); m.set(30,ty+1,T.FLOOR)
+    # Boss bölmesi (sağ alt)
+    for tx2 in range(31,55): m.set(tx2,36,T.RUINS_WALL)
+    for ty2 in range(36,50): m.set(31,ty2,T.RUINS_WALL); m.set(54,ty2,T.RUINS_WALL)
+    m.set(42,36,T.DOOR); m.set(43,36,T.DOOR)
+    _rect(m,32,37,22,12,T.FLOOR)
+    # Dış çerçeve duvarı
+    for tx in range(58): m.set(tx,0,T.RUINS_WALL); m.set(tx,51,T.RUINS_WALL)
+    for ty in range(52): m.set(0,ty,T.RUINS_WALL); m.set(57,ty,T.RUINS_WALL)
+
+    # GEÇİŞLER — dış duvarda tek şerit, karşıdaki spawn oda içinde
+    # Güney → Karanlık Orman
+    _trans_strip(m,'y',50, 5,14, "dark_forest",  27, 3, T.FLOOR,(0,1))
+    # Doğu → Çöl
+    _trans_strip(m,'x',56,19,26, "desert",        3,27, T.FLOOR,(1,0))
+    # Batı → Kayalık Geçit
+    _trans_strip(m,'x',1, 19,26, "rocky_pass",   44,17, T.FLOOR,(-1,0))
+
+    m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["hp_pot","mp_pot"]
+    m.set(20, 5,T.CHEST); m.chests[(20,5)] = ["arcane_staff","gold"]
+    m.set(42, 5,T.CHEST); m.chests[(42,5)] = ["mage_robe","gold"]
+    m.set(6, 20,T.CHEST); m.chests[(6,20)] = ["hp_pot","power_ring"]
+    m.set(44,44,T.CHEST); m.chests[(44,44)]= ["earth_c","hp_pot","hp_pot"]
 
     def ghost_d(f):
-        if f.get("earth_crystal"): return ["Kristalin hakkini kullandin.","Bati Colu'ne git."]
-        return ["Golem hala burada.","Dikkat et, cok guclu."]
-    m.npcs.append(NPC(8, 21, "Antik Ruh", (180,200,220), ghost_d))
+        if f.get("earth_crystal"): return ["Kristali aldın.","Batı Çölü'ne git, kahini bul."]
+        return ["Golem hâlâ burada bekliyor.","Dikkat et, çok güçlü."]
+    m.npcs.append(NPC(8,19,"Antik Ruh",(180,200,220),ghost_d))
     m.enemies += [
-        Enemy(6,  6, "skeleton",55,11,30,agro=5,loot=["gold"]),
-        Enemy(22, 6, "skeleton",55,11,30,agro=5),
-        Enemy(8, 20, "golem",   80,15,45,agro=4,loot=["gold","gold"]),
-        Enemy(26,20, "skeleton",60,12,35,agro=5,loot=["hp_pot"]),
-        Enemy(8, 34, "golem",   85,16,48,agro=4),
-        Enemy(26,34, "skeleton",65,13,38,agro=5,loot=["mp_pot"]),
-        Enemy(46,43, "golem",  130,20,80,agro=6,loot=["earth_c"],is_boss=True),
+        Enemy(6, 6,"skeleton",55,11,30,agro=5,loot=["gold"]),
+        Enemy(22, 6,"skeleton",55,11,30,agro=5),
+        Enemy(8, 19,"golem",  80,15,45,agro=4,loot=["gold","gold"]),
+        Enemy(24,19,"skeleton",60,12,35,agro=5,loot=["hp_pot"]),
+        Enemy(8, 33,"golem",  85,16,48,agro=4),
+        Enemy(24,33,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
+        Enemy(46,44,"golem", 130,20,80,agro=6,loot=["earth_c"],is_boss=True),
     ]
     _snap_all(m); return m
 
@@ -1333,233 +1455,184 @@ def build_ruins():
 def build_desert():
     m = GameMap(60, 44, "Col Yolu", ambient=(30,15,0))
     _rect(m, 0, 0, 60, 44, T.SAND)
-    # Sabit kaya grupları (yoldan uzak)
     for rx,ry,rs in [(6,6,3),(16,6,3),(52,6,3),(56,9,2),(6,36,3),(14,38,2),(52,36,3),(56,38,2)]:
         for ty in range(ry-rs,ry+rs+1):
             for tx in range(rx-rs,rx+rs+1):
                 if (tx-rx)**2+(ty-ry)**2<=rs*rs and 2<=tx<58 and 2<=ty<42:
                     m.set(tx,ty,T.STONE)
-    # Sabit kaktüsler
     for tx,ty in [(10,12),(20,8),(40,8),(50,14),(10,30),(20,36),(40,36),(50,28),(14,20),(46,20)]:
         if m.get(tx,ty)==T.SAND: m.set(tx,ty,T.CACTUS)
-    # Vaha (merkez, biraz daha yukarı — y=14..22)
     for ty in range(14,22):
         for tx in range(26,36):
             if (tx-31)**2+(ty-18)**2<16: m.set(tx,ty,T.WATER)
     for ty in range(13,23):
         for tx in range(25,37):
-            if m.get(tx,ty)==T.SAND:
-                if any(m.get(tx+dx,ty+dy)==T.WATER for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
-                    m.set(tx,ty,T.GRASS)
-    # Oracle evi (vaha KUZEYİNDE, y=5..10, su alanından uzak)
-    _room(m, 27, 5, 8, 6, T.WALL, T.FLOOR, "south")
-    # Oracle evi ile yol arasında boş SAND (y=11..25 zaten sand)
-    # Ana yol (vaha altında: y=28)
-    _path(m, 2, 28, 58, 28, T.DIRT, 2)
-    # Geçişler (yol üzerinde)
-    _add_trans(m, [(0,ty) for ty in range(26,31)]+[(1,ty) for ty in range(26,31)],
-               "ruins", 52, 21, T.SAND, (-1,0))
-    _add_trans(m, [(58,ty) for ty in range(26,31)]+[(59,ty) for ty in range(26,31)],
-               "ice_cave", 3, 28, T.SAND, (1,0))
-    # Sandıklar (yol kenarında)
-    m.set(5,  28, T.CHEST); m.chests[(5,28)]  = ["hp_pot","hp_pot","gold"]
-    m.set(54, 28, T.CHEST); m.chests[(54,28)] = ["shadow_bow","gold"]
-    m.set(30,  7, T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot"]
+            if m.get(tx,ty)==T.SAND and any(m.get(tx+dx,ty+dy)==T.WATER for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
+                m.set(tx,ty,T.GRASS)
+    _room(m,27,5,8,6,T.WALL,T.FLOOR,"south")
+    _path(m, 2,28,58,28,T.DIRT,2)
+    # GEÇİŞLER
+    _trans_strip(m,'x',2, 26,31, "ruins",    54,21, T.SAND,(-1,0))
+    _trans_strip(m,'x',58,26,31, "ice_cave",  3,28, T.SAND,(1,0))
+    _trans_strip(m,'y',2, 24,32, "rocky_pass",22,35, T.SAND,(0,-1))
+    m.set(5, 28,T.CHEST); m.chests[(5,28)]  = ["hp_pot","hp_pot","gold"]
+    m.set(54,28,T.CHEST); m.chests[(54,28)] = ["shadow_bow","gold"]
+    m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot"]
     def oracle_d(f):
-        if f.get("water_crystal"): return ["Ikinci kristali buldun.","Artik Golge Kalesine gidebilirsin."]
-        if f.get("earth_crystal"): return ["Hos geldin. Ikinci kristal Buz Magarasinda.","[ Gorev Guncellendi! ]"]
-        return ["Henuz hazir degilsin.","Once Toprak Kristalini bul."]
-    m.npcs.append(NPC(30, 8, "Oracle Nyx", (120,80,180), oracle_d, "oracle"))
+        if f.get("water_crystal"): return ["İkinci kristali buldun.","Artık Gölge Kalesi'ne gidebilirsin."]
+        if f.get("earth_crystal"): return ["Hoş geldin. İkinci kristal Buz Mağarası'nda.","[ Görev Güncellendi! ]"]
+        return ["Henüz hazır değilsin.","Önce Toprak Kristali'ni bul."]
+    m.npcs.append(NPC(30,8,"Oracle Nyx",(120,80,180),oracle_d,"oracle"))
     m.enemies += [
         Enemy(10,10,"scorpion",45,10,30,agro=5,loot=["gold"]),
         Enemy(48,10,"scorpion",45,10,30,agro=5),
-        Enemy(10,34,"goblin",50,11,32,agro=5,loot=["hp_pot"]),
-        Enemy(48,34,"goblin",50,11,32,agro=5,loot=["gold"]),
+        Enemy(10,34,"goblin",  50,11,32,agro=5,loot=["hp_pot"]),
+        Enemy(48,34,"goblin",  50,11,32,agro=5,loot=["gold"]),
         Enemy(22,10,"scorpion",50,12,35,agro=6),
-        Enemy(38,34,"goblin",55,12,35,agro=5,loot=["mp_pot"]),
+        Enemy(38,34,"goblin",  55,12,35,agro=5,loot=["mp_pot"]),
     ]
     _snap_all(m); return m
 
 
 def build_ice_cave():
-    """Buz Mağarası — tüm odalar tek bağlantılı, geçişler oda zemininden."""
     m = GameMap(52, 48, "Buz Magara", ambient=(0,15,30))
-    _rect(m, 0, 0, 52, 48, T.STONE)
-    # 3x3 oda ızgarası (tek parça zemin)
-    room_coords = [
+    _rect(m,0,0,52,48,T.STONE)
+    ice_rooms=[
         (2,2,12,11),(16,2,12,11),(30,2,20,11),
         (2,15,12,13),(16,15,12,13),(30,15,20,13),
         (2,30,12,16),(16,30,12,16),(30,30,20,16),
     ]
-    for rx,ry,rw,rh in room_coords:
-        _rect(m, rx, ry, rw, rh, T.SNOW)
-    # Buz zeminleri (birkaç oda)
-    _rect(m, 3, 3, 8, 6, T.ICE)
-    _rect(m, 17, 3, 8, 6, T.ICE)
-    _rect(m, 31, 3, 8, 6, T.ICE)
-    # Yatay koridorlar
-    _rect(m, 14,5, 2,5, T.SNOW); _rect(m, 28,5, 2,5, T.SNOW)
-    _rect(m, 14,18,2,7, T.SNOW); _rect(m, 28,18,2,7, T.SNOW)
-    _rect(m, 14,33,2,9, T.SNOW); _rect(m, 28,33,2,9, T.SNOW)
-    # Dikey koridorlar
-    _rect(m, 5,13, 5,2, T.SNOW); _rect(m, 5,28, 5,2, T.SNOW)
-    _rect(m,19,13, 5,2, T.SNOW); _rect(m,19,28, 5,2, T.SNOW)
-    _rect(m,36,13, 5,2, T.SNOW); _rect(m,36,28, 5,2, T.SNOW)
-    # SNOW_TREE sadece dış çerçeve (ÜST+SAĞ, sol ve alt geçişler için boş)
+    for rx,ry,rw,rh in ice_rooms: _rect(m,rx,ry,rw,rh,T.SNOW)
+    _rect(m,3,3,8,6,T.ICE); _rect(m,17,3,8,6,T.ICE); _rect(m,31,3,8,6,T.ICE)
+    _rect(m,14,5,2,5,T.SNOW); _rect(m,28,5,2,5,T.SNOW)
+    _rect(m,14,18,2,7,T.SNOW); _rect(m,28,18,2,7,T.SNOW)
+    _rect(m,14,33,2,9,T.SNOW); _rect(m,28,33,2,9,T.SNOW)
+    _rect(m,5,13,5,2,T.SNOW); _rect(m,5,28,5,2,T.SNOW)
+    _rect(m,19,13,5,2,T.SNOW); _rect(m,19,28,5,2,T.SNOW)
+    _rect(m,36,13,5,2,T.SNOW); _rect(m,36,28,5,2,T.SNOW)
     for tx in range(52): m.set(tx,0,T.SNOW_TREE); m.set(tx,1,T.SNOW_TREE)
     for ty in range(48): m.set(50,ty,T.SNOW_TREE); m.set(51,ty,T.SNOW_TREE)
-    # Boss odası (r2c2 = (30,30,20,16) iç)
+    # Boss odası
     for tx2 in range(30,50): m.set(tx2,36,T.STONE)
     for ty2 in range(36,46): m.set(30,ty2,T.STONE); m.set(49,ty2,T.STONE)
     m.set(39,36,T.DOOR); m.set(40,36,T.DOOR)
-    _rect(m, 31,37, 18,8, T.ICE)
-    # RUINS_WALL geçişi
-    for ty in range(48):
-        for tx in range(52):
-            if m.get(tx,ty)==T.STONE:
-                if any(m.get(tx+dx,ty+dy) in(T.SNOW,T.ICE) for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
-                    m.set(tx,ty,T.STONE)  # kalsın taş (görsel)
-    # Geçişler — oda zemininden (sol r1c0 + alt r2c0)
-    # Sol geçiş: r1c0 = (2,15,12,13), sol duvar x=2. x=2 zemin, x=1,0 dışarı
-    _add_trans(m, [(0,ty) for ty in range(17,25)]+[(1,ty) for ty in range(17,25)],
-               "desert", 57, 27, T.SNOW, (-1,0))
-    # Alt geçiş: r2c0 = (2,30,12,16), alt y=45. y=45 zemin
-    _add_trans(m, [(tx,46) for tx in range(3,12)]+[(tx,47) for tx in range(3,12)],
-               "shadow_castle", 22, 40, T.SNOW, (0,1))
-    # Sandıklar (oda içleri)
-    m.set(5,  5,  T.CHEST); m.chests[(5,5)]   = ["hp_pot","mp_pot"]
-    m.set(19, 5,  T.CHEST); m.chests[(19,5)]  = ["scout_coat","gold"]
-    m.set(5,  19, T.CHEST); m.chests[(5,19)]  = ["hp_pot","mp_pot"]
-    m.set(38, 42, T.CHEST); m.chests[(38,42)] = ["water_c","hp_pot","mp_pot","hp_pot"]
+    _rect(m,31,37,18,8,T.ICE)
+    # GEÇİŞLER
+    _trans_strip(m,'x',2,  17,25, "desert",        57,27, T.SNOW,(-1,0))
+    _trans_strip(m,'y',46,  4,12, "shadow_castle",  22,40, T.SNOW,(0,1))
+    m.set(5, 6,T.CHEST); m.chests[(5,6)]   = ["hp_pot","mp_pot"]
+    m.set(19, 6,T.CHEST); m.chests[(19,6)] = ["scout_coat","gold"]
+    m.set(5, 19,T.CHEST); m.chests[(5,19)] = ["hp_pot","mp_pot"]
+    m.set(38,42,T.CHEST); m.chests[(38,42)]= ["water_c","hp_pot","mp_pot","hp_pot"]
     def spirit_d(f):
-        if f.get("water_crystal"): return ["Kristali aldin.","Sol gecitten Golge Kalesine gidebilirsin!"]
-        return ["Kristal boss odada.","Dikkat et!"]
-    m.npcs.append(NPC(8, 20, "Buz Ruhu", (180,220,255), spirit_d))
+        if f.get("water_crystal"): return ["Kristali aldın.","Sol alt geçitten Gölge Kalesi'ne ulaşabilirsin!"]
+        return ["Kristal boss odasında.","Dikkat et!"]
+    m.npcs.append(NPC(8,20,"Buz Ruhu",(180,220,255),spirit_d))
     m.enemies += [
-        Enemy(5,  5, "ice_wolf",55,12,35,agro=5,loot=["gold"]),
-        Enemy(20, 5, "ice_wolf",55,12,35,agro=5),
-        Enemy(33, 5, "golem",   75,14,42,agro=4,loot=["hp_pot"]),
-        Enemy(8, 19, "ice_wolf",60,13,38,agro=5),
-        Enemy(22,22, "golem",   80,15,45,agro=4,loot=["mp_pot"]),
-        Enemy(8, 34, "golem",   85,16,50,agro=4,loot=["hp_pot"]),
-        Enemy(40,41, "golem",  180,25,120,agro=7,loot=["water_c"],is_boss=True),
+        Enemy(5, 5,"ice_wolf",55,12,35,agro=5,loot=["gold"]),
+        Enemy(20, 5,"ice_wolf",55,12,35,agro=5),
+        Enemy(33, 5,"golem",  75,14,42,agro=4,loot=["hp_pot"]),
+        Enemy(8, 19,"ice_wolf",60,13,38,agro=5),
+        Enemy(22,22,"golem",  80,15,45,agro=4,loot=["mp_pot"]),
+        Enemy(8, 34,"golem",  85,16,50,agro=4,loot=["hp_pot"]),
+        Enemy(40,41,"golem", 180,25,120,agro=7,loot=["water_c"],is_boss=True),
     ]
     _snap_all(m); return m
 
 
 def build_shadow_castle():
-    """Gölge Kalesi — açık zemin planı, tüm alanlar bağlantılı."""
     m = GameMap(56, 52, "Golge Kalesi", ambient=(40,0,60))
-    _rect(m, 0, 0, 56, 52, T.SHADOW)
-    # Tüm iç alanı zemin yap (duvarlar dekoratif)
-    _rect(m, 2, 2, 52, 48, T.FLOOR)
-    # Dekoratif gölge duvarlar (geçilebilir olmayan bölmeler, kapılı)
-    # Üst sol oda bölmesi
+    _rect(m,0,0,56,52,T.SHADOW)
+    _rect(m,2,2,52,48,T.FLOOR)
+    # Bölme duvarları (geçilebilir kapılı)
     for tx in range(2,20): m.set(tx,18,T.WALL)
     for ty in range(18,34): m.set(2,ty,T.WALL); m.set(19,ty,T.WALL)
-    m.set(10,18,T.DOOR); m.set(11,18,T.DOOR)   # kuzey kapı
-    m.set(10,33,T.DOOR); m.set(11,33,T.DOOR)   # güney kapı
-    # Üst sağ oda bölmesi
+    m.set(10,18,T.DOOR); m.set(11,18,T.DOOR)
+    m.set(10,33,T.DOOR); m.set(11,33,T.DOOR)
     for tx in range(36,54): m.set(tx,18,T.WALL)
     for ty in range(18,34): m.set(36,ty,T.WALL); m.set(53,ty,T.WALL)
     m.set(44,18,T.DOOR); m.set(45,18,T.DOOR)
     m.set(44,33,T.DOOR); m.set(45,33,T.DOOR)
-    # Merkez boss bölmesi
     for tx in range(20,36): m.set(tx,22,T.WALL); m.set(tx,30,T.WALL)
     for ty in range(22,31): m.set(20,ty,T.WALL); m.set(35,ty,T.WALL)
     m.set(27,22,T.DOOR); m.set(28,22,T.DOOR)
     m.set(27,30,T.DOOR); m.set(28,30,T.DOOR)
-    # Geçiş (sol duvar, açık alan içinden)
-    _add_trans(m, [(2,ty) for ty in range(23,30)]+[(3,ty) for ty in range(23,30)],
-               "ice_cave", 8, 44, T.FLOOR, (-1,0))
-    # Sandıklar
-    m.set(5,  5,  T.CHEST); m.chests[(5,5)]   = ["hp_pot","hp_pot","mp_pot"]
-    m.set(48, 5,  T.CHEST); m.chests[(48,5)]  = ["warrior_crest","hp_pot"]
-    m.set(5,  44, T.CHEST); m.chests[(5,44)]  = ["hp_pot","hp_pot","steel_sword"]
-    m.set(48, 44, T.CHEST); m.chests[(48,44)] = ["mage_focus","elder_staff"]
+    # GEÇİŞ
+    _trans_strip(m,'x',2, 23,30, "ice_cave",  8,44, T.FLOOR,(-1,0))
+    m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["hp_pot","hp_pot","mp_pot"]
+    m.set(48, 5,T.CHEST); m.chests[(48,5)] = ["warrior_crest","hp_pot"]
+    m.set(5, 44,T.CHEST); m.chests[(5,44)] = ["hp_pot","hp_pot","steel_sword"]
+    m.set(48,44,T.CHEST); m.chests[(48,44)]= ["mage_focus","elder_staff"]
     def king_d(f):
-        if f.get("malachar_defeated"): return ["Kahraman! Krallik sana borclu!"]
-        return ["Malachar cok guclu. Her iki kristal gerekmekte."]
-    m.npcs.append(NPC(10, 8, "Kral Alderon", (200,160,80), king_d, "guard"))
+        if f.get("malachar_defeated"): return ["Kahraman! Krallık sana borçlu!","Adın tarihe geçecek."]
+        return ["Malachar çok güçlü.","Her iki kristal gerekmekte.","Dikkat et!"]
+    m.npcs.append(NPC(10,8,"Kral Alderon",(200,160,80),king_d,"guard"))
     m.enemies += [
-        Enemy(8,  8, "shadow_knight",100,20,65,agro=6,loot=["hp_pot","gold"]),
-        Enemy(46, 8, "shadow_knight",100,20,65,agro=6,loot=["hp_pot"]),
-        Enemy(8, 44, "shadow_knight",110,22,70,agro=6,loot=["mp_pot","gold"]),
-        Enemy(46,44, "shadow_knight",110,22,70,agro=6,loot=["gold"]),
-        Enemy(10,24, "shadow_knight",120,24,75,agro=7,loot=["hp_pot","mp_pot"]),
-        Enemy(44,24, "shadow_knight",120,24,75,agro=7),
-        Enemy(27,26, "malachar",500,35,999,agro=10,loot=["gold","gold"],is_boss=True),
+        Enemy(8, 8,"shadow_knight",100,20,65,agro=6,loot=["hp_pot","gold"]),
+        Enemy(46, 8,"shadow_knight",100,20,65,agro=6,loot=["hp_pot"]),
+        Enemy(8, 44,"shadow_knight",110,22,70,agro=6,loot=["mp_pot","gold"]),
+        Enemy(46,44,"shadow_knight",110,22,70,agro=6,loot=["gold"]),
+        Enemy(10,26,"shadow_knight",120,24,75,agro=7,loot=["hp_pot","mp_pot"]),
+        Enemy(44,26,"shadow_knight",120,24,75,agro=7),
+        Enemy(27,26,"malachar",500,35,999,agro=10,loot=["gold","gold"],is_boss=True),
     ]
     _snap_all(m); return m
 
 
 def build_village_dungeon():
-    """Zindan — 4 oda tek bağlantılı zemin."""
     m = GameMap(40, 34, "Koy Altı Zindanı", ambient=(10,5,20))
-    _rect(m, 0, 0, 40, 34, T.STONE)
+    _rect(m,0,0,40,34,T.STONE)
     for tx in range(40): m.set(tx,0,T.RUINS_WALL); m.set(tx,33,T.RUINS_WALL)
     for ty in range(34): m.set(0,ty,T.RUINS_WALL); m.set(39,ty,T.RUINS_WALL)
-    # 4 oda (tüm iç alan tek parça)
-    _rect(m,  2,  2, 16, 12, T.FLOOR)
-    _rect(m, 22,  2, 16, 12, T.FLOOR)
-    _rect(m,  2, 18, 16, 14, T.FLOOR)
-    _rect(m, 22, 18, 16, 14, T.FLOOR)
-    # Koridorlar
-    _rect(m, 17,  4,  6,  7, T.FLOOR)
-    _rect(m, 17, 19,  6,  9, T.FLOOR)
-    _rect(m,  5, 13,  9,  5, T.FLOOR)
-    _rect(m, 26, 13,  9,  5, T.FLOOR)
-    # Duvar düzelt
+    _rect(m, 2, 2,16,12,T.FLOOR); _rect(m,22, 2,16,12,T.FLOOR)
+    _rect(m, 2,18,16,14,T.FLOOR); _rect(m,22,18,16,14,T.FLOOR)
+    _rect(m,17, 4, 6, 7,T.FLOOR); _rect(m,17,19, 6, 9,T.FLOOR)
+    _rect(m, 5,13, 9, 5,T.FLOOR); _rect(m,26,13, 9, 5,T.FLOOR)
     for ty in range(34):
         for tx in range(40):
-            if m.get(tx,ty)==T.STONE:
-                if any(m.get(tx+dx,ty+dy)==T.FLOOR for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
-                    m.set(tx,ty,T.RUINS_WALL)
-    # Çıkış (oda1 içinden)
-    _add_trans(m, [(tx,2) for tx in range(6,12)]+([(tx,3) for tx in range(6,12)]),
-               "ashveil", 28, 45, T.FLOOR, (0,-1))
-    m.set(6,  5,  T.CHEST); m.chests[(6,5)]   = ["hp_pot","mp_pot","gold"]
-    m.set(30, 5,  T.CHEST); m.chests[(30,5)]  = ["steel_sword","leather_armor","gold"]
-    m.set(6,  26, T.CHEST); m.chests[(6,26)]  = ["arcane_staff","mage_robe"]
-    m.set(30, 26, T.CHEST); m.chests[(30,26)] = ["hp_pot","hp_pot","mp_pot","swift_boots"]
+            if m.get(tx,ty)==T.STONE and any(m.get(tx+dx,ty+dy)==T.FLOOR for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
+                m.set(tx,ty,T.RUINS_WALL)
+    # GEÇİŞ (oda içinden, kuzey)
+    _trans_strip(m,'y',2,  7,12, "ashveil", 29,45, T.FLOOR,(0,-1))
+    m.set(6, 5,T.CHEST); m.chests[(6,5)]   = ["hp_pot","mp_pot","gold"]
+    m.set(30, 5,T.CHEST); m.chests[(30,5)] = ["steel_sword","leather_armor","gold"]
+    m.set(6, 26,T.CHEST); m.chests[(6,26)] = ["arcane_staff","mage_robe"]
+    m.set(30,26,T.CHEST); m.chests[(30,26)]= ["hp_pot","hp_pot","mp_pot","swift_boots"]
     m.enemies += [
-        Enemy(12, 7, "skeleton",70,14,45,agro=5,loot=["gold","gold"]),
-        Enemy(28, 6, "golem",  100,18,60,agro=4,loot=["hp_pot","gold"]),
-        Enemy(8,  26,"skeleton",80,16,50,agro=5,loot=["mp_pot"]),
-        Enemy(30, 26,"golem",  110,20,65,agro=4,loot=["gold","gold"]),
-        Enemy(20, 22,"skeleton",90,17,55,agro=6,loot=["hp_pot","gold"]),
+        Enemy(12, 7,"skeleton",70,14,45,agro=5,loot=["gold","gold"]),
+        Enemy(28, 6,"golem",  100,18,60,agro=4,loot=["hp_pot","gold"]),
+        Enemy(8, 26,"skeleton",80,16,50,agro=5,loot=["mp_pot"]),
+        Enemy(30,26,"golem",  110,20,65,agro=4,loot=["gold","gold"]),
+        Enemy(20,22,"skeleton",90,17,55,agro=6,loot=["hp_pot","gold"]),
     ]
     _snap_all(m); return m
 
 
 def build_south_meadow():
     m = GameMap(56, 42, "Guney Cayiri")
-    _rect(m, 0, 0, 56, 42, T.GRASS)
-    _rect(m, 5, 10, 20, 14, T.FARMLAND)
-    _rect(m, 28,10, 18, 14, T.WHEAT)
-    # Çit (girişli)
+    _rect(m,0,0,56,42,T.GRASS)
+    _rect(m,5,10,20,14,T.FARMLAND); _rect(m,28,10,18,14,T.WHEAT)
     for tx in range(4,48): m.set(tx,9,T.FENCE); m.set(tx,25,T.FENCE)
     for ty in range(9,26): m.set(4,ty,T.FENCE); m.set(47,ty,T.FENCE)
     m.set(20,9,T.GRASS); m.set(21,9,T.GRASS)
     m.set(20,25,T.GRASS); m.set(21,25,T.GRASS)
-    _room(m, 5, 28,14,10,T.WALL,T.FLOOR,"north")
-    _room(m,22, 28,10, 8,T.WALL,T.FLOOR,"north")
-    _path(m,20,  0,20,10,T.DIRT,2)
-    _path(m, 5, 22,52,22,T.DIRT,2)
+    _room(m,5,28,14,10,T.WALL,T.FLOOR,"north")
+    _room(m,22,28,10,8,T.WALL,T.FLOOR,"north")
+    _path(m,20,0,20,10,T.DIRT,2); _path(m,5,22,52,22,T.DIRT,2)
     for ty in range(30,40):
         for tx in range(42,54):
             if (tx-48)**2+(ty-35)**2<22: m.set(tx,ty,T.WATER)
     for tx in range(56): m.set(tx,40,T.TREE); m.set(tx,41,T.TREE)
     for ty in range(42): m.set(55,ty,T.TREE)
-    _add_trans(m, [(tx,0) for tx in range(16,26)]+[(tx,1) for tx in range(16,26)],
-               "ashveil", 23, 47, T.GRASS, (0,-1))
-    m.set(8,  30, T.CHEST); m.chests[(8,30)]  = ["farm_tool","hp_pot","gold"]
-    m.set(46, 22, T.CHEST); m.chests[(46,22)] = ["hp_pot","mana_gem"]
-    def farmer_d(f): return ["Hos geldin! Ben Ciftci Torben.","Yabanl hayvanlar artti.","Aletlerim sandikta."]
+    # GEÇİŞ
+    _trans_strip(m,'y',2,  16,26, "ashveil",  22,49, T.GRASS,(0,-1))
+    m.set(8, 30,T.CHEST); m.chests[(8,30)]  = ["farm_tool","hp_pot","gold"]
+    m.set(46,22,T.CHEST); m.chests[(46,22)] = ["hp_pot","mana_gem"]
+    def farmer_d(f): return ["Hoş geldin! Ben Çiftçi Torben.","Yaban hayvanlar arttı.","Aletlerim sandıkta, al kullan!"]
     m.npcs.append(NPC(10,30,"Ciftci Torben",(160,120,80),farmer_d,"farmer"))
-    def kid_d(f): return ["Seninle oynar miyim kahraman?"]
+    def kid_d(f): return ["Seninle oynar mıyım kahraman?"]
     m.npcs.append(NPC(35,12,"Ciftlik Cocugu",(180,200,160),kid_d))
-    def traveler_d(f): return ["Guzel cayirlar.","Batıda nehir var."]
+    def traveler_d(f): return ["Güzel çayırlar.","Batıda nehir var."]
     m.npcs.append(NPC(50,22,"Gezgin",(140,150,180),traveler_d))
     m.enemies += [
         Enemy(36, 4,"boar", 40, 9,25,agro=5,loot=["gold"]),
@@ -1574,48 +1647,32 @@ def build_south_meadow():
 
 def build_west_river():
     m = GameMap(56, 42, "Bati Nehri", ambient=(0,10,20))
-    _rect(m, 0, 0, 56, 42, T.GRASS)
-    # Nehir
+    _rect(m,0,0,56,42,T.GRASS)
     for ty in range(42):
         for tx in range(25,31): m.set(tx,ty,T.RIVER)
-    # Köprüler (yollarla hizalı: y=9..12 ve y=27..30)
     for tx in range(25,31):
         for ty in range(9,13):  m.set(tx,ty,T.BRIDGE)
         for ty in range(27,31): m.set(tx,ty,T.BRIDGE)
-    # Yollar
-    _path(m, 0,10,25,10,T.DIRT,2); _path(m,31,10,56,10,T.DIRT,2)
-    _path(m, 0,28,25,28,T.DIRT,2); _path(m,31,28,56,28,T.DIRT,2)
-    # Balıkçı kulübesi
-    _room(m, 3,14,10, 8,T.WALL,T.FLOOR,"east")
-    # Sabit ağaç grupları
+    _path(m,0,10,25,10,T.DIRT,2); _path(m,31,10,56,10,T.DIRT,2)
+    _path(m,0,28,25,28,T.DIRT,2); _path(m,31,28,56,28,T.DIRT,2)
+    _room(m,3,14,10,8,T.WALL,T.FLOOR,"east")
     for ty in range(0,8):
         for tx in range(0,10):
             if tx%3<2 and ty%3<2: m.set(tx,ty,T.TREE)
     for ty in range(33,42):
         for tx in range(35,56):
             if (tx-35)%3<2 and (ty-33)%3<2: m.set(tx,ty,T.TREE)
-    # Doğu geçişi
-    _add_trans(m, [(54,ty) for ty in range(18,28)]+[(55,ty) for ty in range(18,28)],
-               "ashveil", 3, 24, T.GRASS, (1,0))
-    # Kütüphane geçişi (kuzey)
-    _add_trans(m, [(tx,0) for tx in range(24,32)]+[(tx,1) for tx in range(24,32)],
-               "mystic_library", 21, 4, T.GRASS, (0,-1))
-    m.set(5,  16, T.CHEST); m.chests[(5,16)]  = ["river_gem","mp_pot","gold"]
-    m.set(46,  5, T.CHEST); m.chests[(46,5)]  = ["hp_pot","hp_pot","mana_gem"]
-    m.set(46, 33, T.CHEST); m.chests[(46,33)] = ["fine_bow","gold"]
+    # GEÇİŞLER
+    _trans_strip(m,'x',54,18,28, "ashveil",  3,24, T.GRASS,(1,0))
+    _trans_strip(m,'y',2, 24,32, "mystic_library",21, 4, T.GRASS,(0,-1))
+    m.set(5, 16,T.CHEST); m.chests[(5,16)]  = ["river_gem","mp_pot","gold"]
+    m.set(46,  5,T.CHEST); m.chests[(46,5)] = ["hp_pot","hp_pot","mana_gem"]
+    m.set(46, 33,T.CHEST); m.chests[(46,33)]= ["fine_bow","gold"]
     def fisher_d(f):
-        if f.get("sq_fish_done"): return [
-            "Teşekkürler kahraman!",
-            "Köy halkını uyardım.",
-            "Kütüphaneye kuzeydeki su yolundan ulaşabilirsin."]
-        return [
-            "Hoş geldin! Ben Balıkçı Riva.",
-            "Bu nehir eskiden berraktı.",
-            "Karanlık varlıklar bozdu her şeyi.",
-            "Köy halkını uyarır mısın?",
-            "[ Yan Görev: Balıkçı Yardımı tamamlandı! ]"]
+        if f.get("sq_fish_done"): return ["Teşekkürler kahraman!","Nehir haberlerini aldım.","Kütüphane kuzey kıyıda."]
+        return ["Hoş geldin! Ben Balıkçı Riva.","Bu nehir eskiden berraktı.","Karanlık varlıklar bozdu.","Köy halkını uyarır mısın?","[ Yan Görev: Balıkçı Yardımı tamamlandı! ]"]
     m.npcs.append(NPC(6,16,"Balikci Riva",(100,140,180),fisher_d))
-    def hermit_d(f): return ["Uzlette yasiyorum."]
+    def hermit_d(f): return ["Uzlette yaşıyorum.","Dünyanın gidişatını seyrediyorum."]
     m.npcs.append(NPC(44,4,"Munzevi",(180,160,200),hermit_d))
     m.enemies += [
         Enemy(18, 4,"slime",   30, 6,18,agro=4,loot=["gold"]),
@@ -1628,67 +1685,39 @@ def build_west_river():
     _snap_all(m); return m
 
 
-
 def build_mystic_library():
-    """Gizemli Kütüphane — gizli ek harita, mini görev merkezi."""
-    m = GameMap(44, 38, "Gizemli Kutuphane", ambient=(20, 0, 40))
-    _rect(m, 0, 0, 44, 38, T.STONE)
-    # Ana salon
-    _rect(m, 2,  2, 40, 34, T.FLOOR)
-    # Raf bölmeleri (dekoratif duvarlar, kapılı)
-    for tx in range(6, 38, 8):
-        for ty in range(4, 14):
-            m.set(tx, ty, T.RUINS_WALL)
-        m.set(tx, 8, T.FLOOR); m.set(tx, 9, T.FLOOR)
-    for tx in range(6, 38, 8):
-        for ty in range(22, 34):
-            m.set(tx, ty, T.RUINS_WALL)
-        m.set(tx, 28, T.FLOOR); m.set(tx, 29, T.FLOOR)
-    # Merkez büyü dairesi
-    _rect(m, 18, 16, 8, 6, T.ICE)
-    for tx in range(19, 25): m.set(tx, 17, T.FLOOR)
-    for tx in range(19, 25): m.set(tx, 20, T.FLOOR)
-    for ty in range(17, 21): m.set(19, ty, T.FLOOR); m.set(24, ty, T.FLOOR)
-    # Çıkış → Batı Nehri (arka kapı)
-    _add_trans(m, [(tx, 36) for tx in range(18, 26)] +
-                  [(tx, 37) for tx in range(18, 26)],
-               "west_river", 28, 5, T.FLOOR, (0, 1))
-    # Giriş (Batı Nehri'nden)
-    _add_trans(m, [(tx, 2) for tx in range(18, 26)] +
-                  [(tx, 3) for tx in range(18, 26)],
-               "west_river", 28, 6, T.FLOOR, (0, -1))
-    # Sandıklar (mini görev ödülleri)
-    m.set(5,  5,  T.CHEST); m.chests[(5, 5)]  = ["arcane_staff", "mp_pot", "gold"]
-    m.set(37, 5,  T.CHEST); m.chests[(37, 5)] = ["mage_focus",   "mp_pot"]
-    m.set(5,  30, T.CHEST); m.chests[(5, 30)] = ["elder_staff",  "mp_pot", "mp_pot"]
-    m.set(37, 30, T.CHEST); m.chests[(37, 30)]= ["hp_pot", "mp_pot", "swift_boots", "gold"]
-    # NPC: Kütüphaneci
+    m = GameMap(44, 38, "Gizemli Kutuphane", ambient=(20,0,40))
+    _rect(m,0,0,44,38,T.STONE)
+    _rect(m,2,2,40,34,T.FLOOR)
+    for tx in range(6,38,8):
+        for ty in range(4,14): m.set(tx,ty,T.RUINS_WALL)
+        m.set(tx,8,T.FLOOR); m.set(tx,9,T.FLOOR)
+    for tx in range(6,38,8):
+        for ty in range(22,34): m.set(tx,ty,T.RUINS_WALL)
+        m.set(tx,28,T.FLOOR); m.set(tx,29,T.FLOOR)
+    _rect(m,18,16,8,6,T.ICE)
+    for tx in range(19,25): m.set(tx,17,T.FLOOR); m.set(tx,20,T.FLOOR)
+    for ty in range(17,21): m.set(19,ty,T.FLOOR); m.set(24,ty,T.FLOOR)
+    # GEÇİŞLER
+    _trans_strip(m,'y',2, 18,26, "west_river",26, 3, T.FLOOR,(0,-1))
+    _trans_strip(m,'y',36,18,26, "west_river",26, 4, T.FLOOR,(0,1))
+    m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["arcane_staff","mp_pot","gold"]
+    m.set(37, 5,T.CHEST); m.chests[(37,5)] = ["mage_focus","mp_pot"]
+    m.set(5, 30,T.CHEST); m.chests[(5,30)] = ["elder_staff","mp_pot","mp_pot"]
+    m.set(37,30,T.CHEST); m.chests[(37,30)]= ["hp_pot","mp_pot","swift_boots","gold"]
     def libr_d(f):
-        done = [f.get("sq_scroll1"), f.get("sq_scroll2"), f.get("sq_scroll3")]
-        n = sum(1 for x in done if x)
-        if n >= 3: return [
-            "Tüm parşömenleri buldun!",
-            "Kütüphanemiz yeniden eksiksiz.",
-            "Sana özel büyü kitabını ver.",
-            "Sandıklar ödüllerle dolu, al!",
-            "Bir daha gelirsen burada olacağım."]
-        return [
-            f"Ben Kütüphaneci Elan.",
-            f"Bu kadim kütüphane yüzyıllardır burada.",
-            f"Ama 3 parşömen kayboldu!",
-            f"Bulduklarında getir. ({n}/3 bulundu)",
-            f"Harabelar, çöl ve buz mağarasında olabilirler."]
-    m.npcs.append(NPC(21, 19, "Kutuphaneci Elan", (140, 100, 200), libr_d, "oracle"))
-    # Düşmanlar (küçük büyülü varlıklar)
+        n=sum(1 for k in["sq_scroll1","sq_scroll2","sq_scroll3"] if f.get(k))
+        if n>=3: return ["Tüm parşömenleri buldun!","Kütüphanemiz yeniden eksiksiz.","Sandıklar ödüllerle dolu!"]
+        return [f"Ben Kütüphaneci Elan.",f"3 parşömen kayboldu! ({n}/3 bulundu)","Harabelerde, çölde ve buz mağarasında olabilirler."]
+    m.npcs.append(NPC(21,19,"Kutuphaneci Elan",(140,100,200),libr_d,"oracle"))
     m.enemies += [
-        Enemy(10,  8, "skeleton", 65, 13, 38, agro=5, loot=["mp_pot"]),
-        Enemy(28,  8, "skeleton", 65, 13, 38, agro=5, loot=["mp_pot"]),
-        Enemy(10, 26, "golem",    90, 16, 52, agro=4, loot=["gold"]),
-        Enemy(28, 26, "golem",    90, 16, 52, agro=4, loot=["gold"]),
-        Enemy(21, 18, "skeleton", 75, 14, 45, agro=6, loot=["mp_pot", "gold"]),
+        Enemy(10, 8,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
+        Enemy(28, 8,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
+        Enemy(10,26,"golem",   90,16,52,agro=4,loot=["gold"]),
+        Enemy(28,26,"golem",   90,16,52,agro=4,loot=["gold"]),
+        Enemy(21,18,"skeleton",75,14,45,agro=6,loot=["mp_pot","gold"]),
     ]
-    _snap_all(m)
-    return m
+    _snap_all(m); return m
 
 
 # ─── UI ─────────────────────────────────────────────────────────
@@ -1996,7 +2025,7 @@ class UI:
                 if b>0: self.txt(surf,f"+{b}{sk.upper()}",px+14+si3*80,py+ph-36,sc,self.fsm)
         self.txt(surf,"[Tab]Sekme  [I/ESC]Kapat  [Yon]Sec  [E]Kullan/Giy",px+14,py+ph-12,GR,self.fsm)
 
-    def draw_pause(self,surf,tick):
+    def draw_pause(self,surf,tick,pause_sel=0):
         """ESC ile açılan duraklama menüsü."""
         ov=pygame.Surface((SW,SH),pygame.SRCALPHA); ov.fill((0,0,0,160)); surf.blit(ov,(0,0))
         pw,ph=360,260; px=SW//2-pw//2; py=SH//2-ph//2
@@ -2010,8 +2039,7 @@ class UI:
         ]
         for i,(label,col) in enumerate(opts):
             oy=py+64+i*46
-            gv=int(abs(math.sin(tick*0.003))*25)
-            sel_this=(i==self._pause_sel)
+            sel_this=(i==pause_sel)
             ss=pygame.Surface((pw-28,38),pygame.SRCALPHA)
             ss.fill((*col,70 if sel_this else 25))
             pygame.draw.rect(ss,col if sel_this else (*col[:3],80),(0,0,pw-28,38),2 if sel_this else 1)
@@ -2189,6 +2217,7 @@ class Game:
             "shadow_castle":build_shadow_castle(),"village_dungeon":build_village_dungeon(),
             "south_meadow":build_south_meadow(),"west_river":build_west_river(),
             "mystic_library":build_mystic_library(),
+            "rocky_pass":build_rocky_pass(),"misty_swamp":build_misty_swamp(),
         }
         self.cur_key="ashveil";self.cur_map=self.maps["ashveil"]
         self.state="title";self.tick=0
@@ -2843,7 +2872,7 @@ class Game:
             if self.trans_alpha>0: self.ui.draw_transition(self.screen,self.trans_alpha,self.entering_name)
             # Pause overlay
             if self.pause_open and self.state=="playing":
-                self.ui.draw_pause(self.screen,self.tick)
+                self.ui.draw_pause(self.screen,self.tick,self._pause_sel)
             # Settings overlay
             if self.settings_open:
                 self.ui.draw_settings(self.screen,self.settings_sel,self.tick)
