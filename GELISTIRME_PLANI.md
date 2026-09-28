@@ -4,7 +4,7 @@
 > yol haritasını tutar. Her fazın sonunda testleri çalıştırıp bu dosyayı güncelliyoruz.
 > Böylece "neyi, neden, hangi kanıta dayanarak" değiştirdiğimiz kayıt altında kalır.
 
-**Son güncelleme:** 2026-09-28 · **Oyun sürümü:** v5.0 · **Aktif faz:** Faz 2 (Faz 0 ve Faz 1 tamamlandı)
+**Son güncelleme:** 2026-09-28 · **Oyun sürümü:** v5.0 · **Aktif faz:** Faz 3 (Faz 0-1-2 tamamlandı)
 
 ---
 
@@ -47,8 +47,23 @@ ama çizim gerçekten yapılır — yani görüntüler oyunun gerçek kareleridi
 | Kullanılmayan yerelleştirme anahtarı | **36 anahtarın 21'i** | EN dili yarım çalışıyor · *Faz 1 sonrası: 15* |
 | `FontManager` çağrısı | **0** | `assets/fonts` içindeki 8 font hiç kullanılmıyor · *Faz 1 sonrası: devrede* |
 
-> Faz 1 yalnızca hataları hedefledi; akıcılık ölçümleri (adım büyüklüğü, kamera, çapraz)
-> bilerek değişmedi — onlar Faz 2'nin işi ve kabul kriteri.
+### Faz 2 sonrası (2026-09-28)
+
+Akıcılık ölçümleri artık **işaretli yürüyüş penceresinden** alınıyor (`mark("yuru_basla")` →
+`mark("yuru_bitti")`). Önceki "5/402" gibi oranlar tüm oturuma bölündüğü için yanıltıcıydı:
+menüde ve diyalogda geçen kareler de paydaya giriyordu.
+
+| Ölçüm | Faz 0 | Faz 2 | Kabul |
+|---|---|---|---|
+| Oyuncu adımı (en büyük) | 32 px (ışınlanma) | **3,2 px** | < 16 px ✔ |
+| Hareketli kare oranı (yürürken) | %10 (10 karede 1 adım) | **%92** | > %80 ✔ |
+| Kamera adımı (en büyük) | 32 px | **4 px** | < 16 px ✔ |
+| Çapraz hareket | yok | **(31,25) → (34,28)** | iki eksen de ✔ |
+| Kare başına `SysFont()` | 1,0 | **0** | 0 ✔ |
+| Ham kare maliyeti (köy) | 3,27 ms (~306 FPS) | **~1,0 ms (~900 FPS)** | — |
+
+Oyun hızı bilerek değişmedi: bir kare hâlâ `move_delay` kadar sürüyor (savaşçıda 10 kare),
+yalnızca arası dolduruluyor. Çapraz adım `×1,41` sürüyor ki çapraz gitmek hızlı olmasın.
 
 ---
 
@@ -76,13 +91,13 @@ ama çizim gerçekten yapılır — yani görüntüler oyunun gerçek kareleridi
 
 | ID | Şiddet | Bulgu | Kanıt | Öneri |
 |---|---|---|---|---|
-| A1 | 🔴 | **Kafes atlamalı hareket:** `_try_move` piksel konumunu anında hedefe atıyor, ara kare yok. Karakter 10 karede bir 32 px ışınlanıyor | ölçüm: adım = {32 px}, hareketli kare 5/402; `pixel_rpg.py:2277` | Kareler arası doğrusal geçiş: `move_progress` 0→1 ilerlerken `px/py` interpolasyonu + yürüme animasyonu |
-| A2 | 🔴 | **Kamera sıçrıyor:** hedefe anında atanıyor | ölçüm: kamera adımı {32 px}; `pixel_rpg.py:2267` | Yumuşatma (`cam += (hedef-cam) * 0.15`) + küçük ölü bölge |
-| A3 | 🟠 | Çapraz hareket yok; `elif` zinciri tek yön seçiyor, öncelik sol > sağ > yukarı > aşağı | ölçüm: ↓+→ → yalnız sağa; `pixel_rpg.py:2778-2781` | Yön vektörünü topla, çapraz hareketi de dene (duvara değince kaydır) |
-| A4 | 🟠 | Tüm zamanlama **kare sayısına** bağlı (hareket gecikmesi, bekleme süreleri, dokunulmazlık). FPS düşerse oyun yavaşlar | `pixel_rpg.py:2782-2795` | `dt` tabanlı zamanlama |
+| ✅ A1 | 🔴 | **Kafes atlamalı hareket:** `_try_move` piksel konumunu anında hedefe atıyor, ara kare yok. Karakter 10 karede bir 32 px ışınlanıyor | ölçüm: adım = {32 px}, hareketli kare 5/402; `pixel_rpg.py:2277` | Kareler arası doğrusal geçiş: `move_progress` 0→1 ilerlerken `px/py` interpolasyonu + yürüme animasyonu |
+| ✅ A2 | 🔴 | **Kamera sıçrıyor:** hedefe anında atanıyor | ölçüm: kamera adımı {32 px}; `pixel_rpg.py:2267` | Yumuşatma (`cam += (hedef-cam) * 0.15`) + küçük ölü bölge |
+| ✅ A3 | 🟠 | Çapraz hareket yok; `elif` zinciri tek yön seçiyor, öncelik sol > sağ > yukarı > aşağı | ölçüm: ↓+→ → yalnız sağa; `pixel_rpg.py:2778-2781` | Yön vektörünü topla, çapraz hareketi de dene (duvara değince kaydır) |
+| ✅ A4 | 🟠 | Tüm zamanlama **kare sayısına** bağlı (hareket gecikmesi, bekleme süreleri, dokunulmazlık). FPS düşerse oyun yavaşlar | `pixel_rpg.py:2782-2795` | `dt` tabanlı zamanlama |
 | A5 | 🟠 | Düşman AI eksen-açgözlü: tek eksende ilerliyor, duvar köşesinde takılıyor; yol bulma yok (oysa BFS için `deque` projede zaten var) | `pixel_rpg.py:2540-2548`, `:1088` | Kısa menzilli BFS/A* + takılınca yan adım |
-| A6 | 🟡 | `grad_bar` ve `panel` her karede piksel piksel çizgi çiziyor: HUD'da 3 bar + panel yüksekliği → kare başına ~1000 `draw.line` | `pixel_rpg.py:1738-1758`; ham kare 3,27 ms | Bar/panel yüzeylerini önbelleğe al, değişince yeniden üret |
-| A7 | 🟡 | `NPC.draw` ve boss çizimi **her karede** `SysFont` çağırıyor | ölçüm: 1,0 çağrı/kare (tek NPC); `pixel_rpg.py:978`, `:1005` | Sınıf düzeyinde font önbelleği |
+| ✅ A6 | 🟡 | `grad_bar` ve `panel` her karede piksel piksel çizgi çiziyor: HUD'da 3 bar + panel yüksekliği → kare başına ~1000 `draw.line` | `pixel_rpg.py:1738-1758`; ham kare 3,27 ms | Bar/panel yüzeylerini önbelleğe al, değişince yeniden üret |
+| ✅ A7 | 🟡 | `NPC.draw` ve boss çizimi **her karede** `SysFont` çağırıyor | ölçüm: 1,0 çağrı/kare (tek NPC); `pixel_rpg.py:978`, `:1005` | Sınıf düzeyinde font önbelleği |
 
 ### 2.3 Etkileşim ve his
 
@@ -155,13 +170,33 @@ ama çizim gerçekten yapılır — yani görüntüler oyunun gerçek kareleridi
 **Yan etki:** Ortalamalar artık `len(metin)*8` gibi monospace varsayımlarıyla değil, gerçek font
 genişliğiyle hesaplanıyor (`UI.txt_c`). Bu olmadan orantılı fontlara geçince tüm başlıklar kayıyordu.
 
-### ⬜ Faz 2 — Akıcılık
-- [ ] A1 — kareler arası yumuşak hareket + yürüme animasyonu
-- [ ] A2 — kamera yumuşatma ve ölü bölge
-- [ ] A3 — çapraz hareket
-- [ ] A4 — `dt` tabanlı zamanlama
-- [ ] A6, A7 — UI yüzey önbelleği, font önbelleği
-- **Kabul:** Ölçüm raporunda oyuncu adım büyüklüğü artık `{32}` değil, hareketli kare oranı %1,2 → **>%80**; kare başına `SysFont` = **0**
+### ✅ Faz 2 — Akıcılık (tamamlandı, 2026-09-28)
+- [x] A1 — kareler arası yumuşak hareket + yürüme animasyonu
+- [x] A2 — kamera yumuşatma ve ölü bölge
+- [x] A3 — çapraz hareket (köşe kesmez, duvara sürtünerek kayar)
+- [x] A4 — sabit adımlı zamanlama (FPS düşse de oyun yavaşlamaz)
+- [x] A6, A7 — UI yüzey önbelleği, font önbelleği
+- **Kabul:** 4 yeni akıcılık testi + ölçüm tablosu, hepsi geçti ✔
+
+#### Faz 2'de ne değişti
+
+| Bulgu | Değişiklik | Yer |
+|---|---|---|
+| A1 | `Entity` artık adım tabanlı: `start_step()` hedefi belirler, `advance_step()` pikseli her karede yaklaştırır, `snap()` ışınlanma için. `tx/ty` **anında** güncellenir; oyun mantığının tamamı (menzil, çarpışma, geçiş) dokunulmadan çalışmaya devam eder | `Entity`, `_try_move`, `_update_enemies` |
+| A2 | `cam_fx/cam_fy` ondalık takip + `CAM_LERP=0.18`, `CAM_DEAD=24`; çizim tam sayı `cam_x/cam_y` kullanır. Harita geçişinde `_cam_snap()` | `_cam`, `_cam_target`, `_cam_snap` |
+| A3 | `_read_move_input()` iki ekseni birden okur; `_move_player()` önce çaprazı dener, olmazsa tek eksene kayar. Köşe kesmeyi engellemek için çapraz adım komşu karelerden en az biri açıksa kabul edilir | `_read_move_input`, `_move_player`, `_try_move` |
+| A4 | `_update()` ayrıldı, `_step_updates()` gerçek geçen süreye göre sabit 1/60 adım çalıştırır (en fazla 5 telafi adımı) | `Game.run` |
+| A6 | `UI._bar_surface` / `UI._panel_surface` önbelleği: degrade bir kez üretilir, dolu kısım kırpılarak çizilir | `UI.grad_bar`, `UI.panel` |
+| A7 | `_tag_font()` + `_tag_surf()` paylaşımlı önbellek; NPC adı ve boss yazısı her karede yeniden üretilmiyor | `NPC.draw`, `Enemy.draw` |
+
+**Neden `dt` ile çarpmak yerine sabit adım?** Oyundaki her sayaç (yetenek bekleme, dokunulmazlık,
+tuzak, mermi ömrü, düşman adımı) kare sayıyor. Hepsini `dt` ile ölçeklemek geniş ve riskli bir
+değişiklikti; mantığı sabit 1/60 adımda tutup gecikmeyi telafi adımıyla kapatmak aynı sonucu
+(FPS'ten bağımsız oyun hızı) mevcut sayaçları bozmadan veriyor.
+
+**Test altyapısında:** `harness.mark()` ölçüm penceresi açıyor, `place_in_open_area()` oyuncuyu
+hem tamamen açık hem de kameranın harita kenarına yaslanmadığı bir alana koyuyor — ilk denemede
+çapraz test duvara, kamera testi de harita sınırına denk gelip sessizce anlamsızlaşmıştı.
 
 ### ⬜ Faz 3 — Dövüş hissi ve arayüz düzeni
 - [ ] E1 — `[E]` etkileşim rozeti
@@ -200,6 +235,9 @@ genişliğiyle hesaplanıyor (`UI.txt_c`). Bu olmadan orantılı fontlara geçin
 | 2026-09-27 | 0 | Kod ve görüntü incelemesi; 28 bulgu kayda geçti | Bu belge oluşturuldu |
 | 2026-09-28 | 1 | 9 hata düzeltildi (B1-B8, E6, T3), fontlar devreye alındı | 21 test geçiyor (5'i yeni regresyon testi) |
 | 2026-09-28 | 1 | Fontlar açılınca **B11** ortaya çıktı: Almendra `ğ/ş` yutuyor | Diyalog fontu değişti + `FontManager`'a Türkçe denetimi eklendi |
+| 2026-09-28 | 1 | Faz 1 tek commit olarak kaydedildi (`faz-1-kritik-hatalar` dalı) | 21 test |
+| 2026-09-28 | 2 | Yumuşak hareket, kamera takibi, çapraz yön, sabit adımlı zamanlama, UI/font önbelleği | Adım 32 → 3,2 px; hareketli kare %10 → %92; render 3,27 → 1,0 ms |
+| 2026-09-28 | 2 | Ölçüm penceresi düzeltildi: çapraz ve kamera testleri sessizce anlamsız çalışıyordu | 16 duman testi + 8 yol testi geçiyor |
 
 ---
 

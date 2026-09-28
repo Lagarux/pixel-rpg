@@ -26,6 +26,8 @@ from harness import (
     face_first_npc,
     goto_map,
     load_game_module,
+    mark,
+    place_in_open_area,
 )
 
 def _set_state(name):
@@ -129,14 +131,18 @@ class TestGameplaySmoke(unittest.TestCase):
             h.key(pygame.K_RETURN),            # -> oyun basliyor (Ashveil)
             h.wait(10), h.shot("05_koy_ashveil"),
 
-            # ── Hareket ──────────────────────────────────────────
-            h.hold([pygame.K_DOWN], 45), h.release(),
+            # ── Hareket (acik alanda olculur) ────────────────────
+            h.do(place_in_open_area), h.wait(2),
+            h.do(mark("yuru_basla")),
+            h.hold([pygame.K_DOWN], 40),
+            h.do(mark("yuru_bitti")), h.release(),
             h.wait(2), h.shot("06_hareket_asagi"),
-            h.hold([pygame.K_RIGHT], 30), h.release(),
+            h.hold([pygame.K_RIGHT], 24), h.release(),
             h.wait(2), h.shot("07_hareket_saga"),
-            # Capraz hareket denemesi (asagi+saga ayni anda)
-            h.hold([pygame.K_DOWN, pygame.K_RIGHT], 30), h.release(), h.wait(2),
-            h.do(_record_diagonal), h.shot("08_capraz_deneme"),
+            # Capraz hareket: acik alanda, iki eksen de degismeli
+            h.do(place_in_open_area), h.wait(2), h.do(_record_diag_start),
+            h.hold([pygame.K_DOWN, pygame.K_RIGHT], 40), h.release(), h.wait(2),
+            h.do(_record_diagonal), h.shot("08_capraz_hareket"),
 
             # ── Etkilesim: NPC diyalogu ──────────────────────────
             h.do(face_first_npc), h.wait(2),
@@ -250,6 +256,46 @@ class TestGameplaySmoke(unittest.TestCase):
         self.assertIsNotNone(after, "sifaci HP olcumu alinamadi")
         self.assertGreater(after, before, "140 karede pasif yenilenme hic tetiklenmedi")
 
+    # ── Faz 2 akicilik testleri ──────────────────────────────────
+    def _walk_window(self):
+        a = self.h.marks.get("yuru_basla")
+        b = self.h.marks.get("yuru_bitti")
+        self.assertIsNotNone(a, "yuruyus penceresi isaretlenmedi")
+        return [p for p in self.h.pos_trace if a <= p[0] <= b]
+
+    def test_player_never_teleports_between_frames(self):
+        """A1: tek karede bir tile'lik sicrama olmamali (eskiden her adim 32 px'ti)."""
+        tile = self.mod.TILE
+        window = self._walk_window()
+        steps = [abs(b[1] - a[1]) + abs(b[2] - a[2]) for a, b in zip(window, window[1:])]
+        worst = max(steps) if steps else 0
+        self.assertLess(worst, tile / 2, f"tek karede {worst:.1f} px atladi -- hareket isinlaniyor")
+
+    def test_movement_is_continuous(self):
+        """A1: yon tusu basiliyken karelerin buyuk cogunlugunda konum degismeli."""
+        window = self._walk_window()
+        self.assertGreater(len(window), 20, "yuruyus penceresi cok kisa")
+        moved = sum(1 for a, b in zip(window, window[1:]) if (a[1], a[2]) != (b[1], b[2]))
+        ratio = moved / (len(window) - 1)
+        self.assertGreater(ratio, 0.8, f"karelerin yalnizca %{ratio*100:.0f}'inde hareket var")
+
+    def test_camera_follows_smoothly(self):
+        """A2: kamera da kare kare kaymali, 32 px'lik bloklar halinde degil."""
+        tile = self.mod.TILE
+        window = self._walk_window()
+        steps = [d for d in (abs(b[3] - a[3]) + abs(b[4] - a[4]) for a, b in zip(window, window[1:])) if d]
+        self.assertGreater(len(steps), 10, "kamera oyuncuyu takip etmiyor")
+        self.assertLess(max(steps), tile / 2, f"kamera blok blok zipliyor (en buyuk {max(steps)} px)")
+
+    def test_diagonal_movement_works(self):
+        """A3: asagi+saga birlikte basiliyken iki eksen de ilerlemeli."""
+        start = _record_diag_start.pos
+        end = _record_diagonal.result
+        self.assertIsNotNone(start)
+        self.assertIsNotNone(end)
+        self.assertGreater(end[0], start[0], "capraz basiliyken yatay eksen ilerlemedi")
+        self.assertGreater(end[1], start[1], "capraz basiliyken dikey eksen ilerlemedi")
+
     def test_no_frame_took_absurdly_long(self):
         """Tek bir karenin 250 ms'yi asmasi takilma (hitch) belirtisidir."""
         worst = max(self.h.frame_times[1:]) if len(self.h.frame_times) > 1 else 0
@@ -299,6 +345,13 @@ class TestPerformanceProbe(unittest.TestCase):
         self.assertIsNotNone(avg)
 
 
+def _record_diag_start(game):
+    _record_diag_start.pos = (game.player.tx, game.player.ty)
+
+
+_record_diag_start.pos = None
+
+
 def _record_diagonal(game):
     """Capraz hareket denemesinin sonucunu kaydeder (rapor icin)."""
     _record_diagonal.result = (game.player.tx, game.player.ty, game.player.direction)
@@ -309,26 +362,31 @@ _record_diagonal.result = None
 
 def _report(h_smoke, h_perf):
     tile = h_smoke.mod.TILE if hasattr(h_smoke, "mod") else 32
-    trace = h_smoke.pos_trace
-    # Test senaryosu oyuncuyu bazen isinlatiyor (NPC/sandik/dusman yanina);
-    # gercek yuruyus adimlarini ayirmak icin bir tile'dan buyuk ziplamalari atla.
+    # Olcumler yalnizca isaretli yuruyus penceresinden alinir: senaryonun
+    # isinlamalari ve menude gecen kareler istatistigi bozmasin.
+    a0 = h_smoke.marks.get("yuru_basla", 0)
+    b0 = h_smoke.marks.get("yuru_bitti", 10 ** 9)
+    trace = [p for p in h_smoke.pos_trace if a0 <= p[0] <= b0]
     steps, cam_steps = [], []
     for a, b in zip(trace, trace[1:]):
         d = abs(b[1] - a[1]) + abs(b[2] - a[2])
-        if 0 < d <= tile:
-            steps.append(d)
+        if d:
+            steps.append(round(d, 2))
         dc = abs(b[3] - a[3]) + abs(b[4] - a[4])
-        if 0 < dc <= tile:
+        if dc:
             cam_steps.append(dc)
     print("\n" + "=" * 62)
     print("  OLCUM RAPORU")
     print("=" * 62)
+    ratio = len(steps) / max(1, len(trace) - 1)
     print(f"  Kare sayisi (surulen)      : {h_smoke.frames}")
     print(f"  Ekran goruntusu            : {len(h_smoke.shots)} adet -> {SHOT_DIR}")
-    print(f"  Oyuncu adim buyuklukleri   : {sorted(set(steps))} px (tile={tile})")
-    print(f"  Hareketli kare orani       : {len(steps)}/{len(trace)-1}")
-    print(f"  Kamera adim buyuklukleri   : {sorted(set(cam_steps))} px")
-    print(f"  Capraz hareket sonucu      : {_record_diagonal.result}")
+    print(f"  --- yuruyus penceresi ({len(trace)} kare) ---")
+    print(f"  Oyuncu adimi  en buyuk     : {max(steps):.1f} px (tile={tile})")
+    print(f"  Oyuncu adimi  cesitleri    : {sorted(set(steps))} px")
+    print(f"  Hareketli kare orani       : {len(steps)}/{len(trace)-1}  (%{ratio*100:.0f})")
+    print(f"  Kamera adimi  en buyuk     : {max(cam_steps) if cam_steps else 0} px")
+    print(f"  Capraz: {_record_diag_start.pos} -> {_record_diagonal.result}")
     if h_perf:
         times = h_perf.frame_times[-200:]
         calls = h_perf.sysfont_calls[-200:]

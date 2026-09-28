@@ -1006,9 +1006,52 @@ class PlayerStats:
         elif sk=="wis": self.wis=min(30,self.wis+val)
 
 # ─── Entities ───────────────────────────────────────────────────
+def _tag_font():
+    """İsim etiketleri için paylaşılan font — her karede yeniden yüklenmesin."""
+    if _tag_font.cache is None:
+        _tag_font.cache=pygame.font.SysFont("monospace",9,bold=True)
+    return _tag_font.cache
+_tag_font.cache=None
+
+# Etiket yüzeyleri de metin başına bir kez üretilir (NPC adı, boss HP yazısı).
+_TAG_SURF:Dict=dict()
+def _tag_surf(text,col=WH):
+    key=(text,col)
+    s=_TAG_SURF.get(key)
+    if s is None:
+        s=_tag_font().render(text,True,col);_TAG_SURF[key]=s
+    return s
+
 class Entity:
     def __init__(self,tx,ty):
-        self.tx=tx;self.ty=ty;self.px=tx*TILE;self.py=ty*TILE;self.direction="down";self.frame=0
+        self.tx=tx;self.ty=ty;self.px=float(tx*TILE);self.py=float(ty*TILE)
+        self.direction="down";self.frame=0
+        # Yumuşak hareket: px/py hedefe doğru ilerler, tx/ty anında güncellenir.
+        self.from_px=self.px;self.from_py=self.py
+        self.move_t=1.0;self.move_dur=1.0
+
+    @property
+    def moving(self)->bool: return self.move_t<1.0
+
+    def start_step(self,ntx,nty,dur_frames:float):
+        """tx/ty'yi hemen hedefe alır, piksel konumu araya yayılır."""
+        self.from_px=self.px;self.from_py=self.py
+        self.tx=ntx;self.ty=nty
+        self.move_t=0.0;self.move_dur=max(1.0,float(dur_frames))
+
+    def advance_step(self):
+        if self.move_t>=1.0:
+            self.px=float(self.tx*TILE);self.py=float(self.ty*TILE);return
+        self.move_t=min(1.0,self.move_t+1.0/self.move_dur)
+        tx_px=self.tx*TILE;ty_px=self.ty*TILE
+        self.px=self.from_px+(tx_px-self.from_px)*self.move_t
+        self.py=self.from_py+(ty_px-self.from_py)*self.move_t
+
+    def snap(self,tx,ty):
+        """Işınlanma (harita geçişi, yetenek): ara animasyon olmadan yerleştir."""
+        self.tx=tx;self.ty=ty
+        self.px=float(tx*TILE);self.py=float(ty*TILE)
+        self.from_px=self.px;self.from_py=self.py;self.move_t=1.0
 
 class Player(Entity):
     def __init__(self,tx,ty,stats):
@@ -1018,17 +1061,18 @@ class Player(Entity):
         self.invincible=0;self.attacking=False;self.atk_frame=0;self.atk_max=15
     def draw(self,surf,cx,cy):
         if self.invincible>0 and (self.invincible//4)%2==1: return
-        surf.blit(PA.player_surf(self.direction,self.frame,self.stats.char_class),(self.px-cx,self.py-cy))
+        surf.blit(PA.player_surf(self.direction,self.frame,self.stats.char_class),
+                  (int(self.px-cx),int(self.py-cy)))
 
 class NPC(Entity):
     def __init__(self,tx,ty,name,color,dialog_fn,style="default"):
         super().__init__(tx,ty);self.name=name;self.color=color;self.dialog_fn=dialog_fn;self.style=style
     def get_dialog(self,flags): return self.dialog_fn(flags)
     def draw(self,surf,cx,cy):
-        sx=self.px-cx; sy=self.py-cy
+        sx=int(self.px-cx); sy=int(self.py-cy)
         if not(-TILE<=sx<SW+TILE and -TILE<=sy<SH+TILE): return
         surf.blit(PA.npc_surf(self.color,self.frame,self.style),(sx,sy))
-        fnt=pygame.font.SysFont("monospace",9,bold=True);tag=fnt.render(self.name,True,WH)
+        tag=_tag_surf(self.name)
         tx2=sx+TILE//2-tag.get_width()//2;ty2=sy-14
         if 0<=tx2<SW and 0<=ty2<SH:
             bg=pygame.Surface((tag.get_width()+4,tag.get_height()+2),pygame.SRCALPHA)
@@ -1042,7 +1086,7 @@ class Enemy(Entity):
         self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
     def draw(self,surf,cx,cy):
         if not self.alive: return
-        bx=self.px-cx; by=self.py-cy
+        bx=int(self.px-cx); by=int(self.py-cy)
         if not(-TILE*2<=bx<SW+TILE*2 and -TILE*2<=by<SH+TILE*2): return
         sp=PA.enemy_surf(self.kind,self.frame)
         if self.kind=="malachar": surf.blit(sp,(bx-TILE//2,by-TILE//2))
@@ -1055,8 +1099,7 @@ class Enemy(Entity):
         pygame.draw.rect(surf,HP_G,(bbx,bby,int(bw*max(0,self.hp)/self.max_hp),bh))
         pygame.draw.rect(surf,BK,(bbx,bby,bw,bh),1)
         if self.is_boss:
-            fnt=pygame.font.SysFont("monospace",9,bold=True)
-            tt=fnt.render(f"{self.kind.upper()} {self.hp}/{self.max_hp}",True,UI_TX)
+            tt=_tag_surf(f"{self.kind.upper()} {self.hp}/{self.max_hp}",UI_TX)
             surf.blit(tt,(bbx+bw//2-tt.get_width()//2,bby-12))
 
 # ─── GameMap ────────────────────────────────────────────────────
@@ -1157,7 +1200,7 @@ def _snap_all(m):
             tx2,ty2=_snap(m,tx+(att%5)-2,ty+(att//5)-2)
             if(tx2,ty2) not in occ: tx,ty=tx2,ty2;break
             att+=1
-        e.tx=tx;e.ty=ty;e.px=tx*TILE;e.py=ty*TILE;occ.add((tx,ty))
+        e.snap(tx,ty);occ.add((tx,ty))
 
 def _add_trans(m,tiles,dst,dtx,dty,ground=T.GRASS,hint_dir=(1,0)):
     """Geçiş ekle — tile normal zemin olur, görsel ok gösterilir."""
@@ -1796,26 +1839,53 @@ class UI:
         f=fnt or self.fss
         self.txt(surf,text,cx-f.size(text)[0]//2,y,col,f,shadow)
 
+    # Degradeler her karede piksel piksel çizilmesin diye önbelleğe alınır.
+    _bar_cache:Dict=dict()
+    _panel_cache:Dict=dict()
+
+    @classmethod
+    def _bar_surface(cls,w,h,c1,c2):
+        """Tam genişlikte degrade bar — dolu kısmı bundan kırpılarak çizilir."""
+        key=(w,h,c1,c2)
+        s=cls._bar_cache.get(key)
+        if s is None:
+            s=pygame.Surface((w,h))
+            for i in range(w):
+                tt=i/max(1,w-1)
+                s.fill((int(c1[0]+(c2[0]-c1[0])*tt),int(c1[1]+(c2[1]-c1[1])*tt),
+                        int(c1[2]+(c2[2]-c1[2])*tt)),(i,0,1,h))
+            sh=pygame.Surface((w,h),pygame.SRCALPHA);sh.fill((255,255,255,20))
+            s.blit(sh,(0,0))
+            cls._bar_cache[key]=s
+        return s
+
     def grad_bar(self,surf,x,y,w,h,val,mx,c1,c2,bg=(20,10,35)):
         pygame.draw.rect(surf,bg,(x,y,w,h))
         fill=int(w*max(0,val)/max(1,mx))
-        for i in range(fill):
-            tt=i/max(1,fill);rr=int(c1[0]+(c2[0]-c1[0])*tt);gg=int(c1[1]+(c2[1]-c1[1])*tt);bb=int(c1[2]+(c2[2]-c1[2])*tt)
-            pygame.draw.line(surf,(rr,gg,bb),(x+i,y),(x+i,y+h-1))
-        if fill>4:
-            sh=pygame.Surface((fill,h),pygame.SRCALPHA);sh.fill((255,255,255,20));surf.blit(sh,(x,y))
+        if fill>0:
+            surf.blit(self._bar_surface(w,h,tuple(c1),tuple(c2)),(x,y),pygame.Rect(0,0,fill,h))
         pygame.draw.rect(surf,UI_BD,(x,y,w,h),1)
 
+    @classmethod
+    def _panel_surface(cls,w,h,alpha):
+        key=(w,h,alpha)
+        s=cls._panel_cache.get(key)
+        if s is None:
+            s=pygame.Surface((w,h),pygame.SRCALPHA)
+            for i in range(h):
+                tt=i/max(1,h)
+                s.fill((int(UI_BG[0]+4*tt),int(UI_BG[1]+2*tt),int(UI_BG[2]+12*tt),alpha),(0,i,w,1))
+            pygame.draw.rect(s,UI_BD,(0,0,w,h),2)
+            cls._panel_cache[key]=s
+        return s
+
     def panel(self,surf,x,y,w,h,alpha=220,glow=False):
-        s=pygame.Surface((w,h),pygame.SRCALPHA)
-        for i in range(h):
-            tt=i/h;rr=int(UI_BG[0]+4*tt);gg=int(UI_BG[1]+2*tt);bb=int(UI_BG[2]+12*tt)
-            pygame.draw.line(s,(rr,gg,bb,alpha),(0,i),(w,i))
-        pygame.draw.rect(s,UI_BD,(0,0,w,h),2)
+        surf.blit(self._panel_surface(w,h,alpha),(x,y))
         if glow:
             gv=int(abs(math.sin(pygame.time.get_ticks()*0.002))*50)+20
-            pygame.draw.rect(s,(*UI_AC,gv),(0,0,w,h),3)
-        surf.blit(s,(x,y))
+            gs=pygame.Surface((w,h),pygame.SRCALPHA)
+            pygame.draw.rect(gs,(*UI_AC,gv),(0,0,w,h),3)
+            surf.blit(gs,(x,y))
 
     def draw_stat_alloc(self,surf,stats,free,sel,is_lu=False,tick=0):
         pw,ph=510,430;px=SW//2-pw//2;py=SH//2-ph//2
@@ -2302,7 +2372,8 @@ class Game:
             "sq_fish_done":False,   # Nehir görevi: balıkçıya yardım
         }
         self.player:Optional[Player]=None
-        self.cam_x=0;self.cam_y=0;self.move_cd=0
+        self.cam_x=0;self.cam_y=0;self.cam_fx=0.0;self.cam_fy=0.0
+        self._acc=0.0;self._last_ms=pygame.time.get_ticks()
         self.dlg_npc=None;self.dlg_lines=[];self.dlg_page=0
         self.hit_fx=[];self.dmg_nums=[]
         self.levelup_timer=0;self.ch_announce=0
@@ -2331,21 +2402,59 @@ class Game:
         sx,sy=_snap(self.maps["ashveil"],29,25)
         self.player=Player(sx,sy,st)
         self.cur_key="ashveil";self.cur_map=self.maps["ashveil"];self.state="playing"
+        self._cam_snap()
         SoundManager.play_music(self.MAP_MUSIC.get("ashveil","village"))
 
-    def _cam(self):
+    CAM_LERP = 0.18   # kamera yumuşatma katsayısı
+    CAM_DEAD = 24     # ölü bölge (px): küçük oynamalarda kamera kıpırdamaz
+
+    def _cam_target(self):
+        p=self.player
+        return (max(0,min(p.px+TILE//2-SW//2, self.cur_map.w*TILE-SW)),
+                max(0,min(p.py+TILE//2-SH//2, self.cur_map.h*TILE-SH)))
+
+    def _cam_snap(self):
+        """Harita geçişi/başlangıç: kamerayı anında hedefe al."""
         if not self.player: return
-        self.cam_x=max(0,min(self.player.px-SW//2,self.cur_map.w*TILE-SW))
-        self.cam_y=max(0,min(self.player.py-SH//2,self.cur_map.h*TILE-SH))
+        self.cam_fx,self.cam_fy=self._cam_target()
+        self.cam_x=int(self.cam_fx);self.cam_y=int(self.cam_fy)
+
+    def _cam(self):
+        """Kamerayı hedefe doğru yumuşatarak taşır.
+
+        Oyuncu dururken küçük farklar ölü bölgede yutulur; hareket ederken
+        kamera sürekli takip eder. Çizim tam sayı kullanır (cam_x/cam_y).
+        """
+        if not self.player: return
+        tx,ty=self._cam_target()
+        dx=tx-self.cam_fx;dy=ty-self.cam_fy
+        if self.player.moving or abs(dx)>self.CAM_DEAD or abs(dy)>self.CAM_DEAD:
+            self.cam_fx+=dx*self.CAM_LERP
+            self.cam_fy+=dy*self.CAM_LERP
+        # Çok küçük kalan farkı kapat (sonsuza dek yaklaşmasın)
+        if abs(tx-self.cam_fx)<0.5: self.cam_fx=tx
+        if abs(ty-self.cam_fy)<0.5: self.cam_fy=ty
+        self.cam_x=int(self.cam_fx);self.cam_y=int(self.cam_fy)
+
+    def _tile_free(self,tx,ty)->bool:
+        if not self.cur_map.walkable(tx,ty): return False
+        for n in self.cur_map.npcs:
+            if n.tx==tx and n.ty==ty: return False
+        for e in self.cur_map.enemies:
+            if e.alive and e.tx==tx and e.ty==ty: return False
+        return True
 
     def _try_move(self,dx,dy)->bool:
-        p=self.player;ntx=p.tx+dx;nty=p.ty+dy
-        if not self.cur_map.walkable(ntx,nty): return False
-        for n in self.cur_map.npcs:
-            if n.tx==ntx and n.ty==nty: return False
-        for e in self.cur_map.enemies:
-            if e.alive and e.tx==ntx and e.ty==nty: return False
-        p.tx=ntx;p.ty=nty;p.px=ntx*TILE;p.py=nty*TILE
+        """Bir kare adım başlatır. Piksel konumu Entity.advance_step ile yayılır."""
+        p=self.player
+        if p.moving: return False
+        ntx=p.tx+dx;nty=p.ty+dy
+        if not self._tile_free(ntx,nty): return False
+        # Çapraz adım köşe kesmesin: en az bir komşu kare de açık olmalı
+        if dx and dy and not(self.cur_map.walkable(p.tx+dx,p.ty) or self.cur_map.walkable(p.tx,p.ty+dy)):
+            return False
+        dur=p.stats.move_delay*(1.41 if (dx and dy) else 1.0)
+        p.start_step(ntx,nty,dur)
         pt=(p.tx,p.ty)
         if pt in self.cur_map.transitions:
             dst,tx2,ty2=self.cur_map.transitions[pt];self._start_trans(dst,tx2,ty2)
@@ -2358,9 +2467,9 @@ class Game:
     def _finish_trans(self):
         dst,tx,ty=self.pending_trans;self.cur_key=dst;self.cur_map=self.maps[dst]
         tx,ty=_snap(self.cur_map,tx,ty)
-        p=self.player;p.tx=tx;p.ty=ty;p.px=tx*TILE;p.py=ty*TILE
+        self.player.snap(tx,ty)
         self.pending_trans=None;self.transitioning=False;self.trans_alpha=0
-        self.projectiles.clear();self._check_ch()
+        self.projectiles.clear();self._check_ch();self._cam_snap()
         SoundManager.play_music(self.MAP_MUSIC.get(dst,"village"))
 
     def _check_ch(self):
@@ -2493,7 +2602,7 @@ class Game:
                 if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=1.8:
                     self._hit(e,int(st.attack*1.5))
                     nx2=e.tx+ox;ny2=e.ty+oy
-                    if self.cur_map.walkable(nx2,ny2): e.tx=nx2;e.ty=ny2;e.px=nx2*TILE;e.py=ny2*TILE
+                    if self.cur_map.walkable(nx2,ny2): e.start_step(nx2,ny2,5)
             self.ps.emit_magic(cx,cy,col=(220,120,60))
         elif aid=="whirlwind":
             for e in self.cur_map.enemies:
@@ -2541,7 +2650,7 @@ class Game:
                 if not e.alive: continue
                 nx2=e.tx-ox;ny2=e.ty-oy
                 if self.cur_map.walkable(nx2,ny2):
-                    p.tx=nx2;p.ty=ny2;p.px=nx2*TILE;p.py=ny2*TILE;self._hit(e,int(st.attack*2.0))
+                    p.snap(nx2,ny2);self._hit(e,int(st.attack*2.0))
                     self.ps.emit(cx,cy,20,(60,40,120),5.0,30);break
         elif aid=="mass_heal":
             amt=int(25+st.wis*2);st.heal(amt)
@@ -2597,6 +2706,7 @@ class Game:
         p=self.player;ppx=p.px+TILE//2;ppy=p.py+TILE//2
         for e in self.cur_map.enemies:
             if not e.alive: continue
+            e.advance_step()   # başlamış adımı tamamla (donsa bile kareye otursun)
             if e.frozen>0: e.frozen-=1;continue
             ex=e.px+TILE//2;ey=e.py+TILE//2;dist=math.hypot(ex-ppx,ey-ppy)
             if dist<e.agro_range: e.state="chase"
@@ -2616,7 +2726,7 @@ class Game:
                 if(self.cur_map.walkable(nx2,ny2) and
                    not any(o.alive and o.tx==nx2 and o.ty==ny2 for o in self.cur_map.enemies if o is not e) and
                    not(nx2==p.tx and ny2==p.ty)):
-                    e.tx=nx2;e.ty=ny2;e.px=nx2*TILE;e.py=ny2*TILE
+                    e.start_step(nx2,ny2,spd)
             if abs(e.tx-p.tx)<=1 and abs(e.ty-p.ty)<=1 and p.invincible<=0:
                 dmg=max(1,e.atk-p.stats.defense+random.randint(-2,3))
                 if "holy_shield" in p.stats.buffs:
@@ -2682,10 +2792,86 @@ class Game:
                 self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_RD,"txt":f"Cikarildi!"})
 
     # ── Ana Döngü ────────────────────────────────────────────────
+    # ── Güncelleme ───────────────────────────────────────────────
+    STEP_MS = 1000.0/FPS   # bir mantık adımının süresi
+    MAX_STEPS = 5          # kare çok gecikirse en fazla bu kadar adım telafi et
+
+    def _read_move_input(self):
+        """Basılı yön tuşlarından (çapraz dahil) birim vektör üretir."""
+        keys=pygame.key.get_pressed()
+        dx=(1 if(keys[pygame.K_RIGHT] or keys[pygame.K_d]) else 0)-(1 if(keys[pygame.K_LEFT] or keys[pygame.K_a]) else 0)
+        dy=(1 if(keys[pygame.K_DOWN] or keys[pygame.K_s]) else 0)-(1 if(keys[pygame.K_UP] or keys[pygame.K_w]) else 0)
+        return dx,dy
+
+    def _move_player(self):
+        p=self.player
+        dx,dy=self._read_move_input()
+        if dx or dy:
+            # Bakış yönü: çaprazda yatay eksen okunur kalıyor
+            p.direction=("right" if dx>0 else "left") if dx else("down" if dy>0 else "up")
+        if p.moving or self.transitioning or not(dx or dy): return
+        # Önce çapraz, olmazsa tek eksene kay (duvara sürtünerek ilerleme)
+        if dx and dy:
+            if self._try_move(dx,dy): return
+            if self._try_move(dx,0): return
+            self._try_move(0,dy)
+        else:
+            self._try_move(dx,dy)
+
+    def _update(self):
+        """Bir mantık adımı. Tüm sayaçlar kare cinsinden olduğu için sabit adımlı."""
+        self.frame_no+=1
+        if self.state=="story":
+            self.story_timer+=1
+            if self.story_timer%35==0: self.story_shown=min(self.story_shown+1,len(STORY_LINES))
+
+        if self.state=="playing" and self.player and not self.pause_open:
+            p=self.player
+            self._move_player()
+            p.advance_step()
+            if p.moving: p.frame+=1
+            if p.invincible>0: p.invincible-=1
+            if p.attacking: p.atk_frame+=1
+            if p.atk_frame>=p.atk_max: p.attacking=False
+            p.stats.tick_cds();p.stats.tick_buffs()
+            # NOT: self.tick milisaniyedir; periyodik iş için kare sayacı kullanılır.
+            if p.stats.char_class=="healer" and self.frame_no%120==0:
+                if p.stats.hp<p.stats.max_hp and p.stats.mp>=3: p.stats.heal(2);p.stats.mp-=3
+            if self.levelup_timer>0: self.levelup_timer-=1
+            if self.ch_announce>0: self.ch_announce-=1
+            self._update_enemies();self._update_projs();self._update_traps()
+            if self.levelup_timer==100 and p.stats.skill_points>0:
+                self.stat_sel=0;self.temp_stats=p.stats;self.is_lu=True;self.state="levelup_alloc"
+        elif self.player:
+            # Menü/diyalog açıkken bile başlamış adım tamamlansın (yarım karede kalmasın)
+            self.player.advance_step()
+
+        if self.transitioning and self.pending_trans:
+            self.trans_alpha=min(255,self.trans_alpha+10)
+            if self.trans_alpha>=255: self._finish_trans()
+        elif self.trans_alpha>0: self.trans_alpha=max(0,self.trans_alpha-10)
+
+        self.ps.update();self._cam()
+
+    def _step_updates(self):
+        """Gerçek geçen süreye göre sabit adım çalıştırır.
+
+        Tüm oyun mantığı kare sayan sayaçlarla yazıldığı için her sayacı dt ile
+        çarpmak yerine mantığı sabit 1/60 adımda tutuyoruz: FPS düşse de oyun
+        yavaşlamaz, sayaçların anlamı da bozulmaz.
+        """
+        now=self.tick
+        self._acc=min(self._acc+(now-self._last_ms), self.STEP_MS*self.MAX_STEPS)
+        self._last_ms=now
+        steps=0
+        while self._acc>=self.STEP_MS and steps<self.MAX_STEPS:
+            self._update();self._acc-=self.STEP_MS;steps+=1
+
     def run(self):
         running=True
+        self._last_ms=pygame.time.get_ticks();self._acc=0.0
         while running:
-            self.tick=pygame.time.get_ticks(); self.frame_no+=1; self.clock.tick(FPS)
+            self.tick=pygame.time.get_ticks(); self.clock.tick(FPS)
             for ev in pygame.event.get():
                 if ev.type==pygame.QUIT:
                     running=False; break
@@ -2847,41 +3033,7 @@ class Game:
                         elif k==pygame.K_u:
                             if self.player and self.player.stats.skill_points>0:
                                 self.stat_sel=0; self.temp_stats=self.player.stats; self.is_lu=True; self.state="levelup_alloc"
-            if self.state=="story":
-                self.story_timer+=1
-                if self.story_timer%35==0: self.story_shown=min(self.story_shown+1,len(STORY_LINES))
-
-            if self.state=="playing" and self.player and not self.pause_open:
-                p=self.player;keys=pygame.key.get_pressed();any_d=False
-                if keys[pygame.K_LEFT] or keys[pygame.K_a]: p.direction="left";any_d=True
-                elif keys[pygame.K_RIGHT] or keys[pygame.K_d]: p.direction="right";any_d=True
-                elif keys[pygame.K_UP] or keys[pygame.K_w]: p.direction="up";any_d=True
-                elif keys[pygame.K_DOWN] or keys[pygame.K_s]: p.direction="down";any_d=True
-                if self.move_cd>0: self.move_cd-=1
-                if any_d and self.move_cd==0 and not self.transitioning:
-                    dx3={"left":-1,"right":1,"up":0,"down":0}[p.direction]
-                    dy3={"left":0,"right":0,"up":-1,"down":1}[p.direction]
-                    if self._try_move(dx3,dy3): p.frame+=1
-                    self.move_cd=p.stats.move_delay
-                if p.invincible>0: p.invincible-=1
-                if p.attacking: p.atk_frame+=1
-                if p.atk_frame>=p.atk_max: p.attacking=False
-                p.stats.tick_cds();p.stats.tick_buffs()
-                # NOT: self.tick milisaniyedir; periyodik iş için kare sayacı kullanılır.
-                if p.stats.char_class=="healer" and self.frame_no%120==0:
-                    if p.stats.hp<p.stats.max_hp and p.stats.mp>=3: p.stats.heal(2);p.stats.mp-=3
-                if self.levelup_timer>0: self.levelup_timer-=1
-                if self.ch_announce>0: self.ch_announce-=1
-                self._update_enemies();self._update_projs();self._update_traps()
-                if self.levelup_timer==100 and p.stats.skill_points>0:
-                    self.stat_sel=0;self.temp_stats=p.stats;self.is_lu=True;self.state="levelup_alloc"
-
-            if self.transitioning and self.pending_trans:
-                self.trans_alpha=min(255,self.trans_alpha+10)
-                if self.trans_alpha>=255: self._finish_trans()
-            elif self.trans_alpha>0: self.trans_alpha=max(0,self.trans_alpha-10)
-
-            self.ps.update();self._cam()
+            self._step_updates()
 
             # ─── Çizim ───────────────────────────────────────────
             self.screen.fill(DKG)

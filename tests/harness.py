@@ -36,6 +36,24 @@ class _Done(Exception):
     """Senaryo bitti -- oyun dongusunden cikmak icin."""
 
 
+_CURRENT = None
+
+
+def current():
+    """Su an calisan Harness -- senaryo yardimcilari olcum isaretleyebilsin diye."""
+    return _CURRENT
+
+
+def mark(name):
+    """Senaryonun o anki kare numarasini isaretler (olcum penceresi acmak icin)."""
+    def _m(_game):
+        h = current()
+        if h is not None:
+            h.marks[name] = h.frames
+    _m.__name__ = f"mark_{name}"
+    return _m
+
+
 class _FakeClock:
     """FPS sinirlamasini kaldirir: ham mantik+cizim maliyetini olcmek icin."""
 
@@ -90,6 +108,7 @@ class Harness:
         self.held = set()
         # Olcumler
         self.pos_trace = []        # (frame, px, py, cam_x, cam_y)
+        self.marks = {}            # olcum penceresi isaretleri: ad -> kare no
         self.frame_times = []      # kareler arasi gecen sure (ms)
         self.sysfont_calls = []    # kare basina pygame.font.SysFont cagrisi
         self._sysfont_n = 0
@@ -123,6 +142,8 @@ class Harness:
     # ── Kosum ────────────────────────────────────────────────────
     def run(self, script, unlimited_fps=False, trace=False):
         """Senaryoyu calistirir. unlimited_fps: clock.tick devre disi (perf olcumu)."""
+        global _CURRENT
+        _CURRENT = self
         pg_flip = pygame.display.flip
         pg_pressed = pygame.key.get_pressed
         pg_sysfont = pygame.font.SysFont
@@ -211,11 +232,11 @@ def walkable_neighbor(game, tx, ty):
 
 
 def place_player(game, tx, ty, facing):
-    tile = sys.modules[type(game).__module__].TILE
+    """Test icin isinlama. Kamera da oturtulur ki olcumlere yetisme sicramasi karismasin."""
     p = game.player
-    p.tx, p.ty = tx, ty
-    p.px, p.py = tx * tile, ty * tile
+    p.snap(tx, ty)
     p.direction = facing
+    game._cam_snap()
 
 
 def face_first_npc(game):
@@ -238,6 +259,47 @@ def goto_map(key):
         game.cur_map = game.maps[key]
     _go.__name__ = f"goto_map_{key}"
     return _go
+
+
+def place_in_open_area(game, size=5):
+    """Oyuncuyu size x size tamamen acik bir alana koyar.
+
+    Iki sarti birden arar:
+      * capraz hareket duvara takilmasin diye alan tamamen acik olmali,
+      * kamera harita kenarina yaslanip sabitlenmesin diye alan gorunum
+        yarisindan daha icerde olmali (yoksa kamera takip testi anlamsizlasir).
+    """
+    mod = sys.modules[type(game).__module__]
+    m = game.cur_map
+    pad_x = mod.SW // (2 * mod.TILE) + 2
+    pad_y = mod.SH // (2 * mod.TILE) + 2
+    blocked = {(n.tx, n.ty) for n in m.npcs}
+    blocked |= {(e.tx, e.ty) for e in m.enemies if e.alive}
+
+    def is_open(tx, ty):
+        return all(
+            m.walkable(tx + i, ty + j) and (tx + i, ty + j) not in blocked
+            and (tx + i, ty + j) not in m.transitions
+            for i in range(size) for j in range(size)
+        )
+
+    for (x0, y0, x1, y1) in ((pad_x, pad_y, m.w - pad_x - size, m.h - pad_y - size),
+                             (1, 1, m.w - size - 1, m.h - size - 1)):  # 2. tur: kenar serbest
+        best = None
+        for ty in range(max(1, y0), max(2, y1)):
+            for tx in range(max(1, x0), max(2, x1)):
+                if is_open(tx, ty):
+                    d = abs(tx - m.w // 2) + abs(ty - m.h // 2)
+                    if best is None or d < best[0]:
+                        best = (d, tx, ty)
+        if best:
+            place_player(game, best[1], best[2], "down")
+            place_in_open_area.start = (best[1], best[2])
+            return
+    raise AssertionError(f"{size}x{size} acik alan bulunamadi")
+
+
+place_in_open_area.start = None
 
 
 def face_first_enemy(game):
