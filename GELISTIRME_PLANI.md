@@ -4,7 +4,7 @@
 > yol haritasını tutar. Her fazın sonunda testleri çalıştırıp bu dosyayı güncelliyoruz.
 > Böylece "neyi, neden, hangi kanıta dayanarak" değiştirdiğimiz kayıt altında kalır.
 
-**Son güncelleme:** 2026-09-28 · **Oyun sürümü:** v5.0 · **Aktif faz:** Faz 5 (Faz 0-1-2-3-4 tamamlandı)
+**Son güncelleme:** 2026-09-28 · **Oyun sürümü:** v5.0 · **Aktif faz:** Faz 5 (Faz 0-4 tamamlandı; oyun testi sonrası düzeltmeler yapıldı)
 
 ---
 
@@ -29,6 +29,8 @@ python tests/test_gameplay_smoke.py
 | `tests/test_combat_feel.py` | Dövüş hissi ve arayüz katmanları (telegraf, yol bulma, karartma, rozet) |
 | `tests/test_save_load.py` | Kayıt/yükleme turu ve bozuk kayda dayanıklılık |
 | `tests/test_atmosphere.py` | Dekor, ışık halesi, NPC gezinmesi, daktilo diyalog |
+| `tests/test_locales.py` | Dil dosyaları: eksik anahtar, yer tutucu, RTL, çevrilmemiş metin |
+| `tools/` | Tek seferlik metin çıkarma betikleri ve tüm dillerin kaynağı (`locales_data.py`) |
 | `tests/screenshots/` | Test çıktısı kareler (her koşumda yeniden üretilir) |
 
 Testler **penceresiz** (`SDL_VIDEODRIVER=dummy`) çalışır: ekran açılmaz, ses kartı gerekmez,
@@ -87,7 +89,7 @@ yalnızca arası dolduruluyor. Çapraz adım `×1,41` sürüyor ki çapraz gitme
 | ✅ B7 | 🟠 | `FontManager` sınıfı hiç çağrılmıyor; ayrıca aradığı dosya adları (`Cinzel-Bold.ttf`, `Almendra-Bold.ttf`, `UncialAntiqua-Regular.ttf`) `assets/fonts` içinde **yok** (var olanlar: `Cinzel-Regular`, `Almendra-Regular`, `MedievalSharp-Regular`) | `pixel_rpg.py:146-177` | Dosya adlarını düzelt ve `UI.__init__` içinde `SysFont` yerine `FontManager.get` kullan |
 | ✅ B8 | 🟡 | Sürüm tutarsız: dosya başlığı v5.0, başlık ekranı ve konsol çıktısı v4.0 | `pixel_rpg.py:3`, `:1842`, `:2894` | Tek bir `VERSION` sabiti |
 | ✅ B9 | 🟡 | Üretilen ama hiç çalınmayan sesler: `walk`, `equip`, `error`, `trap`, `freeze`, `boss_alert` | `pixel_rpg.py:232-251` | İlgili olaylara bağla (ayak sesi, ekipman, tuzak, boss girişi) |
-| 🔸 B10 | 🟡 | Dil seçeneği yarım: 36 çeviri anahtarının 21'i hiç kullanılmıyor; başlık, sınıf seçimi, ölüm/zafer ekranları sabit Türkçe | `pixel_rpg.py:63-143`, `:1833-1848` | Sabit metinleri `T_()` üzerinden geçir · **kısmen yapıldı:** Faz 1'de kullanılmayan anahtar 21 → 15 |
+| ✅ B10 | 🟡 | Dil seçeneği yarım: 36 çeviri anahtarının 21'i hiç kullanılmıyor; başlık, sınıf seçimi, ölüm/zafer ekranları sabit Türkçe | `pixel_rpg.py:63-143`, `:1833-1848` | Sabit metinleri `T_()` üzerinden geçir · **kısmen yapıldı:** Faz 1'de kullanılmayan anahtar 21 → 15 |
 | ✅ B11 | 🟠 | **Almendra fontu `ğ` ve `ş` gliflerini içermiyor**, bu harfleri sessizce yutuyor: "Doğudaki … başla." → "Do udaki … ba la." Faz 1'de fontlar devreye alınırken ortaya çıktı; `font.metrics()` ve genişlik ölçümü bu durumu **yakalamıyor**, yalnızca çizilen pikseller yakalıyor | `tests/screenshots/_font_turkce.png` | Diyalog fontu MedievalSharp'a alındı; `FontManager` artık her adayı Türkçe alfabeyle sınayıp çizemeyeni eliyor |
 
 ### 2.2 Akıcılık
@@ -263,6 +265,40 @@ alfası katman alfasına eşitlendi. (3) Dekor tohumu `hash(m.name)` ile üretil
 kullanıcının gerçek `save1.json` dosyasını yazmaya başlamıştı (bir koşumda `%APPDATA%` altında
 gerçekten oluştu, silindi). Koşum takımı artık `SAVE_FILE`'ı geçici dizine yönlendiriyor.
 
+### ✅ Oyun testi düzeltmeleri (2026-09-28, kullanıcı geri bildirimi)
+
+Oyunu elle oynayınca çıkan üç somut sorun + istenen dil desteği:
+
+| # | Sorun | Çözüm |
+|---|---|---|
+| G1 | Görev çubuğunda ve pencerede oyunun logosu görünmüyordu | `pygame.display.set_icon` + Windows'ta `SetCurrentProcessExplicitAppUserModelID`. Kimlik ayarlanmazsa Windows pencereyi python.exe ile gruplayıp Python ikonunu gösteriyor. Kökteki `icon.png` 2048×2048 ve **pakete girmiyor**; `assets/icon64.png` üretildi (11 KB, assets ile birlikte paketleniyor) |
+| G2 | Envanterde giyilenleri görmek için hangi tuşa basılacağı belli değildi | Pasif sekmenin üstünde yanıp sönen **[TAB]** rozeti; alt ipucu satırı sekmeye göre değişiyor ve büyütüldü |
+| G3 | **Mana taşı alınca hız botu çıkıyordu** | Altı aksesuarın hepsi tek `"ring"` yuvasındaydı. Yuvalar türe ayrıldı: `weapon / armor / boots / ring / amulet`. Bot artık ayrı yuvada, yüzük ve muska da öyle |
+| G4 | Çok dilli destek istendi | Aşağıya bakınız |
+
+#### Dil desteği (TR / EN / DE / RU / AR)
+
+Tüm metinler `assets/locales/<kod>.json` dosyalarına taşındı — **333 anahtar × 5 dil**.
+Ayarlar menüsünde ok tuşlarıyla dil değişiyor, seçim kayıtla birlikte saklanıyor.
+
+| Konu | Karar / bulgu |
+|---|---|
+| Çıkarma yöntemi | 99 diyalog satırını elle taşımak yazım ve kodlama hatası riskliydi (konsol cp1254 Türkçe'yi bozuyor). `tools/extract_locale.py` diyalogları ve adları, `tools/keyify_ui.py` arayüz metinlerini **açık eşleme listesiyle** anahtarladı; her ikisi de yazmadan önce `ast.parse` ile doğruluyor |
+| İlk deneme başarısızlığı | Genel regex `ITEMS`/`ABILITIES` tablolarını bozdu ve `f.get("water_crystal")` gibi **bayrak adlarını** da çevirdi. Betik daraltıldı, tablolar elle düzenlendi |
+| Yedek davranış | Python tablolarındaki Türkçe metinler kodda duruyor: dil dosyası bulunamazsa oyun yine okunur kalıyor. Eksik anahtar Türkçe'ye, o da yoksa anahtarın kendisine düşüyor |
+| Font | Cinzel/MedievalSharp **Kiril ve Arap harflerini içermiyor**. `FontManager` artık dile göre aday listesi kullanıyor ve seçilen fontu o dilin alfabesiyle sınıyor |
+| Glif tespiti (üç kez düzeltildi) | `font.metrics()` eksik glif için de değer döndürüyor; genişlik ölçümü de (glif yer ayırıyor, çizmiyor); "hiç piksel yok" ölçütü Almendra'yı yakalıyor ama **Cinzel'i kaçırıyor** — Cinzel eksik harfi boş değil **kutu** olarak çiziyor. Doğru yöntem: her harfin görüntüsünü, kesinlikle eksik olan bir kod noktasının görüntüsüyle karşılaştırmak |
+| Arapça yazı yönü | Ölçüldü: pygame'in bu sürümünde `set_direction` **yok**; SDL_ttf harfleri doğru birleştiriyor (HarfBuzz) ama metni **soldan sağa** diziyor — `"المستوى 3"` çizilirken rakam kelimenin sağına ekleniyor, oysa solunda olmalı. `_rtl_reorder()` sözcük sırasını düzeltiyor; `python-bidi` kuruluysa tam Unicode algoritması kullanılıyor |
+| Türkçe düzeltmeleri | Kaynak metinlerde eksik diakritikler vardı ("Saglik Iksiri" → "Sağlık İksiri", "Golge Yay" → "Gölge Yay"); hepsi düzeltildi |
+
+**Arapça sınırı:** `python-bidi` kurulu değilse karışık yönlü metinler (örn. `[WASD]حركة`)
+kusurlu dizilebilir. Saf Arapça cümleler doğru görünüyor. `pip install python-bidi` ile
+tam Unicode bidi algoritmasına geçiliyor — kod bunu kendiliğinden algılıyor.
+
+**Testler:** `tests/test_locales.py` (11 test) her dilde her anahtarın varlığını, `%d` yer
+tutucularının tutarlılığını, eksik anahtarın Türkçe'ye düşmesini, RTL sıralamasını ve
+**arayüzde çeviriden geçmemiş Türkçe metin kalmadığını** doğruluyor.
+
 ### ⬜ Faz 5 — İçerik derinliği
 - [ ] İ5 — görev işaretçileri + mini harita
 - [ ] İ7 — dükkân ve ekonomi
@@ -290,6 +326,9 @@ gerçekten oluştu, silindi). Koşum takımı artık `SAVE_FILE`'ı geçici dizi
 | 2026-09-28 | 3 | Faz 3 commit'lendi (`faz-3-dovus-hissi` dalı) | 41 test |
 | 2026-09-28 | 4 | Kayıt/yükleme, ışık halesi, harita dekorları, NPC gezinmesi, ses bağlantıları, daktilo diyalog | 24 yeni test; toplam 65 test geçiyor |
 | 2026-09-28 | 4 | Testler kullanıcının gerçek kayıt dosyasını yazıyordu — koşum takımı geçici dizine yönlendirildi | Kirlenen dosya silindi |
+| 2026-09-28 | 4 | Faz 4 commit'lendi (`faz-4-atmosfer` dalı) | 65 test |
+| 2026-09-28 | — | **Oyun testi geri bildirimi:** pencere/görev çubuğu ikonu, envanterde TAB keşfedilebilirliği, ekipman yuvası çakışması | Üçü de düzeltildi |
+| 2026-09-28 | — | 5 dilli yerelleştirme (TR/EN/DE/RU/AR), 333 anahtar | `tests/test_locales.py` ile 11 yeni test; toplam 77 test |
 
 ---
 

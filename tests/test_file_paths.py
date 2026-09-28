@@ -92,12 +92,14 @@ class TestCurrentFileDirectory(unittest.TestCase):
     def test_every_font_style_has_a_real_file(self):
         """FontManager'in aradigi her stil icin assets/fonts altinda gercek bir dosya olmali."""
         fm = self.module.FontManager
-        for names in fm.PREFERRED:
+        for style, names in fm.CANDIDATES.items():
+            if not names:      # "mono" stili sistem fontundan gelir
+                continue
             found = [n for n in names if os.path.isfile(os.path.join(fm.FONT_DIR, n))]
-            with self.subTest(names=names):
+            with self.subTest(style=style):
                 self.assertTrue(
                     found,
-                    f"{names} icin dosya yok -- sistem fontuna dusulur, ortacag gorunumu kaybolur",
+                    f"{style} icin dosya yok -- sistem fontuna dusulur, ortacag gorunumu kaybolur",
                 )
 
     def test_chosen_fonts_actually_render_turkish(self):
@@ -112,12 +114,37 @@ class TestCurrentFileDirectory(unittest.TestCase):
         for style in ("title", "dialog", "deco"):
             with self.subTest(style=style):
                 font = fm.get(style, 20)
-                for ch in fm.TR_PROBE:
+                for ch in fm.PROBES["TR"]:
                     surf = font.render(ch, True, (255, 255, 255))
                     self.assertGreater(
                         pygame.mask.from_surface(surf).count(), 0,
                         f"'{style}' fontu '{ch}' harfini bos ciziyor",
                     )
+
+    def test_every_language_gets_a_font_that_can_render_it(self):
+        """Her dil icin secilen font o dilin alfabesini gercekten cizmeli.
+
+        Cinzel/MedievalSharp Kiril ve Arap harflerini icermiyor; FontManager
+        bu durumda sistem fontuna dusmeli.
+        """
+        import pygame
+        pygame.font.init()
+        fm = self.module.FontManager
+        old = fm._lang
+        try:
+            for code, probe in fm.PROBES.items():
+                for style in ("title", "dialog", "mono"):
+                    fm.set_language(code)
+                    font = fm.get(style, 20)
+                    for ch in probe:
+                        with self.subTest(lang=code, style=style, ch=ch):
+                            surf = font.render(ch, True, (255, 255, 255))
+                            self.assertGreater(
+                                pygame.mask.from_surface(surf).count(), 0,
+                                f"{code}/{style}: '{ch}' bos ciziliyor",
+                            )
+        finally:
+            fm.set_language(old)
 
     def test_paths_are_absolute(self):
         self.assertTrue(os.path.isabs(self.module.SETTINGS_FILE))

@@ -98,138 +98,227 @@ class Settings:
 CFG = Settings()
 
 # ─── Yerelleştirme ────────────────────────────────────────────────
-LOC = {
-    "TR": {
-        "title_play":"[ ENTER ]  Maceraya Başla",
-        "title_settings":"[ F1 ]  Ayarlar",
-        "settings":"AYARLAR",
-        "set_fullscreen":"Tam Ekran",
-        "set_master":"Ana Ses",
-        "set_sfx":"Efekt Sesi",
-        "set_music":"Müzik Sesi",
-        "set_language":"Dil / Language",
-        "set_fps":"FPS Göster",
-        "set_on":"AÇIK","set_off":"KAPALI",
-        "set_back":"[ ESC ] Geri",
-        "class_select":"SINIF SEÇ",
-        "class_subtitle":"Karakterin için bir yol seç",
-        "class_confirm":"[ E / ENTER ] Onayla",
-        "stat_alloc":"NİTELİK DAĞITIMI",
-        "stat_levelup":"SEVIYE ATLADI!",
-        "stat_confirm":"[ ENTER ] Onayla",
-        "stat_remain":"Kalan: %d puan",
-        "inventory":"ENVANTER",
-        "equip_tab":"Eşyalar","gear_tab":"Ekipman",
-        "quest_log":"GÖREV GÜNLÜĞÜ",
-        "quest_done":"Tamamlandı","quest_active":"Aktif","quest_locked":"Kilitli",
-        "dialog_continue":"[ E ] Devam",
-        "gameover_title":"ÖLDÜN","gameover_sub":"Karanlık seni yuttu...",
-        "gameover_restart":"[ R ] Yeniden Başla",
-        "victory_title":"ZAFER!","victory_sub":"Malachar yenildi!",
-        "victory_sub2":"Dünya bir kez daha kurtarıldı.",
-        "victory_menu":"[ ESC ] Ana Menü",
-        "map_label":"Harita:","chapter_label":"Bölüm",
-        "atk_label":"[Space]",
-        "gold":"Altın","skill_pts":"Puan!",
-        "item_use":"[ E ] Kullan","item_equip":"[ E ] Giy","item_unequip":"[ E ] Çıkar",
-        "equipped":"EKİPLİ",
-        "chest_opened":"Sandık Açıldı!",
-        "lvl":"Sv.",
-    },
-    "EN": {
-        "title_play":"[ ENTER ]  Start Adventure",
-        "title_settings":"[ F1 ]  Settings",
-        "settings":"SETTINGS",
-        "set_fullscreen":"Fullscreen",
-        "set_master":"Master Volume",
-        "set_sfx":"SFX Volume",
-        "set_music":"Music Volume",
-        "set_language":"Language / Dil",
-        "set_fps":"Show FPS",
-        "set_on":"ON","set_off":"OFF",
-        "set_back":"[ ESC ] Back",
-        "class_select":"SELECT CLASS",
-        "class_subtitle":"Choose your path",
-        "class_confirm":"[ E / ENTER ] Confirm",
-        "stat_alloc":"STAT ALLOCATION",
-        "stat_levelup":"LEVEL UP!",
-        "stat_confirm":"[ ENTER ] Confirm",
-        "stat_remain":"Remaining: %d pts",
-        "inventory":"INVENTORY",
-        "equip_tab":"Items","gear_tab":"Equipment",
-        "quest_log":"QUEST LOG",
-        "quest_done":"Completed","quest_active":"Active","quest_locked":"Locked",
-        "dialog_continue":"[ E ] Continue",
-        "gameover_title":"YOU DIED","gameover_sub":"Darkness consumed you...",
-        "gameover_restart":"[ R ] Restart",
-        "victory_title":"VICTORY!","victory_sub":"Malachar is defeated!",
-        "victory_sub2":"The world is saved once more.",
-        "victory_menu":"[ ESC ] Main Menu",
-        "map_label":"Map:","chapter_label":"Chapter",
-        "atk_label":"[Space]",
-        "gold":"Gold","skill_pts":"Points!",
-        "item_use":"[ E ] Use","item_equip":"[ E ] Equip","item_unequip":"[ E ] Unequip",
-        "equipped":"EQUIPPED",
-        "chest_opened":"Chest Opened!",
-        "lvl":"Lv.",
-    }
-}
-def T_(key:str, *args) -> str:
-    lang=CFG.data.get("language","TR")
-    text=LOC.get(lang,LOC["TR"]).get(key,LOC["TR"].get(key,key))
-    if args: text=text%args
-    return text
+# ─── Yerelleştirme ────────────────────────────────────────────────
+# Tüm metinler assets/locales/<kod>.json dosyalarında. Eksik anahtar
+# Türkçe'ye, o da yoksa anahtarın kendisine düşer — yarım çeviri oyunu
+# çökertmez, yalnızca o satır Türkçe kalır.
+LOCALE_DIR = os.path.join(ASSET_DIR,"assets","locales")
+LANGUAGES = [   # kod, menüde görünen ad, yazı yönü
+    ("TR","Türkçe",   "ltr"),
+    ("EN","English",  "ltr"),
+    ("DE","Deutsch",  "ltr"),
+    ("RU","Русский",  "ltr"),
+    ("AR","العربية",   "rtl"),
+]
+LANG_CODES=[c for c,_,_ in LANGUAGES]
+
+try:    # Tam Unicode bidi algoritması varsa onu kullan
+    from bidi.algorithm import get_display as _bidi_display
+except Exception:
+    _bidi_display=None
+
+def _rtl_reorder(text:str)->str:
+    """Sağdan sola diller için sözcük sırasını düzeltir.
+
+    SDL_ttf harfleri doğru birleştiriyor (HarfBuzz) ama metni soldan sağa
+    diziyor; pygame'in bu sürümünde set_direction yok. Ölçtük: "المستوى 3"
+    çizilirken rakam kelimenin SAĞINA ekleniyor, oysa solunda olmalı.
+    python-bidi kuruluysa tam algoritma, değilse sözcükleri ters çevirmek
+    kısa arayüz metinleri için yeterli bir yaklaşım.
+    """
+    if _bidi_display is not None:
+        try: return _bidi_display(text)
+        except Exception: pass
+    return " ".join(reversed(text.split(" ")))
+
+class Locale:
+    _cache:Dict={}
+    FALLBACK="TR"
+
+    @classmethod
+    def strings(cls,code)->Dict:
+        if code not in cls._cache:
+            try:
+                with open(os.path.join(LOCALE_DIR,code.lower()+".json"),encoding="utf-8") as f:
+                    cls._cache[code]=json.load(f)
+            except Exception:
+                cls._cache[code]={}
+        return cls._cache[code]
+
+    @classmethod
+    def current(cls)->str:
+        code=CFG.data.get("language","TR")
+        return code if code in LANG_CODES else "TR"
+
+    @classmethod
+    def direction(cls,code=None)->str:
+        code=code or cls.current()
+        for c,_,d in LANGUAGES:
+            if c==code: return d
+        return "ltr"
+
+    @classmethod
+    def label(cls,code)->str:
+        for c,name,_ in LANGUAGES:
+            if c==code: return name
+        return code
+
+    @classmethod
+    def text(cls,key,*args,default=None)->str:
+        code=cls.current()
+        s=cls.strings(code).get(key)
+        if s is None: s=cls.strings(cls.FALLBACK).get(key)
+        if s is None: s=default if default is not None else key
+        if args:
+            try: s=s%args
+            except Exception: pass
+        if cls.direction()=="rtl": s=_rtl_reorder(s)
+        return s
+
+def T_(key:str,*args,default=None)->str:
+    return Locale.text(key,*args,default=default)
+
+# ── Veri tablolarındaki metinler için kısayollar ─────────────────
+# Tablolardaki Türkçe metinler kodda yedek olarak duruyor: çeviri dosyası
+# bulunamazsa oyun yine okunur kalıyor.
+def item_name(k)->str:
+    row=ALL_ITEMS.get(k)
+    return T_("item.%s.name"%k,default=row[0] if row else k)
+
+def item_desc(k)->str:
+    row=ALL_ITEMS.get(k)
+    return T_("item.%s.desc"%k,default=row[4] if row and len(row)>4 else "")
+
+def quest_title(n)->str:
+    q=QUESTS.get(n)
+    return T_("quest.%d.title"%n,default=q[0] if q else "")
+
+def quest_desc(n)->str:
+    q=QUESTS.get(n)
+    return T_("quest.%d.desc"%n,default=q[1] if q else "")
+
+def class_text(cls_key,field)->str:
+    info=CLASS_INFO.get(cls_key,{})
+    return T_("class.%s.%s"%(cls_key,field),default=info.get(field,""))
+
+def ability_name(ab)->str:
+    return T_("ability.%s"%ab["id"],default=ab["name"])
+
+def stat_name(k)->str:
+    return T_("stat.%s"%k,default=dict(STAT_NAMES).get(k,k))
+
+def stat_desc(k)->str:
+    return T_("stat.%s.desc"%k,default=STAT_DESCS.get(k,""))
+
+def dlg_line(entry)->str:
+    """Diyalog satırı: "anahtar" ya da ("anahtar", arg...) olabilir."""
+    if isinstance(entry,(tuple,list)): return T_(entry[0],*entry[1:])
+    return T_(entry)
+
 
 # ─── Font Yöneticisi ─────────────────────────────────────────────
 class FontManager:
+    """Dile göre font seçer.
+
+    assets/fonts içindeki ortaçağ fontları (Cinzel, MedievalSharp) yalnızca
+    Latin alfabesini kapsıyor; Kiril ve Arap harflerini çizemiyorlar. Bu
+    yüzden her dil için aday listesi ayrı ve seçilen font o dilin alfabesini
+    gerçekten çizebiliyor mu diye sınanıyor.
+    """
     _cache:Dict={}
+    _lang="TR"
     FONT_DIR = os.path.join(ASSET_DIR,"assets","fonts")
-    # NOT: dosya adları assets/fonts içindekilerle birebir eşleşmeli.
-    PREFERRED = [
-        ("Cinzel-Bold.ttf","Cinzel-Regular.ttf"),        # başlık / HUD
-        ("MedievalSharp-Regular.ttf",),                  # diyalog
-        ("MedievalSharp-Regular.ttf",),                  # dekoratif
-    ]
-    # Oyun Türkçe: bu harfleri çizemeyen font kullanılamaz.
-    # (Örn. Almendra ğ/ş glifi içermez, harfleri sessizce yutar.)
-    TR_PROBE = "ğĞşŞıİçÇöÖüÜ"
+
+    # Dilin gerektirdiği harfler — font bunları çizemiyorsa elenir.
+    PROBES = {
+        "TR":"ğĞşŞıİçÇöÖüÜ",
+        "EN":"ABCabc",
+        "DE":"äöüßÄÖÜ",
+        "RU":"ЁЙЩЪЫЭЮЯёйщъыэюя",
+        "AR":"تجالظمبسنقر",
+    }
+    # Sıra: önce oyunun kendi ortaçağ fontu, sonra sistem fontları.
+    CANDIDATES = {
+        "title": ["Cinzel-Bold.ttf","Cinzel-Regular.ttf"],
+        "dialog":["MedievalSharp-Regular.ttf"],
+        "deco":  ["MedievalSharp-Regular.ttf"],
+        "mono":  [],   # hizali bilgi (HUD sayilari) — sistem fontundan
+    }
+    # "mono" stili icin ayri liste: once dar/sabit genislikli fontlar
+    MONO_FALLBACK = {
+        "TR":["consolas","couriernew","monospace"],
+        "EN":["consolas","couriernew","monospace"],
+        "DE":["consolas","couriernew","monospace"],
+        "RU":["consolas","couriernew","tahoma","segoeui"],
+        "AR":["tahoma","segoeui","arial"],
+    }
+    SYSTEM_FALLBACK = {
+        "TR":["georgia","times new roman","palatino","serif"],
+        "EN":["georgia","times new roman","palatino","serif"],
+        "DE":["georgia","times new roman","palatino","serif"],
+        "RU":["georgia","times new roman","tahoma","segoeui","serif"],
+        "AR":["tahoma","segoeui","arial","serif"],
+    }
 
     @classmethod
-    def _renders_turkish(cls, font) -> bool:
+    def set_language(cls,code):
+        if code!=cls._lang:
+            cls._lang=code
+            cls._cache.clear()
+
+    # Hiçbir fontta bulunmayan bir kod noktası: "eksik glif" görüntüsünün örneği
+    _NOTDEF_CHAR = ""
+
+    @classmethod
+    def _renders(cls,font,probe)->bool:
+        """Font bu harfleri gerçekten çiziyor mu?
+
+        Üç ölçüm de yanıltıyor, sırayla öğrenildi:
+          * font.metrics() eksik glif için de değer döndürüyor,
+          * genişlik ölçümü de (glif yer ayırıyor ama çizmiyor),
+          * "hiç piksel yok" ölçütü Almendra'yı yakalıyor ama Cinzel'i
+            kaçırıyor — Cinzel eksik harfi BOŞ değil KUTU olarak çiziyor.
+        Bu yüzden her harfin görüntüsü, kesinlikle eksik olan bir kod
+        noktasının görüntüsüyle karşılaştırılıyor.
+        """
         try:
-            for ch in cls.TR_PROBE:
+            def shot(ch):
+                s=font.render(ch,True,WH)
+                return (s.get_width(),pygame.image.tostring(s,"RGBA"))
+            notdef=shot(cls._NOTDEF_CHAR)
+            for ch in probe:
+                cur=shot(ch)
+                if cur==notdef: return False          # eksik glif kutusu
                 if not pygame.mask.from_surface(font.render(ch,True,WH)).count():
-                    return False
+                    return False                       # hiç çizilmiyor
             return True
         except Exception:
             return False
 
     @classmethod
-    def _find(cls, names, size):
-        for name in names:
-            path = os.path.join(cls.FONT_DIR, name)
+    def _find(cls,style,size):
+        probe=cls.PROBES.get(cls._lang,cls.PROBES["EN"])
+        for name in cls.CANDIDATES.get(style,cls.CANDIDATES["title"]):
+            path=os.path.join(cls.FONT_DIR,name)
             if os.path.exists(path):
                 try:
-                    f=pygame.font.Font(path, size)
-                    if cls._renders_turkish(f): return f
+                    f=pygame.font.Font(path,size)
+                    if cls._renders(f,probe): return f
                 except Exception: pass
-        # System fallback
-        for sf in ["georgia","times new roman","palatino","serif","monospace"]:
+        table=cls.MONO_FALLBACK if style=="mono" else cls.SYSTEM_FALLBACK
+        for sf in table.get(cls._lang,table["EN"]):
             try:
-                f=pygame.font.SysFont(sf, size, bold=True)
-                if f and cls._renders_turkish(f): return f
+                f=pygame.font.SysFont(sf,size,bold=True)
+                if f and cls._renders(f,probe): return f
             except Exception: pass
-        return pygame.font.SysFont("monospace", size, bold=True)
+        return pygame.font.SysFont("monospace",size,bold=True)
 
     @classmethod
-    def get(cls, style:str, size:int) -> pygame.font.Font:
-        key=(style,size)
+    def get(cls,style:str,size:int)->pygame.font.Font:
+        key=(cls._lang,style,size)
         if key in cls._cache: return cls._cache[key]
-        if style=="title":     f=cls._find(cls.PREFERRED[0],size)
-        elif style=="dialog":  f=cls._find(cls.PREFERRED[1],size)
-        elif style=="deco":    f=cls._find(cls.PREFERRED[2],size)
-        else:                  f=cls._find(cls.PREFERRED[0],size)
-        cls._cache[key]=f; return f
+        f=cls._find(style if style in cls.CANDIDATES else "title",size)
+        cls._cache[key]=f;return f
 
 # ─── Ses Yöneticisi (Prosedürel ses üretimi — numpy) ─────────────
 class SoundManager:
@@ -461,17 +550,23 @@ EQUIP_ITEMS = {
     "mage_robe":    ("Buyucu Cubbe", UI_BL,  {"int":2,"wis":2},  "armor",     {"mage"}),
     "healer_robe":  ("Sifaci Cubbe", UI_GN,  {"wis":3,"vit":2},  "armor",     {"healer"}),
     "scout_coat":   ("Izci Palto",   G_D,    {"agi":3,"vit":1},  "armor",     {"archer"}),
-    # Aksesuarlar
+    # Botlar
+    "swift_boots":  ("Hiz Botları",  G_L,    {"agi":3},          "boots",     None),
+    # Yüzükler
     "power_ring":   ("Guc Yuzugu",   UI_GD,  {"str":2,"vit":1},  "ring",      None),
-    "mana_gem":     ("Mana Tası",    UI_CY,  {"wis":2,"int":1},  "ring",      None),
-    "swift_boots":  ("Hiz Botları",  G_L,    {"agi":3},          "ring",      None),
-    "warrior_crest":("Savasci Nisan",(220,80,40),{"str":2,"vit":2},"ring",    {"warrior"}),
     "mage_focus":   ("Odak Kristali",UI_AC,  {"int":3,"wis":1},  "ring",      {"mage"}),
-    "archer_token": ("Nisan Tası",   G_L,    {"agi":2,"str":1},  "ring",      {"archer"}),
+    # Muskalar
+    "mana_gem":     ("Mana Tası",    UI_CY,  {"wis":2,"int":1},  "amulet",    None),
+    "warrior_crest":("Savasci Nisan",(220,80,40),{"str":2,"vit":2},"amulet",  {"warrior"}),
+    "archer_token": ("Nisan Tası",   G_L,    {"agi":2,"str":1},  "amulet",    {"archer"}),
 }
 
 # Ekipman yuvalarının sabit sırası — envanter imleci ve çizim bunu paylaşır.
-EQUIP_SLOTS = ("weapon","armor","ring")
+# NOT: Önceden bot, yüzük, muska ve nişanların HEPSİ tek "ring" yuvasındaydı;
+# mana taşı takınca hız botu çıkıyordu. Yuvalar türe göre ayrıldı.
+EQUIP_SLOTS = ("weapon","armor","boots","ring","amulet")
+SLOT_NAMES  = {"weapon":"Silah","armor":"Zirh","boots":"Bot","ring":"Yuzuk","amulet":"Muska"}
+SLOT_COLORS = {"weapon":UI_RD,"armor":ST_L,"boots":G_L,"ring":UI_GD,"amulet":UI_CY}
 
 ITEMS = {
     "hp_pot": ("Saglik Iksiri", HP_G,   "heal",   35,  "35 HP iyilestirir."),
@@ -930,6 +1025,15 @@ class PA:
         elif slot=="ring":
             pygame.draw.circle(s,col,(18,18),13,3);pygame.draw.circle(s,(200,200,200),(18,18),5,2)
             pygame.draw.circle(s,(220,220,255),(18,18),3)
+        elif slot=="boots":
+            pygame.draw.polygon(s,col,[(9,10),(17,10),(17,24),(28,24),(28,30),(9,30)])
+            pygame.draw.rect(s,(70,55,40),(9,27,19,4))
+            pygame.draw.line(s,(240,240,240),(11,14),(15,14),2)
+        elif slot=="amulet":
+            pygame.draw.arc(s,(200,190,170),(8,4,20,20),0.5,2.6,2)
+            pygame.draw.polygon(s,col,[(18,18),(24,25),(18,32),(12,25)])
+            pygame.draw.polygon(s,(min(255,col[0]+50),min(255,col[1]+50),min(255,col[2]+50)),
+                                [(18,21),(21,25),(18,29),(15,25)])
         return s
 
 # ─── Dataclasses ────────────────────────────────────────────────
@@ -1137,7 +1241,7 @@ class NPC(Entity):
         sx=int(self.px-cx); sy=int(self.py-cy)
         if not(-TILE<=sx<SW+TILE and -TILE<=sy<SH+TILE): return
         surf.blit(PA.npc_surf(self.color,self.frame,self.style),(sx,sy))
-        tag=_tag_surf(self.name)
+        tag=_tag_surf(T_(self.name))
         tx2=sx+TILE//2-tag.get_width()//2;ty2=sy-14
         if 0<=tx2<SW and 0<=ty2<SH:
             bg=pygame.Surface((tag.get_width()+4,tag.get_height()+2),pygame.SRCALPHA)
@@ -1389,7 +1493,7 @@ def _trans_strip(m, axis, fixed, start, end, dst, dtx, dty, ground=None, hint=No
 
 
 def build_ashveil():
-    m = GameMap(62, 52, "Ashveil Koyu")
+    m = GameMap(62, 52, "map.ashveil_koyu")
     _rect(m, 0, 0, 62, 52, T.GRASS)
     # Göl
     for ty in range(3, 12):
@@ -1448,23 +1552,23 @@ def build_ashveil():
 
     # NPCler
     def aldric_d(f):
-        if f.get("ch",1)>=6: return ["Kahraman! Krallık sana borçlu.","Malachar sonsuza dek hapsedildi."]
-        if f.get("water_crystal"): return ["Su Kristali bulundu!","Gölge Kalesi portalı Buz Mağarasında.","Çabuk ol!"]
-        if f.get("earth_crystal"): return ["Bir kristal bulundu!","Çöl Yoluna git.","Oracle Nyx seni bekliyor.","[ Görev Güncellendi! ]"]
-        return ["Ah genç kahraman! Sonunda geldin.","Malachar'ın mühürü çözülüyor.","Dört Kutsal Kristal toplanmalı.","Doğudaki Karanlık Orman'dan başla.","[ Görev Güncellendi! ]"]
-    m.npcs.append(NPC(24,19,"Yasli Aldric",(160,100,60),aldric_d,"elder"))
-    def smith_d(f): return ["İyi silahlar için altın getir.","Sandıklardan ekipman bulabilirsin.","[I] → Ekipman sekmesi → Giy."]
-    m.npcs.append(NPC(18,13,"Demirci Boran",(140,90,50),smith_d,"guard"))
-    def inn_d(f): return ["Konaklamak ister misin?","Yorgunluk geçer, HP yenilenir.","Bol şans kahraman!"]
-    m.npcs.append(NPC(38,13,"Hanci Mira",(180,130,160),inn_d))
+        if f.get("ch",1)>=6: return ["dlg.aldric.1","dlg.aldric.2"]
+        if f.get("water_crystal"): return ["dlg.aldric.3","dlg.aldric.4","dlg.aldric.5"]
+        if f.get("earth_crystal"): return ["dlg.aldric.6","dlg.aldric.7","dlg.aldric.8","dlg.aldric.9"]
+        return ["dlg.aldric.10","dlg.aldric.11","dlg.aldric.12","dlg.aldric.13","dlg.aldric.14"]
+    m.npcs.append(NPC(24,19,"npc.yasli_aldric",(160,100,60),aldric_d,"elder"))
+    def smith_d(f): return ["dlg.smith.1","dlg.smith.2","dlg.smith.3"]
+    m.npcs.append(NPC(18,13,"npc.demirci_boran",(140,90,50),smith_d,"guard"))
+    def inn_d(f): return ["dlg.inn.1","dlg.inn.2","dlg.inn.3"]
+    m.npcs.append(NPC(38,13,"npc.hanci_mira",(180,130,160),inn_d))
     def guard_d(f):
-        if not f.get("speak_aldric"): return ["Dur! Önce Yaşlı Aldric'i gör.","O seni bekliyordu."]
-        return ["Geçebilirsin kahraman.","Doğuda Karanlık Orman var.","Dikkatli ol."]
-    m.npcs.append(NPC(56,22,"Koy Muhafizi",(100,120,180),guard_d,"guard"))
-    def south_d(f): return ["Güneyde güzel çayırlar var.","Çiftçi Torben'i ziyaret edebilirsin."]
-    m.npcs.append(NPC(24,48,"Yolcu",(160,180,140),south_d))
-    def west_d(f): return ["Batıda nehir ve köprü var.","Balıkçı Riva orada yaşıyor.","Nehrin kuzeyinde gizemli bir kütüphane varmış."]
-    m.npcs.append(NPC(4,24,"Koy Yerlisi",(140,160,180),west_d))
+        if not f.get("speak_aldric"): return ["dlg.guard.1","dlg.guard.2"]
+        return ["dlg.guard.3","dlg.guard.4","dlg.guard.5"]
+    m.npcs.append(NPC(56,22,"npc.koy_muhafizi",(100,120,180),guard_d,"guard"))
+    def south_d(f): return ["dlg.south.1","dlg.south.2"]
+    m.npcs.append(NPC(24,48,"npc.yolcu",(160,180,140),south_d))
+    def west_d(f): return ["dlg.west.1","dlg.west.2","dlg.west.3"]
+    m.npcs.append(NPC(4,24,"npc.koy_yerlisi",(140,160,180),west_d))
     m.enemies += [
         Enemy(48,12,"slime",20,4,12,agro=4,loot=["gold"]),
         Enemy(52,8, "slime",20,4,12,agro=4),
@@ -1475,7 +1579,7 @@ def build_ashveil():
 
 def build_dark_forest():
     """Karanlık Orman — sabit tasarım, güney/batı çıkışları var."""
-    m = GameMap(58, 48, "Karanlik Orman", ambient=(0,20,0))
+    m = GameMap(58, 48, "map.karanlik_orman", ambient=(0,20,0))
     _rect(m, 0, 0, 58, 48, T.GRASS)
     # Kenar 2 tile ağaç
     for ty in range(48):
@@ -1522,9 +1626,9 @@ def build_dark_forest():
     m.set(16,30,T.CHEST); m.chests[(16,30)] = ["leather_armor","gold"]
 
     def roland_d(f):
-        if f.get("ch",1)>=3: return ["İyi iş çıkardın.","Harabeler seni bekliyor.","Güneyde de keşfedilmemiş yerler var..."]
-        return ["Ugh... Saldırıya uğradım.","Harabelerde Toprak Kristali var.","Kuzeye git!","Dikkat et — Taş Golem orayı koruyor!","[ Görev Güncellendi! ]"]
-    m.npcs.append(NPC(22,22,"Sir Roland",(130,160,130),roland_d,"knight"))
+        if f.get("ch",1)>=3: return ["dlg.roland.1","dlg.roland.2","dlg.roland.3"]
+        return ["dlg.roland.4","dlg.roland.5","dlg.roland.6","dlg.roland.7","dlg.roland.8"]
+    m.npcs.append(NPC(22,22,"npc.sir_roland",(130,160,130),roland_d,"knight"))
 
     m.enemies += [
         Enemy(16,12,"wolf",35,8,20,agro=5,loot=["gold"]),
@@ -1539,7 +1643,7 @@ def build_dark_forest():
 
 def build_rocky_pass():
     """Kayalık Geçit — Karanlık Orman'ın güneyinde, çöle bağlı."""
-    m = GameMap(48, 38, "Kayalik Gecit", ambient=(15,10,5))
+    m = GameMap(48, 38, "map.kayalik_gecit", ambient=(15,10,5))
     _rect(m, 0, 0, 48, 38, T.STONE)
     # Yürünebilir zemin (dağ geçidi)
     # Tüm iç alanı zemin yap, sonra kayalar ekle
@@ -1573,8 +1677,8 @@ def build_rocky_pass():
     m.set(36, 4, T.CHEST); m.chests[(36,4)]  = ["mp_pot","power_ring"]
     m.set(24,28, T.CHEST); m.chests[(24,28)] = ["hp_pot","iron_sword","gold"]
 
-    def scout_d(f): return ["Bu geçit tehlikeli ama geçilebilir.","Güneyden çöle ulaşabilirsin.","Doğuda harabeler var.","Dikkatli ol!"]
-    m.npcs.append(NPC(24,16,"Gecit Gozcusu",(160,140,100),scout_d,"guard"))
+    def scout_d(f): return ["dlg.scout.1","dlg.scout.2","dlg.scout.3","dlg.scout.4"]
+    m.npcs.append(NPC(24,16,"npc.gecit_gozcusu",(160,140,100),scout_d,"guard"))
 
     m.enemies += [
         Enemy(14, 6,"goblin",42,9,26,agro=5,loot=["gold"]),
@@ -1589,7 +1693,7 @@ def build_rocky_pass():
 
 def build_misty_swamp():
     """Sisli Bataklık — Karanlık Orman'ın batısında."""
-    m = GameMap(58, 42, "Sisli Bataklik", ambient=(10,20,10))
+    m = GameMap(58, 42, "map.sisli_bataklik", ambient=(10,20,10))
     _rect(m, 0, 0, 58, 42, T.GRASS)
     # Bataklık su alanları (sabit)
     swamp_pools = [
@@ -1630,8 +1734,8 @@ def build_misty_swamp():
     m.set(10,20, T.CHEST); m.chests[(10,20)] = ["hp_pot","gold","gold"]
     m.set(46,20, T.CHEST); m.chests[(46,20)] = ["mp_pot","fine_bow"]
 
-    def witch_d(f): return ["Bataklığa hoş geldin yolcu.","Burada huzur vardır — bir de tehlike.","Batılarda kadim güçler uyur.","Dikkatli bas her adımı."]
-    m.npcs.append(NPC(30,19,"Bataklık Cadısı",(100,160,100),witch_d,"oracle"))
+    def witch_d(f): return ["dlg.witch.1","dlg.witch.2","dlg.witch.3","dlg.witch.4"]
+    m.npcs.append(NPC(30,19,"npc.bataklik_cadisi",(100,160,100),witch_d,"oracle"))
 
     m.enemies += [
         Enemy(10,20,"slime",   30, 6,18,agro=4,loot=["gold"]),
@@ -1647,7 +1751,7 @@ def build_misty_swamp():
 
 
 def build_ruins():
-    m = GameMap(58, 52, "Antik Harabeler", ambient=(20,10,0))
+    m = GameMap(58, 52, "map.antik_harabeler", ambient=(20,10,0))
     _rect(m, 0, 0, 58, 52, T.STONE)
     # Tüm iç alanı tek büyük zemin yap (duvarlar sonra)
     _rect(m, 2, 2, 54, 48, T.FLOOR)
@@ -1684,9 +1788,9 @@ def build_ruins():
     m.set(44,44,T.CHEST); m.chests[(44,44)]= ["earth_c","hp_pot","hp_pot"]
 
     def ghost_d(f):
-        if f.get("earth_crystal"): return ["Kristali aldın.","Batı Çölü'ne git, kahini bul."]
-        return ["Golem hâlâ burada bekliyor.","Dikkat et, çok güçlü."]
-    m.npcs.append(NPC(8,19,"Antik Ruh",(180,200,220),ghost_d))
+        if f.get("earth_crystal"): return ["dlg.ghost.1","dlg.ghost.2"]
+        return ["dlg.ghost.3","dlg.ghost.4"]
+    m.npcs.append(NPC(8,19,"npc.antik_ruh",(180,200,220),ghost_d))
     m.enemies += [
         Enemy(6, 6,"skeleton",55,11,30,agro=5,loot=["gold"]),
         Enemy(22, 6,"skeleton",55,11,30,agro=5),
@@ -1700,7 +1804,7 @@ def build_ruins():
 
 
 def build_desert():
-    m = GameMap(60, 44, "Col Yolu", ambient=(30,15,0))
+    m = GameMap(60, 44, "map.col_yolu", ambient=(30,15,0))
     _rect(m, 0, 0, 60, 44, T.SAND)
     for rx,ry,rs in [(6,6,3),(16,6,3),(52,6,3),(56,9,2),(6,36,3),(14,38,2),(52,36,3),(56,38,2)]:
         for ty in range(ry-rs,ry+rs+1):
@@ -1726,10 +1830,10 @@ def build_desert():
     m.set(54,28,T.CHEST); m.chests[(54,28)] = ["shadow_bow","gold"]
     m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot"]
     def oracle_d(f):
-        if f.get("water_crystal"): return ["İkinci kristali buldun.","Artık Gölge Kalesi'ne gidebilirsin."]
-        if f.get("earth_crystal"): return ["Hoş geldin. İkinci kristal Buz Mağarası'nda.","[ Görev Güncellendi! ]"]
-        return ["Henüz hazır değilsin.","Önce Toprak Kristali'ni bul."]
-    m.npcs.append(NPC(30,8,"Oracle Nyx",(120,80,180),oracle_d,"oracle"))
+        if f.get("water_crystal"): return ["dlg.oracle.1","dlg.oracle.2"]
+        if f.get("earth_crystal"): return ["dlg.oracle.3","dlg.oracle.4"]
+        return ["dlg.oracle.5","dlg.oracle.6"]
+    m.npcs.append(NPC(30,8,"npc.oracle_nyx",(120,80,180),oracle_d,"oracle"))
     m.enemies += [
         Enemy(10,10,"scorpion",45,10,30,agro=5,loot=["gold"]),
         Enemy(48,10,"scorpion",45,10,30,agro=5),
@@ -1742,7 +1846,7 @@ def build_desert():
 
 
 def build_ice_cave():
-    m = GameMap(52, 48, "Buz Magara", ambient=(0,15,30))
+    m = GameMap(52, 48, "map.buz_magara", ambient=(0,15,30))
     _rect(m,0,0,52,48,T.STONE)
     ice_rooms=[
         (2,2,12,11),(16,2,12,11),(30,2,20,11),
@@ -1772,9 +1876,9 @@ def build_ice_cave():
     m.set(5, 19,T.CHEST); m.chests[(5,19)] = ["hp_pot","mp_pot"]
     m.set(38,42,T.CHEST); m.chests[(38,42)]= ["water_c","hp_pot","mp_pot","hp_pot"]
     def spirit_d(f):
-        if f.get("water_crystal"): return ["Kristali aldın.","Sol alt geçitten Gölge Kalesi'ne ulaşabilirsin!"]
-        return ["Kristal boss odasında.","Dikkat et!"]
-    m.npcs.append(NPC(8,20,"Buz Ruhu",(180,220,255),spirit_d))
+        if f.get("water_crystal"): return ["dlg.spirit.1","dlg.spirit.2"]
+        return ["dlg.spirit.3","dlg.spirit.4"]
+    m.npcs.append(NPC(8,20,"npc.buz_ruhu",(180,220,255),spirit_d))
     m.enemies += [
         Enemy(5, 5,"ice_wolf",55,12,35,agro=5,loot=["gold"]),
         Enemy(20, 5,"ice_wolf",55,12,35,agro=5),
@@ -1788,7 +1892,7 @@ def build_ice_cave():
 
 
 def build_shadow_castle():
-    m = GameMap(56, 52, "Golge Kalesi", ambient=(40,0,60))
+    m = GameMap(56, 52, "map.golge_kalesi", ambient=(40,0,60))
     _rect(m,0,0,56,52,T.SHADOW)
     _rect(m,2,2,52,48,T.FLOOR)
     # Bölme duvarları (geçilebilir kapılı)
@@ -1811,9 +1915,9 @@ def build_shadow_castle():
     m.set(5, 44,T.CHEST); m.chests[(5,44)] = ["hp_pot","hp_pot","steel_sword"]
     m.set(48,44,T.CHEST); m.chests[(48,44)]= ["mage_focus","elder_staff"]
     def king_d(f):
-        if f.get("malachar_defeated"): return ["Kahraman! Krallık sana borçlu!","Adın tarihe geçecek."]
-        return ["Malachar çok güçlü.","Her iki kristal gerekmekte.","Dikkat et!"]
-    m.npcs.append(NPC(10,8,"Kral Alderon",(200,160,80),king_d,"guard"))
+        if f.get("malachar_defeated"): return ["dlg.king.1","dlg.king.2"]
+        return ["dlg.king.3","dlg.king.4","dlg.king.5"]
+    m.npcs.append(NPC(10,8,"npc.kral_alderon",(200,160,80),king_d,"guard"))
     m.enemies += [
         Enemy(8, 8,"shadow_knight",100,20,65,agro=6,loot=["hp_pot","gold"]),
         Enemy(46, 8,"shadow_knight",100,20,65,agro=6,loot=["hp_pot"]),
@@ -1827,7 +1931,7 @@ def build_shadow_castle():
 
 
 def build_village_dungeon():
-    m = GameMap(40, 34, "Koy Altı Zindanı", ambient=(10,5,20))
+    m = GameMap(40, 34, "map.koy_alti_zindani", ambient=(10,5,20))
     _rect(m,0,0,40,34,T.STONE)
     for tx in range(40): m.set(tx,0,T.RUINS_WALL); m.set(tx,33,T.RUINS_WALL)
     for ty in range(34): m.set(0,ty,T.RUINS_WALL); m.set(39,ty,T.RUINS_WALL)
@@ -1856,7 +1960,7 @@ def build_village_dungeon():
 
 
 def build_south_meadow():
-    m = GameMap(56, 42, "Guney Cayiri")
+    m = GameMap(56, 42, "map.guney_cayiri")
     _rect(m,0,0,56,42,T.GRASS)
     _rect(m,5,10,20,14,T.FARMLAND); _rect(m,28,10,18,14,T.WHEAT)
     for tx in range(4,48): m.set(tx,9,T.FENCE); m.set(tx,25,T.FENCE)
@@ -1875,12 +1979,12 @@ def build_south_meadow():
     _trans_strip(m,'y',2,  16,26, "ashveil",  22,49, T.GRASS,(0,-1))
     m.set(8, 30,T.CHEST); m.chests[(8,30)]  = ["farm_tool","hp_pot","gold"]
     m.set(46,22,T.CHEST); m.chests[(46,22)] = ["hp_pot","mana_gem"]
-    def farmer_d(f): return ["Hoş geldin! Ben Çiftçi Torben.","Yaban hayvanlar arttı.","Aletlerim sandıkta, al kullan!"]
-    m.npcs.append(NPC(10,30,"Ciftci Torben",(160,120,80),farmer_d,"farmer"))
-    def kid_d(f): return ["Seninle oynar mıyım kahraman?"]
-    m.npcs.append(NPC(35,12,"Ciftlik Cocugu",(180,200,160),kid_d))
-    def traveler_d(f): return ["Güzel çayırlar.","Batıda nehir var."]
-    m.npcs.append(NPC(50,22,"Gezgin",(140,150,180),traveler_d))
+    def farmer_d(f): return ["dlg.farmer.1","dlg.farmer.2","dlg.farmer.3"]
+    m.npcs.append(NPC(10,30,"npc.ciftci_torben",(160,120,80),farmer_d,"farmer"))
+    def kid_d(f): return ["dlg.kid.1"]
+    m.npcs.append(NPC(35,12,"npc.ciftlik_cocugu",(180,200,160),kid_d))
+    def traveler_d(f): return ["dlg.traveler.1","dlg.traveler.2"]
+    m.npcs.append(NPC(50,22,"npc.gezgin",(140,150,180),traveler_d))
     m.enemies += [
         Enemy(36, 4,"boar", 40, 9,25,agro=5,loot=["gold"]),
         Enemy(42, 6,"boar", 40, 9,25,agro=5),
@@ -1893,7 +1997,7 @@ def build_south_meadow():
 
 
 def build_west_river():
-    m = GameMap(56, 42, "Bati Nehri", ambient=(0,10,20))
+    m = GameMap(56, 42, "map.bati_nehri", ambient=(0,10,20))
     _rect(m,0,0,56,42,T.GRASS)
     for ty in range(42):
         for tx in range(25,31): m.set(tx,ty,T.RIVER)
@@ -1916,11 +2020,11 @@ def build_west_river():
     m.set(46,  5,T.CHEST); m.chests[(46,5)] = ["hp_pot","hp_pot","mana_gem"]
     m.set(46, 33,T.CHEST); m.chests[(46,33)]= ["fine_bow","gold"]
     def fisher_d(f):
-        if f.get("sq_fish_done"): return ["Teşekkürler kahraman!","Nehir haberlerini aldım.","Kütüphane kuzey kıyıda."]
-        return ["Hoş geldin! Ben Balıkçı Riva.","Bu nehir eskiden berraktı.","Karanlık varlıklar bozdu.","Köy halkını uyarır mısın?","[ Yan Görev: Balıkçı Yardımı tamamlandı! ]"]
-    m.npcs.append(NPC(6,16,"Balikci Riva",(100,140,180),fisher_d))
-    def hermit_d(f): return ["Uzlette yaşıyorum.","Dünyanın gidişatını seyrediyorum."]
-    m.npcs.append(NPC(44,4,"Munzevi",(180,160,200),hermit_d))
+        if f.get("sq_fish_done"): return ["dlg.fisher.1","dlg.fisher.2","dlg.fisher.3"]
+        return ["dlg.fisher.4","dlg.fisher.5","dlg.fisher.6","dlg.fisher.7","dlg.fisher.8"]
+    m.npcs.append(NPC(6,16,"npc.balikci_riva",(100,140,180),fisher_d))
+    def hermit_d(f): return ["dlg.hermit.1","dlg.hermit.2"]
+    m.npcs.append(NPC(44,4,"npc.munzevi",(180,160,200),hermit_d))
     m.enemies += [
         Enemy(18, 4,"slime",   30, 6,18,agro=4,loot=["gold"]),
         Enemy(40, 4,"goblin",  38, 8,22,agro=5,loot=["hp_pot"]),
@@ -1933,7 +2037,7 @@ def build_west_river():
 
 
 def build_mystic_library():
-    m = GameMap(44, 38, "Gizemli Kutuphane", ambient=(20,0,40))
+    m = GameMap(44, 38, "map.gizemli_kutuphane", ambient=(20,0,40))
     _rect(m,0,0,44,38,T.STONE)
     _rect(m,2,2,40,34,T.FLOOR)
     for tx in range(6,38,8):
@@ -1954,9 +2058,9 @@ def build_mystic_library():
     m.set(37,30,T.CHEST); m.chests[(37,30)]= ["hp_pot","mp_pot","swift_boots","gold"]
     def libr_d(f):
         n=sum(1 for k in["sq_scroll1","sq_scroll2","sq_scroll3"] if f.get(k))
-        if n>=3: return ["Tüm parşömenleri buldun!","Kütüphanemiz yeniden eksiksiz.","Sandıklar ödüllerle dolu!"]
-        return [f"Ben Kütüphaneci Elan.",f"3 parşömen kayboldu! ({n}/3 bulundu)","Harabelerde, çölde ve buz mağarasında olabilirler."]
-    m.npcs.append(NPC(21,19,"Kutuphaneci Elan",(140,100,200),libr_d,"oracle"))
+        if n>=3: return ["dlg.libr.1","dlg.libr.2","dlg.libr.3"]
+        return ["dlg.libr.4",("dlg.libr.5",n),"dlg.libr.6"]
+    m.npcs.append(NPC(21,19,"npc.kutuphaneci_elan",(140,100,200),libr_d,"oracle"))
     m.enemies += [
         Enemy(10, 8,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
         Enemy(28, 8,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
@@ -1972,9 +2076,9 @@ class UI:
     def __init__(self):
         # Sayısal/hizalı bilgi monospace kalır (sütunlar kaymasın),
         # başlıklar ve diyalog ortaçağ fontlarıyla çizilir.
-        self.fsm=pygame.font.SysFont("monospace",9, bold=True)
-        self.fss=pygame.font.SysFont("monospace",11,bold=True)
-        self.fmd=pygame.font.SysFont("monospace",14,bold=True)
+        self.fsm=FontManager.get("mono",9)
+        self.fss=FontManager.get("mono",11)
+        self.fmd=FontManager.get("mono",14)
         self.flg=FontManager.get("title",22)
         self.fxl=FontManager.get("title",30)
         self.fti=FontManager.get("title",38)
@@ -2046,7 +2150,7 @@ class UI:
         self.dim(surf)
         pw,ph=510,430;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
-        title="SEVIYE ATLADI!" if is_lu else "NITELIK DAGITIMI"
+        title=T_("stat_levelup") if is_lu else T_("stat_alloc")
         col=UI_GD if is_lu else UI_AC
         self.txt_c(surf,title,px+pw//2,py+12,col,self.flg)
         self.txt(surf,f"{'Kalan:'+str(free)+' puan' if is_lu else '10 puan harca. Kalan:'+str(free)}",px+18,py+42,LGR,self.fss)
@@ -2060,14 +2164,14 @@ class UI:
             if sel_this: pygame.draw.rect(rs,UI_AC,(0,0,pw-24,54),2)
             surf.blit(rs,(px+12,sy2))
             sc2=stat_cols.get(sk,UI_TX)
-            self.txt(surf,sname,px+20,sy2+6,sc2,self.fmd)
-            self.txt(surf,STAT_DESCS[sk],px+20,sy2+26,GR,self.fsm)
+            self.txt(surf,stat_name(sk),px+20,sy2+6,sc2,self.fmd)
+            self.txt(surf,stat_desc(sk),px+20,sy2+26,GR,self.fsm)
             self.txt(surf,"[<]",px+pw-140,sy2+12,(200,100,100) if val>2 else GR,self.fmd)
             self.txt(surf,str(val),px+pw-100,sy2+12,WH,self.flg)
             if eq_b>0: self.txt(surf,f"+{eq_b}",px+pw-75,sy2+18,UI_GN,self.fsm)
             self.txt(surf,"[>]",px+pw-56,sy2+12,(100,200,100) if free>0 else GR,self.fmd)
             self.grad_bar(surf,px+165,sy2+18,180,11,val+eq_b,25,(20,10,40),sc2)
-        self.txt(surf,"[Yon]Sec  [</> ]Degistir  [ENTER]Onayla",px+16,py+ph-24,GR,self.fsm)
+        self.txt(surf,T_("ui.stat_keys"),px+16,py+ph-24,GR,self.fsm)
 
     def draw_class_select(self,surf,sel,tick):
         surf.fill(DKG)
@@ -2076,7 +2180,7 @@ class UI:
             pygame.draw.circle(surf,(br,br,br),(sx2,sy2),1)
         random.seed()
         self.txt_c(surf,T_("class_select"),SW//2,26,UI_AC,self.fxl)
-        self.txt(surf,"Karakterin icin bir yol sec",SW//2-130,62,LGR,self.fmd)
+        self.txt_c(surf,T_("class_subtitle"),SW//2,62,LGR,self.fmd)
         keys=list(CLASS_INFO.keys());cw,ch2=210,320;gap=8;total_w=(cw+gap)*4-gap;start_x=SW//2-total_w//2
         for i,k in enumerate(keys):
             ci=CLASS_INFO[k];cc=CLASS_COL[k];cx2=start_x+i*(cw+gap);cy2=96;sel_this=(i==sel)
@@ -2087,20 +2191,20 @@ class UI:
                 cs.fill((*UI_BG,195));pygame.draw.rect(cs,(*cc,70),(0,0,cw,ch2),2)
             surf.blit(cs,(cx2,cy2))
             sp=PA.player_surf("down",tick//50,k);surf.blit(pygame.transform.scale(sp,(60,60)),(cx2+cw//2-30,cy2+8))
-            nm=self.fmd.render(ci["name"],True,cc if sel_this else LGR);surf.blit(nm,(cx2+cw//2-nm.get_width()//2,cy2+74))
+            nm=self.fmd.render(class_text(k,"name"),True,cc if sel_this else LGR);surf.blit(nm,(cx2+cw//2-nm.get_width()//2,cy2+74))
             # Saldırı türü
-            self.txt(surf,f"Sld:{ci['atk_name'][:12]}",cx2+6,cy2+96,UI_GD if sel_this else GR,self.fsm,shadow=False)
+            self.txt(surf,T_("ui.atk_prefix")+class_text(k,"atk_name")[:12],cx2+6,cy2+96,UI_GD if sel_this else GR,self.fsm,shadow=False)
             # Stat çubukları
             bonus=ci["bonus"]
-            stat_labels=[("GUC","str",HP_R),("ZEKA","int",UI_BL),("CEV","agi",UI_GN),("DAY","vit",UI_GD),("BIL","wis",UI_PR)]
+            stat_labels=[(T_("ui.abbr_str"),"str",HP_R),(T_("ui.abbr_int"),"int",UI_BL),(T_("ui.abbr_agi"),"agi",UI_GN),(T_("ui.abbr_vit"),"vit",UI_GD),(T_("ui.abbr_wis"),"wis",UI_PR)]
             for si2,(slbl,sk,scol) in enumerate(stat_labels):
                 sv=2+bonus.get(sk,0)
                 self.txt(surf,slbl,cx2+6,cy2+112+si2*22,LGR,self.fsm,shadow=False)
                 self.grad_bar(surf,cx2+40,cy2+112+si2*22,cw-48,9,sv,12,(20,10,40),scol)
-            for li,ln in enumerate(ci["lore"].split("\n")):
+            for li,ln in enumerate(class_text(k,"lore").split("\n")):
                 self.txt(surf,ln,cx2+6,cy2+236+li*16,(*cc,200) if sel_this else GR,self.fsm,shadow=False)
         pv=int(abs(math.sin(tick*0.003))*80)+120
-        self.txt(surf,"[</> ] Sec   [E/ENTER] Onayla",SW//2-140,SH-38,(int(pv),100,255),self.fmd)
+        self.txt(surf,T_("class_confirm"),SW//2-140,SH-38,(int(pv),100,255),self.fmd)
 
     def draw_story(self,surf,lines_shown,tick):
         surf.fill(DKG)
@@ -2110,12 +2214,13 @@ class UI:
         random.seed()
         self.txt_c(surf,TITLE,SW//2,36,UI_AC,self.fxl)
         for i,(line,col) in enumerate(STORY_LINES[:lines_shown]):
+            line=T_("story.%d"%(i+1),default=line) if line.strip() else line
             y=130+i*30
             if line==" " or y>SH-50: continue
             ts=self.fmd.render(line,True,col);surf.blit(ts,(SW//2-ts.get_width()//2,y))
         if lines_shown>=len(STORY_LINES):
             pv=int(abs(math.sin(tick*0.003))*80)+120
-            self.txt_c(surf,"[ ENTER ] Devam",SW//2,SH-60,(int(pv),120,255),self.flg)
+            self.txt_c(surf,T_("ui.story_next"),SW//2,SH-60,(int(pv),120,255),self.flg)
 
     def draw_title(self,surf,tick):
         surf.fill(DKG)
@@ -2126,14 +2231,14 @@ class UI:
         random.seed()
         tt=self.fti.render(TITLE,True,UI_AC)
         surf.blit(self.fti.render(TITLE,True,(50,30,80)),(SW//2-tt.get_width()//2+3,143));surf.blit(tt,(SW//2-tt.get_width()//2,140))
-        self.txt_c(surf,f"v{VERSION} — Sinifa Ozgun Saldiri | Ekipman Sistemi",SW//2,190,UI_GD,self.fmd)
+        self.txt_c(surf,"v%s — %s"%(VERSION,T_("ui.tagline")),SW//2,190,UI_GD,self.fmd)
         for i2,cls in enumerate(CLASS_INFO.keys()):
             sp=PA.player_surf("down",tick//50,cls);surf.blit(pygame.transform.scale(sp,(56,56)),(SW//2-112+i2*56,240))
         pv2=int(abs(math.sin(tick*0.003))*80)+120
         btn=pygame.Surface((300,42),pygame.SRCALPHA);btn.fill((*UI_BD,90));pygame.draw.rect(btn,UI_AC,(0,0,300,42),2);surf.blit(btn,(SW//2-150,320))
         self.txt_c(surf,T_("title_play"),SW//2,330,(int(pv2*0.8),100,255),self.fmd)
         if has_save():
-            self.txt_c(surf,"[ C ]  Devam Et",SW//2,368,(120,220,160),self.fmd)
+            self.txt_c(surf,T_("ui.title_continue"),SW//2,368,(120,220,160),self.fmd)
             self.txt_c(surf,T_("title_settings"),SW//2,396,UI_GD,self.fss)
             self.txt_c(surf,"WASD Hareket  E Konus  Spc Saldiri  1-4 Yetenek  I Envanter  ESC Cikis",SW//2,418,GR,self.fsm)
             return
@@ -2144,15 +2249,15 @@ class UI:
         pw,ph=380,76;px=SW//2-pw//2;py=100
         s=pygame.Surface((pw,ph),pygame.SRCALPHA);s.fill((25,15,45,215))
         gv=int(abs(math.sin(tick*0.004))*40)+40;pygame.draw.rect(s,(*UI_GD,gv+100),(0,0,pw,ph),3)
-        tt=self.flg.render(f"SEVIYE {level} !",True,UI_GD);s.blit(tt,(pw//2-tt.get_width()//2,8))
-        t2=self.fss.render("[U] Nitelik puan dagit!",True,UI_TX);s.blit(t2,(pw//2-t2.get_width()//2,38))
+        tt=self.flg.render(T_("ui.level_up_n",level),True,UI_GD);s.blit(tt,(pw//2-tt.get_width()//2,8))
+        t2=self.fss.render(T_("ui.levelup_hint"),True,UI_TX);s.blit(t2,(pw//2-t2.get_width()//2,38))
         surf.blit(s,(px,py))
 
     def draw_gameover(self,surf):
         self.dim(surf,200)
         self.txt_c(surf,T_("gameover_title"),SW//2,SH//2-70,HP_R,self.fxl)
-        self.txt(surf,"Karanlik seni yuttu...",SW//2-120,SH//2-10,LGR,self.fmd)
-        self.txt(surf,"[ R ] Yeniden Basla",SW//2-100,SH//2+40,UI_AC,self.fmd)
+        self.txt(surf,T_("gameover_sub"),SW//2-120,SH//2-10,LGR,self.fmd)
+        self.txt(surf,T_("gameover_restart"),SW//2-100,SH//2+40,UI_AC,self.fmd)
 
     def draw_victory(self,surf,tick):
         surf.fill(DKG)
@@ -2164,7 +2269,7 @@ class UI:
         self.txt_c(surf,T_("victory_title"),SW//2,120,(255,gv+80,gv//2),self.fti)
         self.txt_c(surf,T_("victory_sub"),SW//2,200,UI_GD,self.fxl)
         self.txt_c(surf,T_("victory_sub2"),SW//2,260,UI_TX,self.flg)
-        self.txt(surf,"[ ESC ] Ana Menu",SW//2-100,380,(int(abs(math.sin(tick*0.003))*100)+120,100,255),self.fmd)
+        self.txt(surf,T_("victory_menu"),SW//2-100,380,(int(abs(math.sin(tick*0.003))*100)+120,100,255),self.fmd)
 
     def draw_transition(self,surf,alpha,name):
         ov=pygame.Surface((SW,SH),pygame.SRCALPHA);ov.fill((0,0,0,min(255,alpha)));surf.blit(ov,(0,0))
@@ -2183,7 +2288,7 @@ class UI:
         surf.blit(band,(0,0))
         t=self.fxl.render(f"{T_('chapter_label')} {chapter}",True,UI_GD)
         t.set_alpha(a);surf.blit(t,(SW//2-t.get_width()//2,10))
-        t2=self.flg.render(QUESTS[chapter][0],True,UI_AC)
+        t2=self.flg.render(quest_title(chapter),True,UI_AC)
         t2.set_alpha(a);surf.blit(t2,(SW//2-t2.get_width()//2,52))
 
     def draw_ability_bar(self,surf,stats,tick):
@@ -2224,7 +2329,7 @@ class UI:
                 surf.blit(ct,(sx+slot_w//2-1-ct.get_width()//2,sy+16))
             # İsim
             c2=GR if locked else(UI_TX if not on_cd else GR)
-            self.txt(surf,ab["name"][:7],sx+1,sy+36,c2,self.fsm,shadow=False)
+            self.txt(surf,ability_name(ab)[:7],sx+1,sy+36,c2,self.fsm,shadow=False)
             # MP maliyeti
             mc=UI_RD if(no_mp and not locked) else GR
             self.txt(surf,f"MP:{ab['mp']}",sx+1,sy+48,mc,self.fsm,shadow=False)
@@ -2269,13 +2374,21 @@ class UI:
         pw,ph=640,440;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         # Sekmeler
+        # Sekme başlıkları: pasif olanın üstünde [TAB] rozeti — hangi tuşla
+        # geçileceği ekranda görünsün diye (aksi halde keşfedilmiyor).
+        tw=138
         for i,(tname,tcol) in enumerate([(T_("equip_tab"),UI_TX),(T_("gear_tab"),UI_GD)]):
             active=(i==eq_tab)
-            ts=pygame.Surface((108,24),pygame.SRCALPHA)
+            tx0=px+16+i*(tw+6)
+            ts=pygame.Surface((tw,26),pygame.SRCALPHA)
             ts.fill((*UI_AC,80) if active else (*UI_BD,30))
-            pygame.draw.rect(ts,UI_AC if active else UI_BD,(0,0,108,24),2)
-            surf.blit(ts,(px+16+i*114,py+8))
-            self.txt(surf,tname,px+22+i*114,py+11,UI_AC if active else GR,self.fss,shadow=False)
+            pygame.draw.rect(ts,UI_AC if active else UI_BD,(0,0,tw,26),2)
+            surf.blit(ts,(tx0,py+8))
+            self.txt(surf,tname,tx0+8,py+12,UI_AC if active else GR,self.fss,shadow=False)
+            if not active:
+                pulse=int(abs(math.sin(tick*0.005))*80)+140
+                badge=self.fsm.render("[TAB]",True,(pulse,pulse,120))
+                surf.blit(badge,(tx0+tw-badge.get_width()-6,py+14))
         self.txt(surf,f"{T_('gold')}:{player.stats.gold}",px+pw-120,py+10,UI_GD,self.fmd)
 
         if eq_tab==0:
@@ -2297,7 +2410,7 @@ class UI:
                 pygame.draw.rect(surf,WH,(ix+8,iy+8,40,40),1)
                 if itm[2]=="equip":
                     eic=PA.equip_icon(itm[3],ic2);surf.blit(eic,(ix+10,iy+10))
-                self.txt(surf,itm[0][:10],ix+4,iy+52,WH,self.fsm)
+                self.txt(surf,item_name(k)[:10],ix+4,iy+52,WH,self.fsm)
                 if cnt>1: self.txt(surf,f"x{cnt}",ix+96,iy+8,UI_GD,self.fsm)
                 if itm[2]=="equip" and k in player.stats.equipment.values():
                     ep=pygame.Surface((116,86),pygame.SRCALPHA)
@@ -2307,8 +2420,8 @@ class UI:
             if 0<=sel<len(all_keys):
                 si=ALL_ITEMS.get(all_keys[sel])
                 if si:
-                    self.txt(surf,si[0],px+14,py+ph-62,UI_AC,self.fmd)
-                    self.txt(surf,si[4],px+14,py+ph-44,LGR,self.fss)
+                    self.txt(surf,item_name(all_keys[sel]),px+14,py+ph-62,UI_AC,self.fmd)
+                    self.txt(surf,item_desc(all_keys[sel]),px+14,py+ph-44,LGR,self.fss)
                     if si[2]=="equip":
                         ek=all_keys[sel]; slot2=EQUIP_ITEMS[ek][3]
                         cur=player.stats.equipment.get(slot2)
@@ -2317,46 +2430,47 @@ class UI:
                     elif si[2] in("heal","mana"):
                         self.txt(surf,T_("item_use"),px+14,py+ph-26,UI_GN,self.fss)
         else:
-            # Ekipman sekmesi
+            # Ekipman sekmesi — her yuva ayrı satır (5 yuva)
             st=player.stats
-            slot_data=[("weapon","Silah",UI_RD),("armor","Zirh",ST_L),("ring","Yuzuk",UI_GD)]
-            for si2,(slot,sname,scol) in enumerate(slot_data):
-                iy=py+48+si2*110
+            rh=66
+            for si2,slot in enumerate(EQUIP_SLOTS):
+                sname=T_("slot_"+slot);scol=SLOT_COLORS[slot]
+                iy=py+44+si2*(rh+4)
                 is_sel=(si2==eq_sel)
-                ss=pygame.Surface((pw-28,100),pygame.SRCALPHA)
+                ss=pygame.Surface((pw-28,rh),pygame.SRCALPHA)
                 ss.fill((*UI_BD,60 if is_sel else 25))
-                pygame.draw.rect(ss,UI_AC if is_sel else scol,(0,0,pw-28,100),3 if is_sel else 2)
+                pygame.draw.rect(ss,UI_AC if is_sel else scol,(0,0,pw-28,rh),3 if is_sel else 2)
                 surf.blit(ss,(px+14,iy))
                 if is_sel:
-                    self.txt(surf,">",px+2,iy+40,UI_AC,self.fmd)
-                eic2=PA.equip_icon(slot,scol);surf.blit(eic2,(px+20,iy+30))
-                self.txt(surf,sname,px+64,iy+8,scol,self.fmd)
+                    self.txt(surf,">",px+2,iy+rh//2-8,UI_AC,self.fmd)
+                eic2=PA.equip_icon(slot,scol);surf.blit(eic2,(px+20,iy+14))
+                self.txt(surf,sname,px+64,iy+6,scol,self.fmd)
                 ik=st.equipment.get(slot)
                 if ik and ik in EQUIP_ITEMS:
                     edata=EQUIP_ITEMS[ik]
-                    self.txt(surf,edata[0],px+64,iy+34,WH,self.fss)
+                    self.txt(surf,item_name(ik),px+180,iy+8,WH,self.fss)
                     bonus_str=" | ".join(f"{k2.upper()}+{v}" for k2,v in edata[2].items())
-                    self.txt(surf,bonus_str,px+64,iy+56,UI_GN,self.fsm)
-                    self.txt(surf,T_("item_unequip"),px+64,iy+76,UI_RD,self.fsm)
+                    self.txt(surf,bonus_str,px+180,iy+28,UI_GN,self.fsm)
+                    if is_sel: self.txt(surf,T_("item_unequip"),px+180,iy+46,UI_RD,self.fsm)
                 else:
-                    self.txt(surf,"— Bos —",px+64,iy+36,GR,self.fss)
-                    self.txt(surf,"Esya sekmesinden ekipman giy",px+64,iy+56,GR,self.fsm)
+                    self.txt(surf,T_("slot_empty"),px+180,iy+16,GR,self.fss)
+                    if is_sel: self.txt(surf,T_("slot_hint"),px+180,iy+38,GR,self.fsm)
             # Ekipman bonusu
-            self.txt(surf,"Ekipman Bonusu:",px+14,py+ph-56,UI_GD,self.fss)
+            self.txt(surf,T_("ui.equip_bonus"),px+14,py+ph-56,UI_GD,self.fss)
             stats_show=[("str",HP_R),("int",UI_BL),("agi",UI_GN),("vit",UI_GD),("wis",UI_PR)]
             for si3,(sk,sc) in enumerate(stats_show):
                 b=st._equip_bonus(sk)
                 if b>0: self.txt(surf,f"+{b}{sk.upper()}",px+14+si3*80,py+ph-36,sc,self.fsm)
-        hint=("[Tab]Sekme  [I/ESC]Kapat  [Yon]Sec  [E]Kullan/Giy" if eq_tab==0
-              else "[Tab]Sekme  [I/ESC]Kapat  [Yukari/Asagi]Yuva Sec  [E]Cikar")
+        hint=(T_("ui.inv_keys_items") if eq_tab==0
+              else T_("ui.inv_keys_gear"))
         self.txt(surf,hint,px+14,py+ph-12,GR,self.fsm)
 
     PAUSE_OPTS=[
-        ("[ DEVAM ]",   (100,220,100)),
-        ("[ KAYDET ]",  (120,200,240)),
-        ("[ AYARLAR ]", (180,140,250)),
-        ("[ ANA MENU ]",(220,150,60)),
-        ("[ CIKIS ]",   (220,80,80)),
+        (T_("ui.pause_resume"),   (100,220,100)),
+        (T_("ui.pause_save"),  (120,200,240)),
+        (T_("ui.pause_settings"), (180,140,250)),
+        (T_("ui.pause_menu"),(220,150,60)),
+        (T_("ui.pause_quit"),   (220,80,80)),
     ]
 
     def draw_pause(self,surf,tick,pause_sel=0):
@@ -2364,7 +2478,7 @@ class UI:
         self.dim(surf,160)
         pw,ph=360,270; px=SW//2-pw//2; py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
-        self.txt_c(surf,"OYUN DURAKLATILDI",px+pw//2,py+14,UI_AC,self.flg)
+        self.txt_c(surf,T_("ui.paused"),px+pw//2,py+14,UI_AC,self.flg)
         for i,(label,col) in enumerate(self.PAUSE_OPTS):
             oy=py+58+i*40
             sel_this=(i==pause_sel)
@@ -2385,7 +2499,7 @@ class UI:
             (T_("set_master"),     f"%d%%" % CFG.master_vol,  "master_vol"),
             (T_("set_sfx"),        f"%d%%" % CFG.sfx_vol,     "sfx_vol"),
             (T_("set_music"),      f"%d%%" % CFG.music_vol,   "music_vol"),
-            (T_("set_language"),   CFG.data.get("language","TR"),  "language"),
+            (T_("set_language"),   Locale.label(Locale.current()),  "language"),
             (T_("set_fps"),        T_("set_on") if CFG.show_fps else T_("set_off"), "show_fps"),
         ]
         for i,(label,val,_) in enumerate(opts):
@@ -2410,26 +2524,26 @@ class UI:
         # Kütüphane: parşömen topla
         sc=sum(1 for k in ["sq_scroll1","sq_scroll2","sq_scroll3"] if flags.get(k))
         if not (flags.get("sq_scroll1") and flags.get("sq_scroll2") and flags.get("sq_scroll3")):
-            mqs.append(("Parşömen Avı",f"{sc}/3 bulundu",UI_PR))
+            mqs.append((T_("ui.sq_scroll"),f"{sc}/3 bulundu",UI_PR))
         else:
-            mqs.append(("Parşömen Avı","Tamamlandı!",UI_GN))
+            mqs.append((T_("ui.sq_scroll"),T_("ui.completed"),UI_GN))
         # Domuz avı (çayır)
         if not flags.get("sq_boar_done"):
             bc=flags.get("sq_boar_count",0)
-            mqs.append(("Domuz Avı",f"{bc}/3 domuz",UI_GD))
+            mqs.append((T_("ui.sq_boar"),f"{bc}/3 domuz",UI_GD))
         else:
-            mqs.append(("Domuz Avı","Tamamlandı!",UI_GN))
+            mqs.append((T_("ui.sq_boar"),T_("ui.completed"),UI_GN))
         # Balıkçı yardımı
         if not flags.get("sq_fish_done"):
-            mqs.append(("Balikci Yardimi","Riva ile konuş",UI_CY))
+            mqs.append(("Balikci Yardimi",T_("ui.sq_fish_short"),UI_CY))
         else:
-            mqs.append(("Balikci Yardimi","Tamamlandı!",UI_GN))
+            mqs.append(("Balikci Yardimi",T_("ui.completed"),UI_GN))
 
         if not mqs: return
         pw=200;row_h=22;ph=14+len(mqs)*row_h
         px=SW-pw-6;py=SH//2-ph//2-40
         self.panel(surf,px,py,pw,ph)
-        self.txt(surf,"Yan Görevler",px+8,py+4,UI_GD,self.fsm)
+        self.txt(surf,T_("ui.side_quests"),px+8,py+4,UI_GD,self.fsm)
         for i,(qn,qv,qc) in enumerate(mqs):
             self.txt(surf,f"• {qn}",px+8,py+14+i*row_h,LGR,self.fsm)
             self.txt(surf,qv,px+pw-self.fsm.size(qv)[0]-8,py+14+i*row_h,qc,self.fsm)
@@ -2440,7 +2554,7 @@ class UI:
         # Sol panel (270x130)
         self.panel(surf,6,6,270,130)
         pygame.draw.rect(surf,cc,(10,10,3,118))
-        self.txt(surf,f"{ci['name']}  {T_('lvl')}{st.level}",18,10,cc,self.fmd)
+        self.txt(surf,f"{class_text(st.char_class,'name')}  {T_('lvl')}{st.level}",18,10,cc,self.fmd)
         self.txt(surf,"HP",18,30,HP_G,self.fsm)
         self.grad_bar(surf,36,30,226,10,st.hp,st.max_hp,(80,15,15),HP_G)
         self.txt(surf,f"{st.hp}/{st.max_hp}",38,31,(220,255,220),self.fsm)
@@ -2456,11 +2570,11 @@ class UI:
             sc=(255,220,50) if (tick//500)%2==0 else (200,160,30)
             self.txt(surf,f"[U]+{st.skill_points} {T_('skill_pts')}",140,86,sc,self.fsm)
         by=102
-        if "war_cry" in st.buffs:      self.txt(surf,"SAVAŞ ÇIĞLIĞI",18,by,(255,120,50),self.fsm)
-        elif "holy_shield" in st.buffs:self.txt(surf,"KUTSAL KALKAN", 18,by,(255,220,60),self.fsm)
+        if "war_cry" in st.buffs:      self.txt(surf,T_("ui.buff_war_cry"),18,by,(255,120,50),self.fsm)
+        elif "holy_shield" in st.buffs:self.txt(surf,T_("ui.buff_holy"), 18,by,(255,220,60),self.fsm)
         eq_strs=[]
         for slot,ik in st.equipment.items():
-            if ik and ik in EQUIP_ITEMS: eq_strs.append(EQUIP_ITEMS[ik][0][:8])
+            if ik and ik in EQUIP_ITEMS: eq_strs.append(item_name(ik)[:8])
         if eq_strs:
             eq_y=by if "war_cry" not in st.buffs and "holy_shield" not in st.buffs else by+14
             self.txt(surf,"  ".join(eq_strs[:2]),18,eq_y,(100,120,160),self.fsm)
@@ -2470,11 +2584,11 @@ class UI:
         qn=f"{T_('chapter_label')} {chapter}: {quest_name[:30]}"
         qt=self.fsm.render(qn,True,UI_GD)
         surf.blit(qt,(SW//2-qt.get_width()//2,26))
-        atk_name=CLASS_INFO[st.char_class]["atk_name"]
+        atk_name=class_text(st.char_class,"atk_name")
         at=self.fsm.render(f"{T_('atk_label')} {atk_name}",True,(120,160,120))
         surf.blit(at,(SW//2-at.get_width()//2,42))
         # Sağ üst kontroller
-        tips=["[WASD]Hareket","[E]Konuş/Aç","[Spc]Saldırı","[1-4]Yetenek","[I]Envanter","[Q]Görev","[F1]Ayarlar","[F11]TamEkran"]
+        tips=[T_("ui.key_move"),T_("ui.key_interact"),T_("ui.key_attack"),T_("ui.key_ability"),T_("ui.key_inventory"),T_("ui.key_quests"),T_("ui.key_settings"),T_("ui.key_fullscreen")]
         for i,tip in enumerate(tips):
             t2=self.fsm.render(tip,True,(55,65,75))
             surf.blit(t2,(SW-t2.get_width()-6,8+i*13))
@@ -2489,25 +2603,25 @@ class UI:
             qname,qdesc=qdata
             if ch<chapter:
                 pygame.draw.rect(surf,(*UI_GN,28),(px+12,py+y_off-2,pw-24,34))
-                self.txt(surf,f"[✓] Bölüm {ch}: {qname}",px+18,py+y_off,UI_GN,self.fss)
+                self.txt(surf,f"[✓] {T_('chapter_label')} {ch}: {quest_title(ch)}",px+18,py+y_off,UI_GN,self.fss)
                 self.txt(surf,f"    {T_('quest_done')}",px+18,py+y_off+16,GR,self.fsm)
             elif ch==chapter:
                 pv=int(abs(math.sin(pygame.time.get_ticks()*0.003))*25)
                 pygame.draw.rect(surf,(*UI_GD,38+pv),(px+12,py+y_off-2,pw-24,34))
                 pygame.draw.rect(surf,UI_GD,(px+12,py+y_off-2,pw-24,34),2)
-                self.txt(surf,f"[►] Bölüm {ch}: {qname}",px+18,py+y_off,UI_GD,self.fmd)
-                self.txt(surf,f"    {qdesc}",px+18,py+y_off+16,UI_TX,self.fsm)
+                self.txt(surf,f"[►] {T_('chapter_label')} {ch}: {quest_title(ch)}",px+18,py+y_off,UI_GD,self.fmd)
+                self.txt(surf,f"    {quest_desc(ch)}",px+18,py+y_off+16,UI_TX,self.fsm)
             else:
-                self.txt(surf,f"[?] Bölüm {ch}: ???",px+18,py+y_off,(55,55,65),self.fss)
+                self.txt(surf,f"[?] {T_('chapter_label')} {ch}: ???",px+18,py+y_off,(55,55,65),self.fss)
             y_off+=38
         # Mini görevler
-        self.txt(surf,"─── YAN GÖREVLER ───",px+16,py+y_off+4,UI_PR,self.fss)
+        self.txt(surf,T_("ui.side_quests_hdr"),px+16,py+y_off+4,UI_PR,self.fss)
         y_off+=26
         mini=[
-            ("Parşömen Avı","Gizemli Kütüphane: 3 parşömen bul",
+            (T_("ui.sq_scroll"),T_("ui.sq_scroll_desc"),
              all(flags.get(k) for k in ["sq_scroll1","sq_scroll2","sq_scroll3"])),
-            ("Domuz Avı","Güney Çayırı: 3 domuz öldür", flags.get("sq_boar_done",False)),
-            ("Balıkçı Yardımı","Batı Nehri: Riva ile konuş", flags.get("sq_fish_done",False)),
+            (T_("ui.sq_boar"),T_("ui.sq_boar_desc"), flags.get("sq_boar_done",False)),
+            (T_("ui.sq_fish"),T_("ui.sq_fish_desc"), flags.get("sq_fish_done",False)),
         ]
         for qn,qdesc,done in mini:
             col=UI_GN if done else LGR
@@ -2516,7 +2630,7 @@ class UI:
             if not done: self.txt(surf,f"    {qdesc}",px+18,py+y_off+16,GR,self.fsm)
             y_off+=34 if not done else 24
             if py+y_off>py+ph-30: break
-        self.txt(surf,"[Q/ESC] Kapat",px+14,py+ph-22,GR,self.fss)
+        self.txt(surf,T_("ui.close_quests"),px+14,py+ph-22,GR,self.fss)
 
 
 # ─── Game ────────────────────────────────────────────────────────
@@ -2524,13 +2638,60 @@ class Game:
     def __init__(self):
         pygame.init()
         SoundManager.init()
+        FontManager.set_language(Locale.current())
+        self._set_app_id()
         flags=pygame.FULLSCREEN if CFG.fullscreen else 0
         self.screen=pygame.display.set_mode((SW,SH),flags)
         pygame.display.set_caption(TITLE)
+        self._set_window_icon()
         self.clock=pygame.time.Clock()
         self.ui=UI(); self.ps=PS()
         self.fps_font=pygame.font.SysFont("monospace",12,bold=True)
         self._reset()
+
+    @staticmethod
+    def _set_app_id():
+        """Windows görev çubuğu ikonu.
+
+        Kimlik ayarlanmazsa Windows pencereyi python.exe ile gruplar ve
+        görev çubuğunda Python ikonu görünür — oyunun kendi ikonu değil.
+        set_mode'dan ÖNCE çağrılmalı.
+        """
+        if sys.platform!="win32": return
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Lagarux.KaranlikTacinLaneti")
+        except Exception: pass
+
+    @staticmethod
+    def _set_window_icon():
+        """Pencere/görev çubuğu ikonu.
+
+        assets/icon64.png paketlenen oyunla birlikte geliyor (kökteki 2048x2048
+        icon.png paketlenmiyor ve açılışta yüklemek pahalı). Bulunamazsa
+        oyunun kendi piksel sanatından bir ikon üretilir.
+        """
+        for rel in(("assets","icon64.png"),("assets","icon.ico")):
+            path=os.path.join(ASSET_DIR,*rel)
+            if not os.path.isfile(path): continue
+            try:
+                pygame.display.set_icon(pygame.image.load(path).convert_alpha())
+                return
+            except Exception: pass
+        try:
+            pygame.display.set_icon(pygame.transform.scale(
+                PA.player_surf("down",0,"warrior"),(32,32)))
+        except Exception: pass
+
+    def _cycle_language(self,step):
+        """Dili sıradakine geçirir ve dile uygun fontları yeniden yükler."""
+        cur=Locale.current()
+        i=(LANG_CODES.index(cur)+step)%len(LANG_CODES)
+        CFG.data["language"]=LANG_CODES[i]
+        FontManager.set_language(LANG_CODES[i])
+        self.ui=UI()          # fontlar değişti, arayüzü yeniden kur
+        UI._bar_cache.clear();UI._panel_cache.clear()
+        _TAG_SURF.clear()     # NPC etiketleri yeni dilde yeniden üretilsin
 
     def _toggle_fullscreen(self):
         CFG.fullscreen = not CFG.fullscreen
@@ -2811,7 +2972,7 @@ class Game:
             pr=self._proj(cx,cy,float(ox),float(oy),7,"arrow",dmg)
             SoundManager.play("arrow")
             if is_crit and pr:
-                self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":50,"col":UI_GD,"txt":"KRIT!"})
+                self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":50,"col":UI_GD,"txt":T_("ui.crit")})
             self.ps.emit(cx,cy,4,(80,220,80),3.0,15)
 
         elif cls=="healer":
@@ -2857,7 +3018,7 @@ class Game:
         e.hp-=dmg;e.hp=max(0,e.hp)
         col=UI_GD if crit else HP_R
         self.hit_fx.append({"x":e.px+TILE//2,"y":e.py+TILE//2,"f":0,"mf":20})
-        self.dmg_nums.append({"x":e.px+TILE//2,"y":e.py,"v":dmg,"l":45,"col":col,"txt":"KRIT!" if crit else None})
+        self.dmg_nums.append({"x":e.px+TILE//2,"y":e.py,"v":dmg,"l":45,"col":col,"txt":T_("ui.crit") if crit else None})
         self.ps.emit_hit(e.px+TILE//2,e.py+TILE//2)
         SoundManager.play("hit_heavy" if e.is_boss else "hit")
         # Vuruş hissi: kısa donma + krit/boss'ta sarsıntı, kritte geri itme
@@ -2912,7 +3073,7 @@ class Game:
             self.ps.emit(cx,cy,30,(200,150,60),6.0,40)
         elif aid=="war_cry":
             st.buffs["war_cry"]=180;self.ps.emit(cx,cy,25,(220,80,40),5.0,50)
-            self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":80,"col":(220,80,40),"txt":"SAVAS CIGLIK!"})
+            self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":80,"col":(220,80,40),"txt":T_("ui.shout_war_cry")})
         elif aid=="earthquake":
             for e in self.cur_map.enemies:
                 if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5: self._hit(e,int(st.attack*2.0))
@@ -2938,13 +3099,13 @@ class Game:
         elif aid=="time_stop":
             for e in self.cur_map.enemies: e.frozen=max(e.frozen,240)
             self.ps.emit(cx,cy,40,(180,180,255),6.0,60)
-            self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":100,"col":(180,180,255),"txt":"ZAMAN DUR!"})
+            self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":100,"col":(180,180,255),"txt":T_("ui.shout_time")})
         elif aid=="multi_shot":
             for ang in[-25,0,25]:
                 rad=math.atan2(oy,ox)+math.radians(ang);self._proj(cx,cy,math.cos(rad),math.sin(rad),6,"arrow",int(st.attack*0.9))
         elif aid=="trap":
             t=Trap(p.tx+ox,p.ty+oy,int(st.attack*1.8));self.cur_map.traps.append(t)
-            self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(180,140,60),"txt":"Tuzak!"})
+            self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(180,140,60),"txt":T_("ui.trap_set")})
         elif aid=="rain_arrows":
             for ang_d in range(0,360,45):
                 rad=math.radians(ang_d);self._proj(cx,cy,math.cos(rad),math.sin(rad),5,"arrow",int(st.attack*0.8))
@@ -2961,7 +3122,7 @@ class Game:
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":amt,"l":60,"col":HP_G,"txt":None})
         elif aid=="holy_shield":
             st.buffs["holy_shield"]=120;self.ps.emit_magic(cx,cy,col=(255,220,80))
-            self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(255,220,60),"txt":"K.KALKAN!"})
+            self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(255,220,60),"txt":T_("ui.shout_shield")})
         elif aid=="divine_storm":
             for e in self.cur_map.enemies:
                 if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5: self._hit(e,int(st.magic_atk*1.8))
@@ -2969,7 +3130,7 @@ class Game:
         elif aid=="resurrection":
             st.heal(st.max_hp//2);st.restore_mp(st.max_mp//2)
             self.ps.emit(cx,cy,50,(255,200,100),6.0,70)
-            self.dmg_nums.append({"x":cx,"y":cy-TILE*2,"v":None,"l":120,"col":(255,180,80),"txt":"DIRILIS!"})
+            self.dmg_nums.append({"x":cx,"y":cy-TILE*2,"v":None,"l":120,"col":(255,180,80),"txt":T_("ui.shout_resurrect")})
 
     def _update_projs(self):
         alive=[]
@@ -3121,7 +3282,7 @@ class Game:
     DLG_SPEED = 2   # daktilo: kare başına harf
 
     def _dlg_page_len(self)->int:
-        lpp=4;pl=self.dlg_lines[self.dlg_page*lpp:(self.dlg_page+1)*lpp]
+        lpp=4;pl=[dlg_line(e) for e in self.dlg_lines[self.dlg_page*lpp:(self.dlg_page+1)*lpp]]
         return sum(len(l) for l in pl)
 
     def _interact_target(self):
@@ -3153,13 +3314,13 @@ class Game:
             if npc.tx==itx and npc.ty==ity:
                 lines=npc.get_dialog(self.flags);self.dlg_npc=npc;self.dlg_lines=lines
                 self.dlg_page=0;self.dlg_reveal=0;self.state="dialog"
-                if npc.name=="Yasli Aldric" and not self.flags["speak_aldric"]:
+                if npc.name=="npc.yasli_aldric" and not self.flags["speak_aldric"]:
                     self.flags["speak_aldric"]=True;self._advance(2)
-                elif npc.name=="Oracle Nyx" and not self.flags.get("speak_oracle") and self.flags.get("earth_crystal"):
+                elif npc.name=="npc.oracle_nyx" and not self.flags.get("speak_oracle") and self.flags.get("earth_crystal"):
                     self.flags["speak_oracle"]=True;self._advance(5)
-                elif npc.name=="Balikci Riva" and not self.flags.get("sq_fish_done"):
+                elif npc.name=="npc.balikci_riva" and not self.flags.get("sq_fish_done"):
                     self.flags["sq_fish_done"]=True;SoundManager.play("chest")
-                    self.dmg_nums.append({"x":npc.tx*TILE,"y":npc.ty*TILE-TILE,"v":None,"l":100,"col":UI_CY,"txt":"Yan Görev Tamamlandi!"})
+                    self.dmg_nums.append({"x":npc.tx*TILE,"y":npc.ty*TILE-TILE,"v":None,"l":100,"col":UI_CY,"txt":T_("ui.sq_done")})
                 return
         if(itx,ity) in self.cur_map.chests:
             loot=self.cur_map.chests.pop((itx,ity))
@@ -3171,10 +3332,10 @@ class Game:
                     flag_k="sq_"+ik
                     if not self.flags.get(flag_k):
                         self.flags[flag_k]=True;SoundManager.play("spell")
-                        self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":100,"col":UI_PR,"txt":f"Parsomen Bulundu!"})
+                        self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":100,"col":UI_PR,"txt":fT_("ui.scroll_found")})
                 else: p.inventory.append(ik)
             self.cur_map.set(itx,ity,T.FLOOR);self.ps.emit_gold(itx*TILE+TILE//2,ity*TILE+TILE//2);SoundManager.play("chest")
-            self.dmg_nums.append({"x":itx*TILE+TILE//2,"y":ity*TILE,"v":None,"l":70,"col":UI_GD,"txt":"Sandik Acildi!"})
+            self.dmg_nums.append({"x":itx*TILE+TILE//2,"y":ity*TILE,"v":None,"l":70,"col":UI_GD,"txt":T_("chest_opened")})
 
     def _inv_use_item(self):
         """Envanterde seçili eşyayı kullan / ekipmanı giy."""
@@ -3186,20 +3347,20 @@ class Game:
         if typ=="heal": p.stats.heal(itm[3]);p.inventory.remove(ik);self.ps.emit_magic(p.px+TILE//2,p.py);SoundManager.play("heal")
         elif typ=="mana": p.stats.restore_mp(itm[3]);p.inventory.remove(ik)
         elif typ=="quest_sq":
-            self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":60,"col":UI_PR,"txt":"Kutuphaneciye götür!"})
+            self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":60,"col":UI_PR,"txt":T_("ui.take_librarian")})
         elif typ.startswith("stat_"): p.stats.apply_item(typ,itm[3]);p.inventory.remove(ik)
         elif typ=="equip":
             old=p.stats.equip(ik)
             SoundManager.play("equip")
             if old=="":  # başarılı ekipleme, eski slot boştu
                 p.inventory.remove(ik)
-                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_GN,"txt":f"Giyildi!"})
+                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_GN,"txt":fT_("ui.equipped_msg")})
             elif old and old!=ik:  # eski ekipman çıkarıldı, envantera döndü
                 p.inventory.remove(ik);p.inventory.append(old)
-                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_GN,"txt":f"Degistirildi!"})
+                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_GN,"txt":fT_("ui.swapped_msg")})
             elif old==ik:  # zaten ekipli, çıkar
                 slot=EQUIP_ITEMS[ik][3];p.stats.unequip(slot)
-                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_RD,"txt":f"Cikarildi!"})
+                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_RD,"txt":fT_("ui.removed_msg")})
 
     # ── Ana Döngü ────────────────────────────────────────────────
     # ── Güncelleme ───────────────────────────────────────────────
@@ -3319,12 +3480,13 @@ class Game:
                             elif key2=="master_vol": CFG.data["master_vol"]=min(100,CFG.data.get("master_vol",80)+10); SoundManager.update_music_volume()
                             elif key2=="sfx_vol":   CFG.data["sfx_vol"]=min(100,CFG.data.get("sfx_vol",80)+10)
                             elif key2=="music_vol": CFG.data["music_vol"]=min(100,CFG.data.get("music_vol",60)+10); SoundManager.update_music_volume()
-                            elif key2=="language":  CFG.data["language"]="EN" if CFG.data.get("language","TR")=="TR" else "TR"
+                            elif key2=="language":  self._cycle_language(+1)
                             elif key2=="show_fps":  CFG.data["show_fps"]=not CFG.data.get("show_fps",False)
                             CFG.save(); SoundManager.play("menu_sel")
                         elif k in(pygame.K_LEFT,pygame.K_a):
                             key2=opts_s[self.settings_sel]
-                            if key2=="master_vol": CFG.data["master_vol"]=max(0,CFG.data.get("master_vol",80)-10); SoundManager.update_music_volume()
+                            if key2=="language": self._cycle_language(-1)
+                            elif key2=="master_vol": CFG.data["master_vol"]=max(0,CFG.data.get("master_vol",80)-10); SoundManager.update_music_volume()
                             elif key2=="sfx_vol":  CFG.data["sfx_vol"]=max(0,CFG.data.get("sfx_vol",80)-10)
                             elif key2=="music_vol":CFG.data["music_vol"]=max(0,CFG.data.get("music_vol",60)-10); SoundManager.update_music_volume()
                             CFG.save(); SoundManager.play("menu_sel")
@@ -3341,7 +3503,7 @@ class Game:
                                 self.pause_open=False; SoundManager.play("menu_back")
                             elif self._pause_sel==1: # Kaydet
                                 ok=self.save_game()
-                                self._toast("Kaydedildi" if ok else "Kaydedilemedi!",UI_GN if ok else UI_RD)
+                                self._toast(T_("ui.saved") if ok else T_("ui.save_failed"),UI_GN if ok else UI_RD)
                                 SoundManager.play("chest" if ok else "error")
                                 self.pause_open=False
                             elif self._pause_sel==2: # Ayarlar
@@ -3522,8 +3684,8 @@ class Game:
                             btx,bty=(obj.tx,obj.ty) if kind=="npc" else obj
                             self.ui.draw_interact_badge(self.screen,btx,bty,self.cam_x,self.cam_y,self.tick)
                     if in_world:
-                        cq=QUESTS.get(self.flags["ch"],("",""))[0]
-                        self.ui.draw_hud(self.screen,p,self.cur_map.name,self.flags["ch"],cq,self.tick)
+                        cq=quest_title(self.flags["ch"])
+                        self.ui.draw_hud(self.screen,p,T_(self.cur_map.name),self.flags["ch"],cq,self.tick)
                         # Diyalog kutusu alt şeridi kaplıyor — yetenek çubuğunu gizle.
                         if self.state!="dialog":
                             self.ui.draw_ability_bar(self.screen,p.stats,self.tick)
@@ -3534,9 +3696,9 @@ class Game:
                         self.ui.draw_chapter(self.screen,self.flags["ch"],min(255,self.ch_announce*3))
 
                 if self.state=="dialog":
-                    lpp=4;pl=self.dlg_lines[self.dlg_page*lpp:(self.dlg_page+1)*lpp]
+                    lpp=4;pl=[dlg_line(e) for e in self.dlg_lines[self.dlg_page*lpp:(self.dlg_page+1)*lpp]]
                     total=(len(self.dlg_lines)+lpp-1)//lpp
-                    self.ui.draw_dialog(self.screen,self.dlg_npc.name if self.dlg_npc else "?",pl,
+                    self.ui.draw_dialog(self.screen,T_(self.dlg_npc.name) if self.dlg_npc else "?",pl,
                                         self.dlg_page+1,total,self.dlg_reveal)
                 elif self.state=="inventory":
                     self.ui.draw_inventory(self.screen,self.player,self.inv_sel,self.inv_tab,self.tick,self.eq_sel)
@@ -3549,7 +3711,7 @@ class Game:
                 elif self.state=="victory":
                     self.ui.draw_victory(self.screen,self.tick)
 
-            if self.trans_alpha>0: self.ui.draw_transition(self.screen,self.trans_alpha,self.entering_name)
+            if self.trans_alpha>0: self.ui.draw_transition(self.screen,self.trans_alpha,T_(self.entering_name))
             # Pause overlay
             if self.pause_open and self.state=="playing":
                 self.ui.draw_pause(self.screen,self.tick,self._pause_sel)
