@@ -4,7 +4,7 @@
 > yol haritasını tutar. Her fazın sonunda testleri çalıştırıp bu dosyayı güncelliyoruz.
 > Böylece "neyi, neden, hangi kanıta dayanarak" değiştirdiğimiz kayıt altında kalır.
 
-**Son güncelleme:** 2026-09-28 · **Oyun sürümü:** v5.0 · **Aktif faz:** Faz 4 (Faz 0-1-2-3 tamamlandı)
+**Son güncelleme:** 2026-09-28 · **Oyun sürümü:** v5.0 · **Aktif faz:** Faz 5 (Faz 0-1-2-3-4 tamamlandı)
 
 ---
 
@@ -27,6 +27,8 @@ python tests/test_gameplay_smoke.py
 | `tests/harness.py` | Oyunu testten süren koşum takımı (`pygame.display.flip` kancası ile) |
 | `tests/test_gameplay_smoke.py` | Oyunu baştan sona otomatik oynar, 24 ekran görüntüsü üretir, ölçüm toplar |
 | `tests/test_combat_feel.py` | Dövüş hissi ve arayüz katmanları (telegraf, yol bulma, karartma, rozet) |
+| `tests/test_save_load.py` | Kayıt/yükleme turu ve bozuk kayda dayanıklılık |
+| `tests/test_atmosphere.py` | Dekor, ışık halesi, NPC gezinmesi, daktilo diyalog |
 | `tests/screenshots/` | Test çıktısı kareler (her koşumda yeniden üretilir) |
 
 Testler **penceresiz** (`SDL_VIDEODRIVER=dummy`) çalışır: ekran açılmaz, ses kartı gerekmez,
@@ -84,7 +86,7 @@ yalnızca arası dolduruluyor. Çapraz adım `×1,41` sürüyor ki çapraz gitme
 | ✅ B6 | 🔴 | **Paketlenmiş oyunda ayarlar hiç kalıcı olmuyor:** `settings.json` `__file__`'ın yanına yazılıyor; build **onefile** olduğu için `__file__` çalışma anında geçici `_MEIxxxx` klasöründe kalır ve oyun kapanınca **o klasör silinir**. Üstelik kurulum `$PROGRAMFILES` altına yapıldığından yazma izni de yok. Hata `except: pass` ile sessizce yutuluyor, oyuncu hiçbir uyarı görmüyor | `pixel_rpg.py:33`, `:49-52`, `KaranlikTacinLaneti.spec:28-48` (onefile), `installer_windows.nsi:11` | Yazılabilir veriyi `%APPDATA%\KaranlikTacinLaneti\` altına al; `__file__` tabanlı yol yalnızca salt-okunur varlıklar (fontlar) için kalsın |
 | ✅ B7 | 🟠 | `FontManager` sınıfı hiç çağrılmıyor; ayrıca aradığı dosya adları (`Cinzel-Bold.ttf`, `Almendra-Bold.ttf`, `UncialAntiqua-Regular.ttf`) `assets/fonts` içinde **yok** (var olanlar: `Cinzel-Regular`, `Almendra-Regular`, `MedievalSharp-Regular`) | `pixel_rpg.py:146-177` | Dosya adlarını düzelt ve `UI.__init__` içinde `SysFont` yerine `FontManager.get` kullan |
 | ✅ B8 | 🟡 | Sürüm tutarsız: dosya başlığı v5.0, başlık ekranı ve konsol çıktısı v4.0 | `pixel_rpg.py:3`, `:1842`, `:2894` | Tek bir `VERSION` sabiti |
-| B9 | 🟡 | Üretilen ama hiç çalınmayan sesler: `walk`, `equip`, `error`, `trap`, `freeze`, `boss_alert` | `pixel_rpg.py:232-251` | İlgili olaylara bağla (ayak sesi, ekipman, tuzak, boss girişi) |
+| ✅ B9 | 🟡 | Üretilen ama hiç çalınmayan sesler: `walk`, `equip`, `error`, `trap`, `freeze`, `boss_alert` | `pixel_rpg.py:232-251` | İlgili olaylara bağla (ayak sesi, ekipman, tuzak, boss girişi) |
 | 🔸 B10 | 🟡 | Dil seçeneği yarım: 36 çeviri anahtarının 21'i hiç kullanılmıyor; başlık, sınıf seçimi, ölüm/zafer ekranları sabit Türkçe | `pixel_rpg.py:63-143`, `:1833-1848` | Sabit metinleri `T_()` üzerinden geçir · **kısmen yapıldı:** Faz 1'de kullanılmayan anahtar 21 → 15 |
 | ✅ B11 | 🟠 | **Almendra fontu `ğ` ve `ş` gliflerini içermiyor**, bu harfleri sessizce yutuyor: "Doğudaki … başla." → "Do udaki … ba la." Faz 1'de fontlar devreye alınırken ortaya çıktı; `font.metrics()` ve genişlik ölçümü bu durumu **yakalamıyor**, yalnızca çizilen pikseller yakalıyor | `tests/screenshots/_font_turkce.png` | Diyalog fontu MedievalSharp'a alındı; `FontManager` artık her adayı Türkçe alfabeyle sınayıp çizemeyeni eliyor |
 
@@ -110,19 +112,19 @@ yalnızca arası dolduruluyor. Çapraz adım `×1,41` sürüyor ki çapraz gitme
 | ✅ E4 | 🟠 | Bölüm duyurusu **260 kare (~4,3 sn)** ekranın ortasını kaplıyor — savaşın tam ortasında bile | `19_saldiri.png`, `21_dusman_yapay_zeka.png`; `pixel_rpg.py:2301`, `:2855` | Süreyi kısalt, üst şeride taşı, savaşta ertele |
 | ✅ E5 | 🟠 | Pencereler fazla şeffaf: envanter/görev günlüğü/nitelik ekranında arka plandaki dünya okunuyor. *(Düzeltme: ölüm ekranı zaten 185 alfa ile karartıyormuş — ilk tespitte yanlış yazmışım, sorun yalnızca panellerdeydi.)* | `11_envanter.png`, `13_gorev_gunlugu.png`, `23_olum.png` | Panel arkasına karartma katmanı (`alpha ~180`) |
 | ✅ E6 | 🟡 | Diyalog sırasında yetenek çubuğu diyalog kutusuyla çakışıyor | `09_diyalog.png`; `pixel_rpg.py:2853` | Diyalogda alt HUD'u gizle |
-| E7 | 🟡 | Diyalog daktilo efekti, portre ve konuşma sesi içermiyor; 4 satır birden beliriyor | `pixel_rpg.py:1936-1947` | Karakter karakter yazım + `E` ile anında tamamlama |
+| ✅ E7 | 🟡 | Diyalog daktilo efekti, portre ve konuşma sesi içermiyor; 4 satır birden beliriyor | `pixel_rpg.py:1936-1947` | Karakter karakter yazım + `E` ile anında tamamlama |
 | E8 | 🟡 | Başlık ekranında `F1 Ayarlar` ipucu yazmıyor (çeviri anahtarı var, çizim yok); `ESC ile çıkış` da belirtilmemiş | `01_baslik.png`; `pixel_rpg.py:1848` | İpucu satırına ekle |
 
 ### 2.4 Sürükleyicilik ve içerik
 
 | ID | Şiddet | Bulgu | Kanıt | Öneri |
 |---|---|---|---|---|
-| İ1 | 🔴 | **Kayıt/yükleme yok.** Ölünce her şey baştan; oyuncu ikinci oturuma dönemiyor | `pixel_rpg.py:2213` (`_reset`) | `%APPDATA%` altına slot bazlı JSON kayıt + başlık ekranında "Devam Et" |
-| İ2 | 🟠 | Haritalar boş hissettiriyor: geniş çim alanlar, dekor nesnesi yok (ağaç, çit, fener, varil, çiçek, tabela) | `05_koy_ashveil.png` | Dekor tile'ları + rastgele serpiştirme; köy meydanına kuyu/pazar |
-| İ3 | 🟠 | Karanlık Orman okunamayacak kadar karanlık: koyu tile paleti + `ambient` katmanı üst üste biniyor | `19_saldiri.png`, `21_dusman_yapay_zeka.png`; `pixel_rpg.py:1036-1037` | Ambient alfasını düşür, oyuncunun çevresine ışık halesi (vignette) ekle |
-| İ4 | 🟠 | NPC'ler tamamen hareketsiz; boşta gezinme/iş yapma yok | `pixel_rpg.py:970-982` | Basit boşta gezinme (kendi bölgesinde 1-2 kare) + oyuncuya dönme |
+| ✅ İ1 | 🔴 | **Kayıt/yükleme yok.** Ölünce her şey baştan; oyuncu ikinci oturuma dönemiyor | `pixel_rpg.py:2213` (`_reset`) | `%APPDATA%` altına slot bazlı JSON kayıt + başlık ekranında "Devam Et" |
+| ✅ İ2 | 🟠 | Haritalar boş hissettiriyor: geniş çim alanlar, dekor nesnesi yok (ağaç, çit, fener, varil, çiçek, tabela) | `05_koy_ashveil.png` | Dekor tile'ları + rastgele serpiştirme; köy meydanına kuyu/pazar |
+| ✅ İ3 | 🟠 | Karanlık Orman okunamayacak kadar karanlık: koyu tile paleti + `ambient` katmanı üst üste biniyor | `19_saldiri.png`, `21_dusman_yapay_zeka.png`; `pixel_rpg.py:1036-1037` | Ambient alfasını düşür, oyuncunun çevresine ışık halesi (vignette) ekle |
+| ✅ İ4 | 🟠 | NPC'ler tamamen hareketsiz; boşta gezinme/iş yapma yok | `pixel_rpg.py:970-982` | Basit boşta gezinme (kendi bölgesinde 1-2 kare) + oyuncuya dönme |
 | İ5 | 🟠 | Yön bulma zayıf: görev işaretçisi (`!` / `?`), mini harita ya da pusula yok | `05_koy_ashveil.png` | NPC üstünde görev simgesi + köşede mini harita |
-| İ6 | 🟡 | Ses peyzajı yok: ayak sesi, ortam sesi yok; müzik harita geçişinde sert kesiliyor ve **her geçişte numpy ile yeniden üretiliyor** | `pixel_rpg.py:273-318`, `:2293` | Temaları bir kez üret + önbellekle, geçişte çapraz sönümleme |
+| ✅ İ6 | 🟡 | Ses peyzajı yok: ayak sesi, ortam sesi yok; müzik harita geçişinde sert kesiliyor ve **her geçişte numpy ile yeniden üretiliyor** | `pixel_rpg.py:273-318`, `:2293` | Temaları bir kez üret + önbellekle, geçişte çapraz sönümleme |
 | İ7 | 🟡 | Ekonomi işlevsiz: altın toplanıyor ama dükkân yok (demirci "altın getir" diyor, satın alma ekranı yok) | `pixel_rpg.py:1209` | Demirci/hancı için basit alım-satım ekranı |
 | İ8 | 🟡 | Düşman davranış çeşitliliği yok: hepsi aynı takip mantığı | `pixel_rpg.py:2525-2557` | Menzilli, kaçan, sürü halinde saldıran türler |
 
@@ -228,14 +230,38 @@ yeniden ayarlanmalı.
 (`Game.__new__` ile pencere açmadan). Telegraf, yol bulma, karartma ve şerit tek başlarına
 ölçülebilir davranışlar; duman testinden çok daha hızlı ve kesin sonuç veriyorlar.
 
-### ⬜ Faz 4 — Atmosfer ve süreklilik
-- [ ] İ1 — kayıt/yükleme + "Devam Et"
-- [ ] İ3 — orman/mağara aydınlatması, oyuncu ışık halesi
-- [ ] İ2 — harita dekorları
-- [ ] İ4 — NPC boşta gezinme
-- [ ] İ6, B9 — ayak sesi, ortam sesleri, müzik çapraz sönümleme
-- [ ] E7 — daktilo efektli diyalog
-- **Kabul:** Kaydet → çık → yükle turu testte doğrulanır; yeni ekran görüntüleriyle önce/sonra karşılaştırması
+### ✅ Faz 4 — Atmosfer ve süreklilik (tamamlandı, 2026-09-28)
+- [x] İ1 — kayıt/yükleme, başlıkta "Devam Et", pause'da "Kaydet", harita geçişinde otomatik kayıt
+- [x] İ3 — ortam ışığı + oyuncu ışık halesi
+- [x] İ2 — harita dekorları (8 çeşit, haritaya göre kararlı dağılım)
+- [x] İ4 — NPC boşta gezinme (evinden en çok 2 kare)
+- [x] İ6, B9 — altı sesin hepsi bağlandı, müzik önbelleğe alındı
+- [x] E7 — daktilo efektli diyalog
+- [x] Faz 3'ten kalan denge notu — düşman saldırı ritmi geri ayarlandı
+- **Kabul:** `test_save_load.py` (11) + `test_atmosphere.py` (13) = 24 yeni test ✔
+
+#### Faz 4'te ne değişti
+
+| Bulgu | Değişiklik | Yer |
+|---|---|---|
+| İ1 | `save_game()` / `load_game()` — `%APPDATA%\…\save1.json`. Kayıt **haritaları değil, oyuncunun değiştirdiklerini** tutuyor: açılan sandıklar (`base_chests` farkı) ve ölen düşmanlar (indeks). Böylece dosya ~800 bayt ve harita içeriği sonradan güncellenebiliyor. Yazma `os.replace` ile atomik; bozuk/yabancı sürümlü kayıt sessizce reddediliyor | `Game.save_game`, `load_game`, `GameMap.base_chests` |
+| İ3 | `_draw_ambient()` + `_light_hole()`: düz karartma katmanına oyuncunun çevresinde yumuşak bir delik açılıyor (`BLEND_RGBA_MIN`). Maske yarıçapa **ve katman alfasına** göre önbellekte | `pixel_rpg.py` ortam ışığı bölümü |
+| İ2 | `PA.prop_surf()` 8 dekor + `_scatter_props()`. Zemin türüne göre seçiliyor, dolu karelere konmuyor, yürümeyi engellemiyor | `PA.prop_surf`, `_scatter_props`, `GameMap.props` |
+| İ4 | `_update_npcs()` — NPC'ler arada bir komşu kareye adım atıyor, oyuncunun/eşyanın üstüne basmıyor | `Game._update_npcs`, `NPC.__init__` |
+| İ6/B9 | `walk`, `equip`, `error`, `trap`, `freeze`, `boss_alert` bağlandı. `play_music` üretilen parçayı önbelleğe alıyor ve **aynı tema zaten çalıyorsa yeniden başlatmıyor** (köy → çayır geçişinde müzik kesilmiyor) | `SoundManager`, ilgili olaylar |
+| E7 | `dlg_reveal` sayacı; `E` önce yazıyı tamamlıyor, sonra sayfa çeviriyor | `_update`, `draw_dialog`, `_dlg_page_len` |
+| Denge | `ENEMY_ATK_CD` 34 → 14. Telegraf (26) + bekleme (14) = 40 kare, yani Faz 3 öncesi ritmin aynısı — üstüne kaçma penceresi | `Game.ENEMY_ATK_CD` |
+
+**Testlerin yakaladığı üç hata:** (1) Işık halesi ilk yazımda **tersti** — merkez karanlık,
+kenar aydınlıktı; ekran görüntüsünde fark edildi. (2) Düzeltilince de degrade 0-255 aralığında
+üretildiği için halenin dış %40'ı düz karanlığa doyuyor, geçiş sert kesiliyordu; maskenin tepe
+alfası katman alfasına eşitlendi. (3) Dekor tohumu `hash(m.name)` ile üretiliyordu — Python'da
+`str` özeti süreçler arası rastgele olduğu için **dekor her açılışta yeniden diziliyordu**;
+`zlib.crc32`'ye geçildi ve iki ayrı süreçte aynı çıktıyı doğrulayan test eklendi.
+
+**Test yalıtımı:** Oyun artık harita geçişinde otomatik kaydettiği için duman testi
+kullanıcının gerçek `save1.json` dosyasını yazmaya başlamıştı (bir koşumda `%APPDATA%` altında
+gerçekten oluştu, silindi). Koşum takımı artık `SAVE_FILE`'ı geçici dizine yönlendiriyor.
 
 ### ⬜ Faz 5 — İçerik derinliği
 - [ ] İ5 — görev işaretçileri + mini harita
@@ -261,6 +287,9 @@ yeniden ayarlanmalı.
 | 2026-09-28 | 2 | Ölçüm penceresi düzeltildi: çapraz ve kamera testleri sessizce anlamsız çalışıyordu | 16 duman testi + 8 yol testi geçiyor |
 | 2026-09-28 | 2 | Faz 2 commit'lendi (`faz-2-akicilik` dalı) | 25 test |
 | 2026-09-28 | 3 | Saldırı telegrafı, hit-stop/geri itme/sarsıntı, `[E]` rozeti, üst şerit duyuru, panel karartması, BFS yol bulma | `tests/test_combat_feel.py` ile 16 yeni test; toplam 41 test geçiyor |
+| 2026-09-28 | 3 | Faz 3 commit'lendi (`faz-3-dovus-hissi` dalı) | 41 test |
+| 2026-09-28 | 4 | Kayıt/yükleme, ışık halesi, harita dekorları, NPC gezinmesi, ses bağlantıları, daktilo diyalog | 24 yeni test; toplam 65 test geçiyor |
+| 2026-09-28 | 4 | Testler kullanıcının gerçek kayıt dosyasını yazıyordu — koşum takımı geçici dizine yönlendirildi | Kirlenen dosya silindi |
 
 ---
 

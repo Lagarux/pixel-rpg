@@ -23,6 +23,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
 import importlib.util
 import sys
+import tempfile
 import time
 
 import pygame
@@ -97,9 +98,12 @@ class Harness:
         self.shot_prefix = shot_prefix
         os.makedirs(shot_dir, exist_ok=True)
 
-        # Kullanicinin settings.json'ina dokunmayalim.
+        # Kullanicinin gercek verisine dokunmayalim: ayarlar ve kayit dosyasi
+        # (oyun harita gecisinde otomatik kaydediyor) gecici dizine yonlendirilir.
         module.CFG.data["fullscreen"] = False
         module.CFG.save = lambda *a, **k: None
+        self.save_dir = tempfile.mkdtemp(prefix="pixelrpg_test_")
+        module.SAVE_FILE = os.path.join(self.save_dir, "save1.json")
 
         self.game = None
         self.shots = []
