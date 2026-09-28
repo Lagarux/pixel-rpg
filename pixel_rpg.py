@@ -622,6 +622,62 @@ QUESTS = {
     5:("Buzun Kalbi",      "Buz Magarasinda Su Kristalini al."),
     6:("Son Savas",        "Golge Kalesinde Malachar'i yen!"),
 }
+
+# ─── Yan görevler ────────────────────────────────────────────────
+# Yeni görev eklemek tek satır: ilerleme fonksiyonu (bulunan, hedef)
+# döndürür, tamamlanınca ödül bir kez verilir.
+SIDE_QUESTS = [
+    {"id":"scroll",  "title":"ui.sq_scroll",  "desc":"ui.sq_scroll_desc",
+     "unit":"ui.unit_scroll","col":UI_PR,
+     "progress":lambda f: (sum(1 for k in("sq_scroll1","sq_scroll2","sq_scroll3") if f.get(k)),3),
+     "gold":80,"xp":60},
+    {"id":"boar",    "title":"ui.sq_boar",    "desc":"ui.sq_boar_desc",
+     "unit":"ui.unit_boar","col":UI_GD,
+     "progress":lambda f: (min(3,f.get("kill_boar",0)),3),
+     "gold":50,"xp":40},
+    {"id":"fish",    "title":"ui.sq_fish",    "desc":"ui.sq_fish_desc",
+     "unit":"ui.unit_talk","col":UI_CY,
+     "progress":lambda f: (1 if f.get("sq_fish_done") else 0,1),
+     "gold":40,"xp":30},
+    {"id":"wolf",    "title":"ui.sq_wolf",    "desc":"ui.sq_wolf_desc",
+     "unit":"ui.unit_wolf","col":(190,170,150),
+     "progress":lambda f: (min(5,f.get("kill_wolf",0)),5),
+     "gold":70,"xp":70},
+    {"id":"bone",    "title":"ui.sq_bone",    "desc":"ui.sq_bone_desc",
+     "unit":"ui.unit_skeleton","col":(220,220,210),
+     "progress":lambda f: (min(6,f.get("kill_skeleton",0)),6),
+     "gold":90,"xp":90},
+    {"id":"golem",   "title":"ui.sq_golem",   "desc":"ui.sq_golem_desc",
+     "unit":"ui.unit_golem","col":(150,140,130),
+     "progress":lambda f: (min(2,f.get("kill_golem",0)),2),
+     "gold":120,"xp":120},
+    {"id":"witch",   "title":"ui.sq_witch",   "desc":"ui.sq_witch_desc",
+     "unit":"ui.unit_talk","col":(140,200,140),
+     "progress":lambda f: (1 if f.get("sq_witch_done") else 0,1),
+     "gold":45,"xp":35},
+    {"id":"hermit",  "title":"ui.sq_hermit",  "desc":"ui.sq_hermit_desc",
+     "unit":"ui.unit_talk","col":(200,180,220),
+     "progress":lambda f: (1 if f.get("sq_hermit_done") else 0,1),
+     "gold":45,"xp":35},
+]
+
+# Hangi NPC'nin konusulacak bir isi var? (basinda ! rozeti gosterilir)
+NPC_MARKS = {
+    "npc.yasli_aldric":    lambda f: not f.get("speak_aldric"),
+    "npc.oracle_nyx":      lambda f: f.get("earth_crystal") and not f.get("speak_oracle"),
+    "npc.balikci_riva":    lambda f: not f.get("sq_fish_done"),
+    "npc.bataklik_cadisi": lambda f: not f.get("sq_witch_done"),
+    "npc.munzevi":         lambda f: not f.get("sq_hermit_done"),
+}
+
+def npc_has_quest(npc_key,flags)->bool:
+    fn=NPC_MARKS.get(npc_key)
+    return bool(fn and fn(flags))
+
+def sq_done(sq,flags)->bool:
+    got,need=sq["progress"](flags)
+    return got>=need
+
 STAT_NAMES=[("str","Guc"),("int","Zeka"),("agi","Ceviklik"),("vit","Dayaniklilik"),("wis","Bilgelik")]
 STAT_DESCS={"str":"Fiziksel saldiri gucu.","int":"Buyu gucu, mana.",
             "agi":"Hareket hizi, kritik.","vit":"Max HP, savunma.","wis":"Max MP, iyilesme."}
@@ -769,10 +825,58 @@ class PA:
         if k not in(T.WATER,T.RIVER): PA._c[ck]=s
         return s
 
+    # ── Sprite son işlemleri ─────────────────────────────────────
+    # Karakterler zeminde yüzüyormuş gibi duruyordu ve koyu haritalarda
+    # arka plandan ayrışmıyorlardı. Üç sistemik ekleme her şeyi birden
+    # düzeltiyor: taban gölgesi, koyu kontur ve kare kare animasyon.
+    ANIM_FRAMES = 8      # animasyon poz sayısı
+    ANIM_HOLD   = 4      # her poz kaç oyun karesi sürer (15 FPS his)
+    OUTLINE_COL = (14,9,20)
+
+    @staticmethod
+    def anim(frame:int)->int:
+        """Sürekli kare sayacını ayrık animasyon pozuna çevirir.
+
+        Hem piksel sanatına yakışan basamaklı hareket veriyor hem de
+        sprite'ların önbelleğe alınmasını mümkün kılıyor (sonsuz ara değer
+        yerine 8 poz).
+        """
+        return (frame//PA.ANIM_HOLD)%PA.ANIM_FRAMES
+
+    @staticmethod
+    def _bob(af:int,amp:float=1.5)->int:
+        return int(math.sin(af/PA.ANIM_FRAMES*math.tau)*amp)
+
+    @staticmethod
+    def _finish(src,shadow=True,outline=True):
+        """Gölge + kontur ekler. Sonuç aynı boyutta kalır."""
+        w,h=src.get_size()
+        out=pygame.Surface((w,h),pygame.SRCALPHA)
+        if shadow:
+            sh=pygame.Surface((w,h),pygame.SRCALPHA)
+            pygame.draw.ellipse(sh,(0,0,0,70),(w//2-9,h-7,18,6))
+            out.blit(sh,(0,0))
+        if outline:
+            sil=pygame.mask.from_surface(src).to_surface(
+                setcolor=PA.OUTLINE_COL,unsetcolor=(0,0,0,0))
+            for dx,dy in((-1,0),(1,0),(0,-1),(0,1)):
+                out.blit(sil,(dx,dy))
+        out.blit(src,(0,0))
+        return out
+
     @staticmethod
     def player_surf(direction,frame,char_class="warrior"):
+        af=PA.anim(frame)
+        key=("pl",direction,af,char_class)
+        if key in PA._c: return PA._c[key]
+        s=PA._player_raw(direction,af,char_class)
+        s=PA._finish(s);PA._c[key]=s;return s
+
+    @staticmethod
+    def _player_raw(direction,af,char_class="warrior"):
         s=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
-        bob=int(math.sin(frame*0.3)*1.5)
+        frame=af*PA.ANIM_HOLD
+        bob=PA._bob(af)
         cc=CLASS_COL.get(char_class,(80,120,220));skin=(200,160,120)
         pygame.draw.rect(s,cc,(10,14+bob,12,12))
         pygame.draw.rect(s,skin,(9,4+bob,14,12))
@@ -789,11 +893,11 @@ class PA:
         elif char_class=="healer":
             pygame.draw.rect(s,(200,160,40),(8,3+bob,16,5))
             pygame.draw.rect(s,(255,220,60),(13,1+bob,6,8));pygame.draw.rect(s,(255,220,60),(10,3+bob,12,4))
-        lo=int(math.sin(frame*0.4)*3)
+        lo=int(math.sin(af/PA.ANIM_FRAMES*math.tau)*3)
         lc=(int(cc[0]*0.7),int(cc[1]*0.7),int(cc[2]*0.7))
         pygame.draw.rect(s,lc,(10,26+bob,5,6-abs(lo)//2));pygame.draw.rect(s,lc,(17,26+bob,5,6+abs(lo)//2))
         pygame.draw.rect(s,(35,25,18),(9,31+bob,6,2));pygame.draw.rect(s,(35,25,18),(16,31+bob,6,2))
-        sw=int(math.sin(frame*0.4)*2)
+        sw=int(math.sin(af/PA.ANIM_FRAMES*math.tau)*2)
         pygame.draw.rect(s,skin,(5,15+bob+sw,5,8));pygame.draw.rect(s,skin,(22,15+bob-sw,5,8))
         if char_class=="warrior":
             if direction=="right": pygame.draw.rect(s,ST_L,(27,12+bob,3,12));pygame.draw.rect(s,UI_GD,(24,12+bob,9,2))
@@ -811,117 +915,265 @@ class PA:
 
     @staticmethod
     def npc_surf(color,frame,style="default"):
+        af=PA.anim(frame)
+        key=("npc",color,af,style)
+        if key in PA._c: return PA._c[key]
+        s=PA._finish(PA._npc_raw(color,af,style));PA._c[key]=s;return s
+
+    @staticmethod
+    def _npc_raw(color,af,style="default"):
+        """NPC çizimleri.
+
+        Önceki hâlde hepsi aynı gövdeydi, yalnızca renk değişiyordu; köyde
+        kimin kim olduğu anlaşılmıyordu. Her mesleğin artık kendi silueti,
+        başlığı ve elindeki nesnesi var.
+        """
         s=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
-        bob=int(math.sin(frame*0.2)*1);skin=(200,160,120)
+        bob=PA._bob(af,1.0);skin=(205,168,128)
+
+        def body(col,head_y=3,bw=16):
+            pygame.draw.rect(s,col,((TILE-bw)//2,13+bob,bw,15))
+            dark=(max(0,col[0]-35),max(0,col[1]-35),max(0,col[2]-35))
+            pygame.draw.rect(s,dark,((TILE-bw)//2,24+bob,bw,4))
+            pygame.draw.rect(s,skin,(9,head_y+bob,14,12))
+            pygame.draw.rect(s,(170,135,100),(9,head_y+10+bob,14,2))
+            pygame.draw.rect(s,BK,(12,head_y+4+bob,3,3))
+            pygame.draw.rect(s,BK,(18,head_y+4+bob,3,3))
+
+        def arms(col):
+            sw=PA._bob(af,1.0)
+            pygame.draw.rect(s,col,(5,15+bob+sw,4,9))
+            pygame.draw.rect(s,col,(23,15+bob-sw,4,9))
+
         if style=="guard":
-            pygame.draw.rect(s,(80,90,110),(9,13+bob,14,14));pygame.draw.rect(s,skin,(9,3+bob,14,12))
-            pygame.draw.rect(s,(60,70,90),(7,2+bob,18,6))
-            pygame.draw.rect(s,BK,(11,7+bob,3,3));pygame.draw.rect(s,BK,(18,7+bob,3,3))
-            pygame.draw.line(s,ST_L,(24,8+bob),(24,26+bob),2)
-        elif style=="elder":
-            pygame.draw.rect(s,(130,100,160),(8,13+bob,16,14));pygame.draw.rect(s,skin,(9,3+bob,14,12))
-            pygame.draw.polygon(s,(80,40,120),[(16,bob-2),(8,6+bob),(24,6+bob)])
-            pygame.draw.rect(s,BK,(11,7+bob,3,3));pygame.draw.rect(s,BK,(18,7+bob,3,3))
-            pygame.draw.rect(s,WOD,(25,5+bob,3,24));pygame.draw.circle(s,(180,100,255),(26,5+bob),4)
+            body((78,90,112));arms((70,82,104))
+            pygame.draw.rect(s,(96,104,126),(7,1+bob,18,6))          # miğfer
+            pygame.draw.rect(s,(140,150,175),(15,0+bob,2,4))
+            pygame.draw.line(s,WOD,(26,2+bob),(26,30+bob),2)         # mızrak
+            pygame.draw.polygon(s,ST_L,[(26,0+bob),(23,5+bob),(29,5+bob)])
+            pygame.draw.ellipse(s,(90,100,120),(1,15+bob,8,11))      # kalkan
         elif style=="knight":
-            pygame.draw.rect(s,(80,80,100),(9,13+bob,14,14));pygame.draw.rect(s,skin,(9,3+bob,14,12))
-            pygame.draw.rect(s,(70,70,90),(7,2+bob,18,7))
-            pygame.draw.rect(s,BK,(11,7+bob,3,3));pygame.draw.rect(s,BK,(18,7+bob,3,3))
+            body((92,96,116));arms((80,84,104))
+            pygame.draw.rect(s,(112,118,140),(8,0+bob,16,8))
+            pygame.draw.rect(s,BK,(10,3+bob,12,3))                   # vizör
+            pygame.draw.polygon(s,(200,60,60),[(16,bob-4),(13,bob),(19,bob)])   # tüy
+            pygame.draw.line(s,ST_L,(27,8+bob),(27,26+bob),3)
+        elif style=="elder":
+            body((132,102,162),head_y=4);arms((118,90,148))
+            pygame.draw.polygon(s,(76,40,116),[(16,bob-3),(7,7+bob),(25,7+bob)])
+            pygame.draw.polygon(s,(235,235,240),[(11,14+bob),(21,14+bob),(16,26+bob)])  # sakal
+            pygame.draw.rect(s,WOD,(26,4+bob,3,25))
+            pygame.draw.circle(s,(180,100,255),(27,3+bob),4)
+            pygame.draw.circle(s,WH,(27,2+bob),2)
         elif style=="oracle":
-            pygame.draw.rect(s,(60,40,100),(8,13+bob,16,14));pygame.draw.rect(s,skin,(9,3+bob,14,12))
-            pygame.draw.polygon(s,(40,20,80),[(16,bob-4),(7,7+bob),(25,7+bob)])
+            body((62,42,102),head_y=4);arms((52,34,86))
+            pygame.draw.polygon(s,(42,22,82),[(16,bob-5),(6,8+bob),(26,8+bob)])
             pygame.draw.circle(s,UI_GD,(16,bob-2),3)
-            pygame.draw.rect(s,BK,(11,7+bob,3,3));pygame.draw.rect(s,BK,(18,7+bob,3,3))
             for i in range(3):
-                ang=frame*0.05+i*2.1;ex=int(16+8*math.cos(ang));ey=int(16+5*math.sin(ang)+bob)
+                ang=af/PA.ANIM_FRAMES*math.tau+i*2.1
+                ex=int(16+9*math.cos(ang));ey=int(17+6*math.sin(ang)+bob)
                 if 0<=ex<TILE and 0<=ey<TILE: pygame.draw.circle(s,UI_GD,(ex,ey),1)
         elif style=="farmer":
-            pygame.draw.rect(s,(140,100,60),(8,13+bob,16,14));pygame.draw.rect(s,skin,(9,3+bob,14,12))
-            pygame.draw.rect(s,(100,80,40),(7,3+bob,18,5))
-            pygame.draw.rect(s,BK,(11,7+bob,3,3));pygame.draw.rect(s,BK,(18,7+bob,3,3))
-            pygame.draw.rect(s,WOD,(24,10+bob,3,18))
+            body((146,106,64));arms((128,92,54))
+            pygame.draw.ellipse(s,(196,168,92),(4,2+bob,24,7))       # hasır şapka
+            pygame.draw.ellipse(s,(168,142,74),(10,0+bob,12,6))
+            pygame.draw.rect(s,(210,200,180),(12,16+bob,8,10))       # önlük
+            pygame.draw.line(s,WOD,(27,6+bob),(27,30+bob),2)         # dirgen
+            for px in(24,27,30): pygame.draw.line(s,ST_L,(px,6+bob),(px,1+bob),1)
+        elif style=="smith":
+            body((122,84,58));arms((104,70,48))
+            pygame.draw.rect(s,(60,52,48),(8,2+bob,16,4))            # bandana
+            pygame.draw.rect(s,(74,58,44),(11,16+bob,10,11))         # deri önlük
+            pygame.draw.rect(s,WOD,(25,16+bob,3,10))                 # çekiç
+            pygame.draw.rect(s,(120,120,132),(22,12+bob,9,5))
+        elif style=="inn":
+            body((186,132,162));arms((166,116,146))
+            pygame.draw.rect(s,(240,230,220),(11,16+bob,10,10))      # önlük
+            pygame.draw.rect(s,(214,176,110),(24,17+bob,6,7))        # bardak
+            pygame.draw.rect(s,(250,240,210),(24,15+bob,6,3))
+            pygame.draw.arc(s,(214,176,110),(28,17+bob,5,7),-1.2,1.2,2)
+        elif style=="fisher":
+            body((96,138,178));arms((82,120,158))
+            pygame.draw.ellipse(s,(176,158,120),(5,2+bob,22,6))      # geniş şapka
+            pygame.draw.line(s,WOD,(26,4+bob),(29,26+bob),2)         # olta
+            pygame.draw.line(s,(210,225,235),(29,10+bob),(31,20+bob),1)
+        elif style=="hermit":
+            body((150,134,168),head_y=5);arms((132,116,150))
+            pygame.draw.polygon(s,(108,96,124),[(16,1+bob),(6,10+bob),(26,10+bob)])  # kukuleta
+            pygame.draw.polygon(s,(230,230,235),[(12,16+bob),(20,16+bob),(16,29+bob)])
+            pygame.draw.rect(s,WOD,(26,8+bob,2,21))
+        elif style=="scholar":
+            body((138,102,196));arms((120,86,176))
+            pygame.draw.rect(s,(96,64,150),(8,2+bob,16,4))
+            pygame.draw.rect(s,(210,190,150),(22,17+bob,8,7))        # kitap
+            pygame.draw.rect(s,(150,60,60),(22,17+bob,2,7))
+            pygame.draw.line(s,(120,110,90),(24,20+bob),(29,20+bob),1)
+        elif style=="child":
+            pygame.draw.rect(s,color,(11,19+bob,10,9))               # küçük gövde
+            pygame.draw.rect(s,skin,(10,10+bob,12,10))
+            pygame.draw.rect(s,BK,(13,14+bob,2,2));pygame.draw.rect(s,BK,(18,14+bob,2,2))
+            pygame.draw.rect(s,(120,80,50),(10,9+bob,12,3))
+            pygame.draw.rect(s,color,(7,20+bob,3,6));pygame.draw.rect(s,color,(22,20+bob,3,6))
+        elif style=="traveler":
+            body(color);arms((max(0,color[0]-30),max(0,color[1]-30),max(0,color[2]-30)))
+            pygame.draw.rect(s,(120,96,64),(4,14+bob,7,10))          # sırt çantası
+            pygame.draw.rect(s,(96,76,50),(4,17+bob,7,2))
+            pygame.draw.rect(s,(90,70,50),(8,1+bob,16,4))
+            pygame.draw.line(s,WOD,(27,6+bob),(27,30+bob),2)
+        elif style=="spirit":
+            aa=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*60)+90
+            gs=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
+            pygame.draw.ellipse(gs,(*color,aa),(7,4+bob,18,22))      # yarı saydam gövde
+            pygame.draw.ellipse(gs,(255,255,255,aa//2),(11,7+bob,10,8))
+            for i in range(3):                                        # dağılan etek
+                pygame.draw.ellipse(gs,(*color,aa//2),(6+i*3,24+bob-i,10,6))
+            s.blit(gs,(0,0))
+            pygame.draw.circle(s,(255,255,255),(13,12+bob),2)
+            pygame.draw.circle(s,(255,255,255),(20,12+bob),2)
         else:
-            pygame.draw.rect(s,color,(8,13+bob,16,14));pygame.draw.rect(s,skin,(9,3+bob,14,12))
-            pygame.draw.rect(s,BK,(11,7+bob,3,3));pygame.draw.rect(s,BK,(18,7+bob,3,3))
+            body(color);arms((max(0,color[0]-30),max(0,color[1]-30),max(0,color[2]-30)))
+            pygame.draw.rect(s,(110,86,62),(9,2+bob,14,3))           # saç
         return s
 
     @staticmethod
     def enemy_surf(kind,frame):
+        af=PA.anim(frame)
+        key=("en",kind,af)
+        if key in PA._c: return PA._c[key]
+        s=PA._finish(PA._enemy_raw(kind,af),shadow=(kind!="malachar"))
+        PA._c[key]=s;return s
+
+    @staticmethod
+    def _enemy_raw(kind,af):
+        """Düşman çizimleri.
+
+        Önceki hâlde kurt, domuz ve akrep neredeyse aynı kahverengi
+        lekelerdi. Her tür artık ayrı bir siluete sahip: dört ayaklılar
+        yandan (baş solda), dik duranlar önden çiziliyor.
+        """
         s=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
-        bob=int(math.sin(frame*0.25)*2)
+        bob=PA._bob(af,2.0)
+        step=PA._bob(af,3.0)          # yürüyen bacaklar
+
+        def beast(body,light,dark,eye,ear="pointed",tusk=False,frost=False):
+            """Dört ayaklı gövde — baş solda, kuyruk sağda."""
+            for lx,ph in ((9,1),(14,-1),(20,1),(25,-1)):
+                pygame.draw.rect(s,dark,(lx,24+bob,4,6+ph*step//2))
+            pygame.draw.ellipse(s,body,(7,13+bob,22,13))      # gövde
+            pygame.draw.ellipse(s,light,(9,12+bob,15,8))      # sırt ışığı
+            pygame.draw.ellipse(s,body,(2,11+bob,13,11))      # kafa
+            pygame.draw.ellipse(s,light,(4,12+bob,8,6))
+            if ear=="pointed":
+                pygame.draw.polygon(s,dark,[(5,11+bob),(3,4+bob),(9,9+bob)])
+                pygame.draw.polygon(s,dark,[(12,10+bob),(13,4+bob),(16,10+bob)])
+            else:
+                pygame.draw.ellipse(s,dark,(3,9+bob,6,5))
+                pygame.draw.ellipse(s,dark,(11,8+bob,6,5))
+            pygame.draw.ellipse(s,dark,(0,16+bob,6,5))        # burun
+            pygame.draw.circle(s,eye,(6,15+bob),2)
+            pygame.draw.circle(s,BK,(6,15+bob),1)
+            if tusk:
+                pygame.draw.polygon(s,(240,235,215),[(2,18+bob),(0,13+bob),(4,16+bob)])
+                pygame.draw.polygon(s,(240,235,215),[(6,19+bob),(5,14+bob),(8,17+bob)])
+            pygame.draw.polygon(s,dark,[(28,16+bob),(32,10+bob-step),(29,19+bob)])
+            if frost:
+                for fx,fy in((12,11),(18,12),(23,14)):
+                    pygame.draw.polygon(s,(225,250,255),
+                                        [(fx,fy+bob-3),(fx-2,fy+bob+1),(fx+2,fy+bob+1)])
+
         if kind=="slime":
-            pygame.draw.ellipse(s,(55,175,55),(4,14+bob,24,16));pygame.draw.ellipse(s,(75,205,75),(6,12+bob,20,14))
-            pygame.draw.circle(s,BK,(11,17+bob),3);pygame.draw.circle(s,BK,(21,17+bob),3)
-            pygame.draw.circle(s,WH,(12,16+bob),1);pygame.draw.circle(s,WH,(22,16+bob),1)
+            sq=abs(PA._bob(af,2.0))
+            pygame.draw.ellipse(s,(45,155,45),(4-sq//2,16+sq,24+sq,14-sq))
+            pygame.draw.ellipse(s,(75,205,75),(6-sq//2,13+sq,20+sq,14-sq))
+            pygame.draw.ellipse(s,(150,240,150),(10,15+sq,7,4))
+            pygame.draw.circle(s,BK,(12,20+sq),3);pygame.draw.circle(s,BK,(21,20+sq),3)
+            pygame.draw.circle(s,WH,(13,19+sq),1);pygame.draw.circle(s,WH,(22,19+sq),1)
         elif kind=="skeleton":
-            for y in range(14,26,4): pygame.draw.line(s,WH,(12,y+bob),(20,y+bob),2)
-            pygame.draw.rect(s,WH,(9,3+bob,14,12));pygame.draw.rect(s,BK,(10,6+bob,4,4));pygame.draw.rect(s,BK,(18,6+bob,4,4))
-            pygame.draw.rect(s,HP_R,(11,7+bob,2,2));pygame.draw.rect(s,HP_R,(19,7+bob,2,2))
-            for tx in range(11,21,3): pygame.draw.rect(s,WH,(tx,13+bob,2,3))
-            lo=int(math.sin(frame*0.3)*4)
-            pygame.draw.line(s,WH,(12,26+bob),(10,32+bob+lo),2);pygame.draw.line(s,WH,(20,26+bob),(22,32+bob-lo),2)
-            pygame.draw.line(s,ST_L,(28,14+bob),(28,26+bob),2);pygame.draw.line(s,UI_GD,(25,16+bob),(31,16+bob),2)
+            pygame.draw.line(s,(225,225,215),(16,15+bob),(16,25+bob),2)
+            for y in range(16,26,3):
+                pygame.draw.line(s,(210,210,200),(11,y+bob),(21,y+bob),2)
+            pygame.draw.ellipse(s,(235,235,225),(9,3+bob,14,13))
+            pygame.draw.rect(s,BK,(11,7+bob,4,5));pygame.draw.rect(s,BK,(17,7+bob,4,5))
+            pygame.draw.rect(s,(255,60,60),(12,8+bob,2,2));pygame.draw.rect(s,(255,60,60),(18,8+bob,2,2))
+            for tx in range(12,21,3): pygame.draw.rect(s,(235,235,225),(tx,14+bob,2,2))
+            pygame.draw.line(s,(225,225,215),(12,26+bob),(10,31+bob+step),2)
+            pygame.draw.line(s,(225,225,215),(20,26+bob),(22,31+bob-step),2)
+            pygame.draw.line(s,ST_L,(27,12+bob),(27,26+bob),3)
+            pygame.draw.line(s,UI_GD,(24,15+bob),(30,15+bob),2)
         elif kind=="goblin":
-            pygame.draw.rect(s,(78,138,58),(9,16+bob,14,12));pygame.draw.ellipse(s,(98,158,68),(7,4+bob,18,14))
-            pygame.draw.ellipse(s,(78,128,48),(2,6+bob,8,5));pygame.draw.ellipse(s,(78,128,48),(22,6+bob,8,5))
-            pygame.draw.circle(s,(218,48,48),(11,9+bob),3);pygame.draw.circle(s,(218,48,48),(21,9+bob),3)
-            pygame.draw.circle(s,BK,(12,9+bob),1);pygame.draw.circle(s,BK,(22,9+bob),1)
-            pygame.draw.rect(s,WOD,(24,14+bob,4,14))
+            pygame.draw.rect(s,(70,125,52),(10,17+bob,13,11))
+            pygame.draw.rect(s,(88,148,62),(11,18+bob,11,5))
+            for lx in (10,18): pygame.draw.rect(s,(60,110,45),(lx,27+bob,5,4))
+            pygame.draw.ellipse(s,(98,158,68),(7,4+bob,18,15))
+            pygame.draw.polygon(s,(88,148,62),[(7,8+bob),(0,4+bob),(8,14+bob)])
+            pygame.draw.polygon(s,(88,148,62),[(24,8+bob),(31,4+bob),(23,14+bob)])
+            pygame.draw.circle(s,(235,215,70),(12,10+bob),3);pygame.draw.circle(s,(235,215,70),(21,10+bob),3)
+            pygame.draw.circle(s,BK,(12,10+bob),1);pygame.draw.circle(s,BK,(21,10+bob),1)
+            pygame.draw.line(s,BK,(12,15+bob),(21,15+bob),1)
+            for gx in range(13,21,3): pygame.draw.rect(s,WH,(gx,15+bob,2,2))
+            pygame.draw.rect(s,WOD,(25,13+bob,3,15))
+            pygame.draw.circle(s,(120,120,130),(26,12+bob),4)
         elif kind=="wolf":
-            pygame.draw.ellipse(s,(90,80,70),(4,14+bob,24,14));pygame.draw.ellipse(s,(100,90,80),(6,8+bob,16,12))
-            pygame.draw.polygon(s,(80,70,60),[(8,8+bob),(6,2+bob),(11,6+bob)])
-            pygame.draw.polygon(s,(80,70,60),[(20,8+bob),(22,2+bob),(17,6+bob)])
-            pygame.draw.circle(s,(220,180,30),(10,11+bob),2);pygame.draw.circle(s,(220,180,30),(18,11+bob),2)
-            pygame.draw.circle(s,BK,(10,11+bob),1);pygame.draw.circle(s,BK,(18,11+bob),1)
-            lo=int(math.sin(frame*0.4)*3)
-            for lx in [6,12,18,24]: pygame.draw.rect(s,(80,70,60),(lx,26+bob,4,6+abs(lo)//2))
-        elif kind=="boar":
-            pygame.draw.ellipse(s,(130,80,60),(4,14+bob,24,14));pygame.draw.ellipse(s,(140,90,70),(5,8+bob,14,12))
-            pygame.draw.polygon(s,(120,70,50),[(5,8+bob),(3,4+bob),(8,6+bob)])
-            pygame.draw.circle(s,(220,60,60),(9,11+bob),2);pygame.draw.circle(s,(220,60,60),(15,11+bob),2)
-            pygame.draw.polygon(s,WH,[(4,13+bob),(2,9+bob),(6,10+bob)])
-            for lx in [6,10,16,22]: pygame.draw.rect(s,(110,65,45),(lx,26+bob,4,6))
-        elif kind=="golem":
-            pygame.draw.rect(s,(75,70,65),(5,8+bob,22,22));pygame.draw.rect(s,(95,90,85),(6,9+bob,20,20))
-            glow=int(abs(math.sin(frame*0.1))*100)+100
-            pygame.draw.circle(s,(glow,80,30),(11,13+bob),4);pygame.draw.circle(s,(glow,80,30),(21,13+bob),4)
-            pygame.draw.circle(s,(255,180,80),(11,13+bob),2);pygame.draw.circle(s,(255,180,80),(21,13+bob),2)
-        elif kind=="scorpion":
-            pygame.draw.ellipse(s,(160,100,50),(6,12+bob,20,14));pygame.draw.ellipse(s,(180,120,60),(8,13+bob,16,10))
-            pygame.draw.line(s,(150,90,40),(6,16+bob),(2,12+bob),2);pygame.draw.line(s,(150,90,40),(26,16+bob),(30,12+bob),2)
-            pygame.draw.circle(s,(150,90,40),(2,11+bob),3);pygame.draw.circle(s,(150,90,40),(30,11+bob),3)
-            pygame.draw.circle(s,HP_R,(24,1+bob),3)
-            pygame.draw.circle(s,(220,50,50),(11,14+bob),2);pygame.draw.circle(s,(220,50,50),(21,14+bob),2)
+            beast((92,84,74),(118,110,98),(64,58,50),(235,200,60))
         elif kind=="ice_wolf":
-            pygame.draw.ellipse(s,(130,180,220),(4,14+bob,24,14));pygame.draw.ellipse(s,(150,200,235),(6,8+bob,16,12))
-            pygame.draw.polygon(s,(120,170,210),[(8,8+bob),(6,2+bob),(11,6+bob)])
-            pygame.draw.polygon(s,(120,170,210),[(20,8+bob),(22,2+bob),(17,6+bob)])
-            pygame.draw.circle(s,(180,240,255),(10,11+bob),2);pygame.draw.circle(s,(180,240,255),(18,11+bob),2)
-            pygame.draw.circle(s,BK,(10,11+bob),1);pygame.draw.circle(s,BK,(18,11+bob),1)
-            lo=int(math.sin(frame*0.4)*3)
-            for lx in [6,12,18,24]: pygame.draw.rect(s,(120,170,210),(lx,26+bob,4,6+abs(lo)//2))
+            beast((120,175,220),(170,215,245),(85,140,190),(200,245,255),frost=True)
+        elif kind=="boar":
+            beast((128,80,58),(158,104,74),(96,58,40),(230,70,60),ear="round",tusk=True)
+        elif kind=="golem":
+            pygame.draw.rect(s,(70,66,60),(3,14+bob,7,12))
+            pygame.draw.rect(s,(70,66,60),(22,14+bob,7,12))
+            pygame.draw.rect(s,(88,84,78),(7,6+bob,18,22))
+            pygame.draw.rect(s,(108,104,96),(9,8+bob,14,10))
+            pygame.draw.rect(s,(62,58,54),(9,25+bob,5,6))
+            pygame.draw.rect(s,(62,58,54),(18,25+bob,5,6))
+            for a,b2 in(((10,20),(15,26)),((17,19),(22,24)),((12,9),(16,14))):
+                pygame.draw.line(s,(58,54,50),(a[0],a[1]+bob),(b2[0],b2[1]+bob),1)
+            glow=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*90)+120
+            pygame.draw.circle(s,(glow,90,35),(12,13+bob),3);pygame.draw.circle(s,(glow,90,35),(20,13+bob),3)
+            pygame.draw.circle(s,(255,200,110),(12,13+bob),1);pygame.draw.circle(s,(255,200,110),(20,13+bob),1)
+        elif kind=="scorpion":
+            for lx in (8,13,19): pygame.draw.line(s,(140,84,36),(lx,24+bob),(lx-3,29+bob),2)
+            for lx in (12,18,23): pygame.draw.line(s,(140,84,36),(lx,24+bob),(lx+3,29+bob),2)
+            pygame.draw.ellipse(s,(172,112,48),(8,17+bob,17,9))
+            for i in range(3):
+                pygame.draw.circle(s,(186,126,58),(23+i*3,15+bob-i*4),3)
+            pygame.draw.circle(s,(206,146,68),(30,5+bob),3)
+            pygame.draw.polygon(s,(240,80,70),[(30,1+bob),(28,5+bob),(32,5+bob)])
+            for cy,cd in((17,-1),(23,1)):
+                pygame.draw.line(s,(160,100,44),(9,cy+bob),(4,cy+cd*3+bob),2)
+                pygame.draw.circle(s,(186,126,58),(3,cy+cd*3+bob),3)
+            pygame.draw.circle(s,(255,70,60),(13,18+bob),2);pygame.draw.circle(s,(255,70,60),(19,18+bob),2)
         elif kind=="shadow_knight":
-            pygame.draw.rect(s,(40,20,65),(8,12+bob,16,16));pygame.draw.rect(s,(55,30,85),(9,13+bob,14,14))
-            pygame.draw.rect(s,(40,20,65),(7,3+bob,18,12));pygame.draw.rect(s,(55,30,85),(8,4+bob,16,10))
-            pygame.draw.rect(s,BK,(9,8+bob,14,4))
-            glow2=int(abs(math.sin(frame*0.08))*150)+80
-            pygame.draw.rect(s,(glow2,0,glow2//2),(9,8+bob,14,4))
-            pygame.draw.rect(s,(60,35,90),(26,10+bob,3,18));pygame.draw.rect(s,(120,50,160),(24,12+bob,7,2))
-            aa=int(abs(math.sin(frame*0.06))*50)+20
-            asurf=pygame.Surface((TILE,TILE),pygame.SRCALPHA);pygame.draw.circle(asurf,(100,0,150,aa),(16,16),15);s.blit(asurf,(0,0))
+            aa=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*45)+25
+            asurf=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
+            pygame.draw.circle(asurf,(105,0,160,aa),(16,16),15);s.blit(asurf,(0,0))
+            pygame.draw.polygon(s,(32,16,52),[(6,14+bob),(26,14+bob),(29,30+bob),(3,30+bob)])
+            pygame.draw.rect(s,(52,28,80),(10,13+bob,12,15))
+            pygame.draw.rect(s,(70,40,105),(12,15+bob,8,5))
+            pygame.draw.polygon(s,(46,24,72),[(9,10+bob),(23,10+bob),(21,3+bob),(11,3+bob)])
+            pygame.draw.polygon(s,(80,45,115),[(9,4+bob),(6,bob),(12,2+bob)])
+            pygame.draw.polygon(s,(80,45,115),[(23,4+bob),(26,bob),(20,2+bob)])
+            glow2=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*150)+90
+            pygame.draw.rect(s,(glow2,0,glow2//2),(11,6+bob,10,3))
+            pygame.draw.rect(s,(60,35,90),(26,9+bob,3,19))
+            pygame.draw.rect(s,(150,70,200),(24,12+bob,7,2))
         elif kind=="malachar":
-            sc=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA);b2=int(math.sin(frame*0.15)*3)
-            pygame.draw.rect(sc,(25,10,45),(12,22+b2,40,42));pygame.draw.rect(sc,(35,15,60),(14,24+b2,36,40))
-            pygame.draw.rect(sc,(20,8,38),(16,18+b2,32,26));pygame.draw.ellipse(sc,(20,8,38),(14,4+b2,36,22))
-            pygame.draw.polygon(sc,(60,20,80),[(20,6+b2),(14,b2-4),(18,10+b2)])
-            pygame.draw.polygon(sc,(60,20,80),[(44,6+b2),(50,b2-4),(46,10+b2)])
-            gm=int(abs(math.sin(frame*0.06))*180)+60
-            pygame.draw.circle(sc,(gm,0,gm//2),(22,14+b2),5);pygame.draw.circle(sc,(gm,0,gm//2),(42,14+b2),5)
-            pygame.draw.circle(sc,(255,150,200),(22,14+b2),2);pygame.draw.circle(sc,(255,150,200),(42,14+b2),2)
-            pygame.draw.rect(sc,(50,20,75),(15,3+b2,34,6))
-            for ti in range(0,34,6): pygame.draw.polygon(sc,UI_BD,[(16+ti,3+b2),(19+ti,-2+b2),(22+ti,3+b2)])
-            aa2=int(abs(math.sin(frame*0.05))*80)+30
-            as2=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA);pygame.draw.circle(as2,(120,0,180,aa2),(32,32),30);sc.blit(as2,(0,0))
+            sc=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA);b2=PA._bob(af,3.0)
+            aa2=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*80)+40
+            as2=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA)
+            pygame.draw.circle(as2,(120,0,180,aa2),(32,32),30);sc.blit(as2,(0,0))
+            pygame.draw.polygon(sc,(18,7,32),[(8,24+b2),(56,24+b2),(60,62+b2),(4,62+b2)])
+            pygame.draw.rect(sc,(35,15,60),(16,22+b2,32,40))
+            pygame.draw.rect(sc,(52,24,86),(20,26+b2,24,14))
+            pygame.draw.ellipse(sc,(26,10,46),(14,4+b2,36,24))
+            pygame.draw.polygon(sc,(70,28,96),[(20,8+b2),(12,b2-6),(18,12+b2)])
+            pygame.draw.polygon(sc,(70,28,96),[(44,8+b2),(52,b2-6),(46,12+b2)])
+            gm=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*170)+70
+            pygame.draw.circle(sc,(gm,0,gm//2),(23,16+b2),6);pygame.draw.circle(sc,(gm,0,gm//2),(41,16+b2),6)
+            pygame.draw.circle(sc,(255,160,210),(23,16+b2),2);pygame.draw.circle(sc,(255,160,210),(41,16+b2),2)
+            pygame.draw.rect(sc,(58,26,86),(15,2+b2,34,7))
+            for ti in range(0,34,6):
+                pygame.draw.polygon(sc,UI_BD,[(16+ti,2+b2),(19+ti,-4+b2),(22+ti,2+b2)])
             return sc
         return s
 
@@ -1558,15 +1810,15 @@ def build_ashveil():
         return ["dlg.aldric.10","dlg.aldric.11","dlg.aldric.12","dlg.aldric.13","dlg.aldric.14"]
     m.npcs.append(NPC(24,19,"npc.yasli_aldric",(160,100,60),aldric_d,"elder"))
     def smith_d(f): return ["dlg.smith.1","dlg.smith.2","dlg.smith.3"]
-    m.npcs.append(NPC(18,13,"npc.demirci_boran",(140,90,50),smith_d,"guard"))
+    m.npcs.append(NPC(18,13,"npc.demirci_boran",(140,90,50),smith_d,"smith"))
     def inn_d(f): return ["dlg.inn.1","dlg.inn.2","dlg.inn.3"]
-    m.npcs.append(NPC(38,13,"npc.hanci_mira",(180,130,160),inn_d))
+    m.npcs.append(NPC(38,13,"npc.hanci_mira",(180,130,160),inn_d,"inn"))
     def guard_d(f):
         if not f.get("speak_aldric"): return ["dlg.guard.1","dlg.guard.2"]
         return ["dlg.guard.3","dlg.guard.4","dlg.guard.5"]
     m.npcs.append(NPC(56,22,"npc.koy_muhafizi",(100,120,180),guard_d,"guard"))
     def south_d(f): return ["dlg.south.1","dlg.south.2"]
-    m.npcs.append(NPC(24,48,"npc.yolcu",(160,180,140),south_d))
+    m.npcs.append(NPC(24,48,"npc.yolcu",(160,180,140),south_d,"traveler"))
     def west_d(f): return ["dlg.west.1","dlg.west.2","dlg.west.3"]
     m.npcs.append(NPC(4,24,"npc.koy_yerlisi",(140,160,180),west_d))
     m.enemies += [
@@ -1790,7 +2042,7 @@ def build_ruins():
     def ghost_d(f):
         if f.get("earth_crystal"): return ["dlg.ghost.1","dlg.ghost.2"]
         return ["dlg.ghost.3","dlg.ghost.4"]
-    m.npcs.append(NPC(8,19,"npc.antik_ruh",(180,200,220),ghost_d))
+    m.npcs.append(NPC(8,19,"npc.antik_ruh",(180,200,220),ghost_d,"spirit"))
     m.enemies += [
         Enemy(6, 6,"skeleton",55,11,30,agro=5,loot=["gold"]),
         Enemy(22, 6,"skeleton",55,11,30,agro=5),
@@ -1878,7 +2130,7 @@ def build_ice_cave():
     def spirit_d(f):
         if f.get("water_crystal"): return ["dlg.spirit.1","dlg.spirit.2"]
         return ["dlg.spirit.3","dlg.spirit.4"]
-    m.npcs.append(NPC(8,20,"npc.buz_ruhu",(180,220,255),spirit_d))
+    m.npcs.append(NPC(8,20,"npc.buz_ruhu",(180,220,255),spirit_d,"spirit"))
     m.enemies += [
         Enemy(5, 5,"ice_wolf",55,12,35,agro=5,loot=["gold"]),
         Enemy(20, 5,"ice_wolf",55,12,35,agro=5),
@@ -1917,7 +2169,7 @@ def build_shadow_castle():
     def king_d(f):
         if f.get("malachar_defeated"): return ["dlg.king.1","dlg.king.2"]
         return ["dlg.king.3","dlg.king.4","dlg.king.5"]
-    m.npcs.append(NPC(10,8,"npc.kral_alderon",(200,160,80),king_d,"guard"))
+    m.npcs.append(NPC(10,8,"npc.kral_alderon",(200,160,80),king_d,"knight"))
     m.enemies += [
         Enemy(8, 8,"shadow_knight",100,20,65,agro=6,loot=["hp_pot","gold"]),
         Enemy(46, 8,"shadow_knight",100,20,65,agro=6,loot=["hp_pot"]),
@@ -1982,9 +2234,9 @@ def build_south_meadow():
     def farmer_d(f): return ["dlg.farmer.1","dlg.farmer.2","dlg.farmer.3"]
     m.npcs.append(NPC(10,30,"npc.ciftci_torben",(160,120,80),farmer_d,"farmer"))
     def kid_d(f): return ["dlg.kid.1"]
-    m.npcs.append(NPC(35,12,"npc.ciftlik_cocugu",(180,200,160),kid_d))
+    m.npcs.append(NPC(35,12,"npc.ciftlik_cocugu",(180,200,160),kid_d,"child"))
     def traveler_d(f): return ["dlg.traveler.1","dlg.traveler.2"]
-    m.npcs.append(NPC(50,22,"npc.gezgin",(140,150,180),traveler_d))
+    m.npcs.append(NPC(50,22,"npc.gezgin",(140,150,180),traveler_d,"traveler"))
     m.enemies += [
         Enemy(36, 4,"boar", 40, 9,25,agro=5,loot=["gold"]),
         Enemy(42, 6,"boar", 40, 9,25,agro=5),
@@ -2022,9 +2274,9 @@ def build_west_river():
     def fisher_d(f):
         if f.get("sq_fish_done"): return ["dlg.fisher.1","dlg.fisher.2","dlg.fisher.3"]
         return ["dlg.fisher.4","dlg.fisher.5","dlg.fisher.6","dlg.fisher.7","dlg.fisher.8"]
-    m.npcs.append(NPC(6,16,"npc.balikci_riva",(100,140,180),fisher_d))
+    m.npcs.append(NPC(6,16,"npc.balikci_riva",(100,140,180),fisher_d,"fisher"))
     def hermit_d(f): return ["dlg.hermit.1","dlg.hermit.2"]
-    m.npcs.append(NPC(44,4,"npc.munzevi",(180,160,200),hermit_d))
+    m.npcs.append(NPC(44,4,"npc.munzevi",(180,160,200),hermit_d,"hermit"))
     m.enemies += [
         Enemy(18, 4,"slime",   30, 6,18,agro=4,loot=["gold"]),
         Enemy(40, 4,"goblin",  38, 8,22,agro=5,loot=["hp_pot"]),
@@ -2060,7 +2312,7 @@ def build_mystic_library():
         n=sum(1 for k in["sq_scroll1","sq_scroll2","sq_scroll3"] if f.get(k))
         if n>=3: return ["dlg.libr.1","dlg.libr.2","dlg.libr.3"]
         return ["dlg.libr.4",("dlg.libr.5",n),"dlg.libr.6"]
-    m.npcs.append(NPC(21,19,"npc.kutuphaneci_elan",(140,100,200),libr_d,"oracle"))
+    m.npcs.append(NPC(21,19,"npc.kutuphaneci_elan",(140,100,200),libr_d,"scholar"))
     m.enemies += [
         Enemy(10, 8,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
         Enemy(28, 8,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
@@ -2338,6 +2590,16 @@ class UI:
                 lk=self.fsm.render(f"Sv{ab['level']}",True,(160,80,80))
                 surf.blit(lk,(sx+slot_w//2-1-lk.get_width()//2,sy+17))
 
+    def draw_quest_marker(self,surf,tx,ty,cx,cy,tick):
+        """NPC'nin üstünde altın sarısı ünlem — işi olan NPC belli olsun."""
+        sx=tx*TILE-cx+TILE//2;sy=ty*TILE-cy-26
+        if not(-20<=sx<SW+20 and -20<=sy<SH): return
+        bob=int(abs(math.sin(tick*0.004))*4)
+        t=self.fmd.render("!",True,UI_GD)
+        sh=self.fmd.render("!",True,(60,40,10))
+        surf.blit(sh,(sx-t.get_width()//2+1,sy-bob+1))
+        surf.blit(t,(sx-t.get_width()//2,sy-bob))
+
     def draw_interact_badge(self,surf,tx,ty,cx,cy,tick):
         """Etkileşilebilir hedefin üstünde yanıp sönen [E] rozeti."""
         sx=tx*TILE-cx+TILE//2;sy=ty*TILE-cy-20
@@ -2519,34 +2781,26 @@ class UI:
         self.txt(surf,T_("set_back"),px+16,py+ph-28,GR,self.fss)
 
     def draw_mini_quests(self,surf,flags,player_cls):
-        """Yan panel: mini görevler."""
-        mqs=[]
-        # Kütüphane: parşömen topla
-        sc=sum(1 for k in ["sq_scroll1","sq_scroll2","sq_scroll3"] if flags.get(k))
-        if not (flags.get("sq_scroll1") and flags.get("sq_scroll2") and flags.get("sq_scroll3")):
-            mqs.append((T_("ui.sq_scroll"),f"{sc}/3 bulundu",UI_PR))
-        else:
-            mqs.append((T_("ui.sq_scroll"),T_("ui.completed"),UI_GN))
-        # Domuz avı (çayır)
-        if not flags.get("sq_boar_done"):
-            bc=flags.get("sq_boar_count",0)
-            mqs.append((T_("ui.sq_boar"),f"{bc}/3 domuz",UI_GD))
-        else:
-            mqs.append((T_("ui.sq_boar"),T_("ui.completed"),UI_GN))
-        # Balıkçı yardımı
-        if not flags.get("sq_fish_done"):
-            mqs.append(("Balikci Yardimi",T_("ui.sq_fish_short"),UI_CY))
-        else:
-            mqs.append(("Balikci Yardimi",T_("ui.completed"),UI_GN))
-
-        if not mqs: return
-        pw=200;row_h=22;ph=14+len(mqs)*row_h
+        """Yan panel: devam eden yan görevler (en fazla 4 tanesi)."""
+        rows=[]
+        for sq in SIDE_QUESTS:
+            got,need=sq["progress"](flags)
+            if got>=need:
+                if not flags.get("sqpaid_"+sq["id"]): continue
+                continue          # bitenler panelde yer kaplamasın
+            unit=T_(sq["unit"])
+            rows.append((T_(sq["title"]),"%d/%d %s"%(got,need,unit),sq["col"]))
+        done_n=sum(1 for sq in SIDE_QUESTS if sq_done(sq,flags))
+        rows=rows[:4]
+        if not rows and not done_n: return
+        pw=214;row_h=22;ph=32+len(rows)*row_h
         px=SW-pw-6;py=SH//2-ph//2-40
         self.panel(surf,px,py,pw,ph)
         self.txt(surf,T_("ui.side_quests"),px+8,py+4,UI_GD,self.fsm)
-        for i,(qn,qv,qc) in enumerate(mqs):
-            self.txt(surf,f"• {qn}",px+8,py+14+i*row_h,LGR,self.fsm)
-            self.txt(surf,qv,px+pw-self.fsm.size(qv)[0]-8,py+14+i*row_h,qc,self.fsm)
+        self.txt(surf,"%d/%d"%(done_n,len(SIDE_QUESTS)),px+pw-40,py+4,UI_GN,self.fsm)
+        for i,(qn,qv,qc) in enumerate(rows):
+            self.txt(surf,"• "+qn,px+8,py+18+i*row_h,LGR,self.fsm)
+            self.txt(surf,qv,px+pw-self.fsm.size(qv)[0]-8,py+18+i*row_h,qc,self.fsm)
 
     def draw_hud(self,surf,player,map_name,chapter,quest_name,tick):
         st=player.stats;cc=CLASS_COL.get(st.char_class,(100,100,200))
@@ -2594,43 +2848,55 @@ class UI:
             surf.blit(t2,(SW-t2.get_width()-6,8+i*13))
 
     def draw_quest_log(self,surf,flags,chapter):
+        """İki sütun: solda ana hikâye bölümleri, sağda yan görevler.
+
+        Yan görev sayısı 3'ten 8'e çıkınca tek sütuna sığmıyordu.
+        """
         self.dim(surf)
-        pw,ph=560,400;px=SW//2-pw//2;py=SH//2-ph//2
+        pw,ph=740,420;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
-        self.txt(surf,T_("quest_log"),px+16,py+10,UI_GD,self.flg)
-        y_off=50
-        for ch,qdata in QUESTS.items():
-            qname,qdesc=qdata
+        self.txt(surf,T_("quest_log"),px+16,py+8,UI_GD,self.flg)
+        colw=(pw-44)//2
+        lx=px+16;rx=px+28+colw
+        pygame.draw.line(surf,(*UI_BD,140),(rx-10,py+46),(rx-10,py+ph-30),1)
+
+        # ── Sol sütun: ana görev zinciri ─────────────────────────
+        y=py+48
+        for ch in QUESTS:
             if ch<chapter:
-                pygame.draw.rect(surf,(*UI_GN,28),(px+12,py+y_off-2,pw-24,34))
-                self.txt(surf,f"[✓] {T_('chapter_label')} {ch}: {quest_title(ch)}",px+18,py+y_off,UI_GN,self.fss)
-                self.txt(surf,f"    {T_('quest_done')}",px+18,py+y_off+16,GR,self.fsm)
+                pygame.draw.rect(surf,(*UI_GN,28),(lx-4,y-2,colw,30))
+                self.txt(surf,"[✓] %s %d: %s"%(T_("chapter_label"),ch,quest_title(ch)),lx,y,UI_GN,self.fsm)
+                self.txt(surf,"    "+T_("quest_done"),lx,y+14,GR,self.fsm)
             elif ch==chapter:
                 pv=int(abs(math.sin(pygame.time.get_ticks()*0.003))*25)
-                pygame.draw.rect(surf,(*UI_GD,38+pv),(px+12,py+y_off-2,pw-24,34))
-                pygame.draw.rect(surf,UI_GD,(px+12,py+y_off-2,pw-24,34),2)
-                self.txt(surf,f"[►] {T_('chapter_label')} {ch}: {quest_title(ch)}",px+18,py+y_off,UI_GD,self.fmd)
-                self.txt(surf,f"    {quest_desc(ch)}",px+18,py+y_off+16,UI_TX,self.fsm)
+                pygame.draw.rect(surf,(*UI_GD,38+pv),(lx-4,y-2,colw,34))
+                pygame.draw.rect(surf,UI_GD,(lx-4,y-2,colw,34),2)
+                self.txt(surf,"[►] %s %d: %s"%(T_("chapter_label"),ch,quest_title(ch)),lx,y,UI_GD,self.fss)
+                self.txt(surf,"    "+quest_desc(ch),lx,y+16,UI_TX,self.fsm)
             else:
-                self.txt(surf,f"[?] {T_('chapter_label')} {ch}: ???",px+18,py+y_off,(55,55,65),self.fss)
-            y_off+=38
-        # Mini görevler
-        self.txt(surf,T_("ui.side_quests_hdr"),px+16,py+y_off+4,UI_PR,self.fss)
-        y_off+=26
-        mini=[
-            (T_("ui.sq_scroll"),T_("ui.sq_scroll_desc"),
-             all(flags.get(k) for k in ["sq_scroll1","sq_scroll2","sq_scroll3"])),
-            (T_("ui.sq_boar"),T_("ui.sq_boar_desc"), flags.get("sq_boar_done",False)),
-            (T_("ui.sq_fish"),T_("ui.sq_fish_desc"), flags.get("sq_fish_done",False)),
-        ]
-        for qn,qdesc,done in mini:
-            col=UI_GN if done else LGR
+                self.txt(surf,"[?] %s %d: ???"%(T_("chapter_label"),ch),lx,y,(55,55,65),self.fsm)
+            y+=36
+
+        # ── Sağ sütun: yan görevler (tablodan) ───────────────────
+        done_n=sum(1 for sq in SIDE_QUESTS if sq_done(sq,flags))
+        self.txt(surf,T_("ui.side_quests_hdr"),rx,py+48,UI_PR,self.fsm)
+        self.txt(surf,"%d/%d"%(done_n,len(SIDE_QUESTS)),rx+colw-36,py+48,UI_GN,self.fsm)
+        y=py+68
+        for sq in SIDE_QUESTS:
+            got,need=sq["progress"](flags)
+            done=got>=need
             sym="✓" if done else "○"
-            self.txt(surf,f"[{sym}] {qn}",px+18,py+y_off,col,self.fss)
-            if not done: self.txt(surf,f"    {qdesc}",px+18,py+y_off+16,GR,self.fsm)
-            y_off+=34 if not done else 24
-            if py+y_off>py+ph-30: break
-        self.txt(surf,T_("ui.close_quests"),px+14,py+ph-22,GR,self.fss)
+            self.txt(surf,"[%s] %s"%(sym,T_(sq["title"])),rx,y,UI_GN if done else LGR,self.fsm)
+            if done:
+                self.txt(surf,T_("ui.completed"),rx+colw-70,y,UI_GN,self.fsm)
+                y+=18
+            else:
+                self.txt(surf,"%d/%d"%(got,need),rx+colw-36,y,sq["col"],self.fsm)
+                self.txt(surf,"  "+T_(sq["desc"]),rx,y+12,GR,self.fsm)
+                self.txt(surf,"  +%d %s  +%d XP"%(sq["gold"],T_("gold"),sq["xp"]),rx,y+24,UI_GD,self.fsm)
+                y+=40
+            if y>py+ph-40: break
+        self.txt(surf,T_("ui.close_quests"),px+14,py+ph-20,GR,self.fsm)
 
 
 # ─── Game ────────────────────────────────────────────────────────
@@ -2722,9 +2988,9 @@ class Game:
             "speak_oracle":False,"water_crystal":False,"malachar_defeated":False,
             # Mini görevler
             "sq_scroll1":False,"sq_scroll2":False,"sq_scroll3":False,  # Gizemli Kütüphane
-            "sq_boar_done":False,   # Çayır görevi: 3 domuz öldür
-            "sq_boar_count":0,
-            "sq_fish_done":False,   # Nehir görevi: balıkçıya yardım
+            "sq_fish_done":False,    # Nehir görevi: balıkçıya yardım
+            "sq_witch_done":False,   # Bataklık cadısıyla konuş
+            "sq_hermit_done":False,  # Münzeviyi ziyaret et
         }
         self.player:Optional[Player]=None
         self.cam_x=0;self.cam_y=0;self.cam_fx=0.0;self.cam_fy=0.0
@@ -2890,7 +3156,10 @@ class Game:
             self.player.inventory=list(pd.get("inventory",[]))
             self.player.quest_items=list(pd.get("quest_items",[]))
             for k,v in data.get("flags",{}).items():
-                if k in self.flags: self.flags[k]=v
+                # Sabit bayrakların yanında dinamik olanlar da geri yüklenmeli:
+                # kill_<tür> sayaçları ve sqpaid_<görev> ödül işaretleri
+                # önceden tanımlı değil, süresince oluşuyorlar.
+                if k in self.flags or k.startswith(("kill_","sqpaid_")): self.flags[k]=v
             for key,ms in data.get("maps",{}).items():
                 m=self.maps.get(key)
                 if not m: continue
@@ -3036,12 +3305,23 @@ class Game:
             else: self.player.inventory.append(item)
         lv=self.player.stats.gain_xp(e.xp_r);self.player.stats.gold+=random.randint(1,4)
         self.ps.emit_xp(e.px+TILE//2,e.py+TILE//2);self.ps.emit_gold(e.px+TILE//2,e.py+TILE//2)
-        # Mini görev: domuz sayacı
-        if e.kind=="boar" and not self.flags.get("sq_boar_done"):
-            self.flags["sq_boar_count"]=self.flags.get("sq_boar_count",0)+1
-            if self.flags["sq_boar_count"]>=3: self.flags["sq_boar_done"]=True
+        # Yan görev sayacı: her tür için ayrı
+        kk="kill_"+e.kind
+        self.flags[kk]=self.flags.get(kk,0)+1
         if lv: self.levelup_timer=180; SoundManager.play("level_up")
         if e.is_boss and e.kind=="malachar": self.flags["malachar_defeated"]=True;self.state="victory";SoundManager.play("victory")
+
+    def _check_side_quests(self):
+        """Tamamlanan yan görevin ödülünü bir kez verir."""
+        for sq in SIDE_QUESTS:
+            paid="sqpaid_"+sq["id"]
+            if self.flags.get(paid) or not sq_done(sq,self.flags): continue
+            self.flags[paid]=True
+            self.player.stats.gold+=sq["gold"]
+            self.player.stats.gain_xp(sq["xp"])
+            SoundManager.play("chest")
+            self._toast("%s — %s  (+%d %s, +%d XP)"%(
+                T_("ui.sq_done"),T_(sq["title"]),sq["gold"],T_("gold"),sq["xp"]),UI_GD)
 
     def _quest_item(self,item):
         if item=="earth_c" and not self.flags["earth_crystal"]:
@@ -3318,6 +3598,8 @@ class Game:
                     self.flags["speak_aldric"]=True;self._advance(2)
                 elif npc.name=="npc.oracle_nyx" and not self.flags.get("speak_oracle") and self.flags.get("earth_crystal"):
                     self.flags["speak_oracle"]=True;self._advance(5)
+                elif npc.name=="npc.bataklik_cadisi": self.flags["sq_witch_done"]=True
+                elif npc.name=="npc.munzevi": self.flags["sq_hermit_done"]=True
                 elif npc.name=="npc.balikci_riva" and not self.flags.get("sq_fish_done"):
                     self.flags["sq_fish_done"]=True;SoundManager.play("chest")
                     self.dmg_nums.append({"x":npc.tx*TILE,"y":npc.ty*TILE-TILE,"v":None,"l":100,"col":UI_CY,"txt":T_("ui.sq_done")})
@@ -3422,6 +3704,7 @@ class Game:
             if self.levelup_timer>0: self.levelup_timer-=1
             if self.ch_announce>0: self.ch_announce-=1
             self._update_npcs();self._update_enemies();self._update_projs();self._update_traps()
+            self._check_side_quests()
             if self.levelup_timer==100 and p.stats.skill_points>0:
                 self.stat_sel=0;self.temp_stats=p.stats;self.is_lu=True;self.state="levelup_alloc"
         elif self.player:
@@ -3677,6 +3960,10 @@ class Game:
                     self.dmg_nums=alive_d
                     self.ps.draw(self.screen,self.cam_x,self.cam_y)
                     in_world=self.state in self.HUD_STATES
+                    for _n in self.cur_map.npcs:
+                        if npc_has_quest(_n.name,self.flags):
+                            self.ui.draw_quest_marker(self.screen,_n.tx,_n.ty,
+                                                      self.cam_x,self.cam_y,self.tick)
                     if self.state=="playing":
                         tgt=self._interact_target()
                         if tgt:

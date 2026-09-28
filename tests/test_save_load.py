@@ -101,14 +101,26 @@ class TestSaveLoadRoundTrip(unittest.TestCase):
     def test_round_trip_preserves_progress_flags(self):
         self.g.flags["ch"] = 4
         self.g.flags["earth_crystal"] = True
-        self.g.flags["sq_boar_count"] = 2
         self.g.save_game()
 
         g2 = _fresh_game()
         g2.load_game()
         self.assertEqual(g2.flags["ch"], 4)
         self.assertTrue(g2.flags["earth_crystal"])
-        self.assertEqual(g2.flags["sq_boar_count"], 2)
+
+    def test_round_trip_preserves_dynamic_quest_flags(self):
+        """kill_<tur> sayaclari ve sqpaid_ isaretleri onceden tanimli degil;
+        yukleyici bunlari da geri almali, yoksa yan gorev ilerlemesi siliniyor."""
+        self.g.flags["kill_boar"] = 2
+        self.g.flags["kill_wolf"] = 5
+        self.g.flags["sqpaid_wolf"] = True
+        self.g.save_game()
+
+        g2 = _fresh_game()
+        g2.load_game()
+        self.assertEqual(g2.flags.get("kill_boar"), 2, "oldurme sayaci kayboldu")
+        self.assertEqual(g2.flags.get("kill_wolf"), 5)
+        self.assertTrue(g2.flags.get("sqpaid_wolf"), "odul isareti kayboldu -- odul tekrar verilir")
 
     def test_opened_chests_stay_opened(self):
         m = self.g.cur_map

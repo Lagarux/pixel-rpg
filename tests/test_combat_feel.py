@@ -222,3 +222,92 @@ class TestInteractTarget(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestSideQuests(unittest.TestCase):
+    """Yan gorev tablosu: ilerleme, odul ve tek seferlik odeme."""
+
+    def setUp(self):
+        self.g = MOD.Game.__new__(MOD.Game)
+        g = self.g
+        g.cur_map = _blank_map()
+        g.maps = {"test": g.cur_map}
+        g.cur_key = "test"
+        g.state = "playing"
+        g.ps = MOD.PS()
+        g.dmg_nums = []
+        g.hit_fx = []
+        g.shake = g.shake_mag = g.hit_stop = 0
+        g.flags = {}
+        g.player = MOD.Player(5, 5, MOD.PlayerStats("warrior"))
+
+    def test_every_quest_has_text_and_reward(self):
+        for sq in MOD.SIDE_QUESTS:
+            with self.subTest(quest=sq["id"]):
+                self.assertTrue(MOD.T_(sq["title"]) != sq["title"], "baslik cevirisi yok")
+                self.assertTrue(MOD.T_(sq["desc"]) != sq["desc"], "aciklama cevirisi yok")
+                self.assertGreater(sq["gold"], 0)
+                self.assertGreater(sq["xp"], 0)
+
+    def test_progress_starts_at_zero(self):
+        for sq in MOD.SIDE_QUESTS:
+            got, need = sq["progress"](self.g.flags)
+            with self.subTest(quest=sq["id"]):
+                self.assertEqual(got, 0)
+                self.assertGreater(need, 0)
+
+    def test_kill_counter_advances_matching_quest(self):
+        wolf = MOD.Enemy(6, 5, "wolf", 1, 1, 1)
+        self.g.cur_map.enemies.append(wolf)
+        for _ in range(5):
+            self.g.flags["kill_wolf"] = self.g.flags.get("kill_wolf", 0) + 1
+        sq = next(q for q in MOD.SIDE_QUESTS if q["id"] == "wolf")
+        self.assertTrue(MOD.sq_done(sq, self.g.flags))
+
+    def test_reward_is_paid_once(self):
+        sq = next(q for q in MOD.SIDE_QUESTS if q["id"] == "wolf")
+        self.g.flags["kill_wolf"] = 5
+        gold0 = self.g.player.stats.gold
+        self.g._check_side_quests()
+        after = self.g.player.stats.gold
+        self.assertEqual(after, gold0 + sq["gold"], "odul verilmedi")
+        self.g._check_side_quests()
+        self.assertEqual(self.g.player.stats.gold, after, "odul ikinci kez verildi")
+
+    def test_killing_enemy_increments_counter(self):
+        boar = MOD.Enemy(6, 5, "boar", 1, 1, 1, loot=[])
+        self.g.cur_map.enemies.append(boar)
+        self.g.levelup_timer = 0
+        self.g._kill(boar)
+        self.assertEqual(self.g.flags.get("kill_boar"), 1)
+
+
+class TestQuestMarkers(unittest.TestCase):
+    """I5: isi olan NPC'nin ustunde isaret gorunmeli, bitince kaybolmali."""
+
+    def test_marker_shown_before_talking(self):
+        self.assertTrue(MOD.npc_has_quest("npc.yasli_aldric", {}))
+
+    def test_marker_disappears_after_talking(self):
+        self.assertFalse(MOD.npc_has_quest("npc.yasli_aldric", {"speak_aldric": True}))
+
+    def test_oracle_marker_waits_for_prerequisite(self):
+        """Kahin, elinde kristal yokken isaret gostermemeli -- bosuna yurutmesin."""
+        self.assertFalse(MOD.npc_has_quest("npc.oracle_nyx", {}))
+        self.assertTrue(MOD.npc_has_quest("npc.oracle_nyx", {"earth_crystal": True}))
+        self.assertFalse(MOD.npc_has_quest(
+            "npc.oracle_nyx", {"earth_crystal": True, "speak_oracle": True}))
+
+    def test_plain_npcs_have_no_marker(self):
+        for key in ("npc.hanci_mira", "npc.gezgin", "npc.ciftlik_cocugu"):
+            self.assertFalse(MOD.npc_has_quest(key, {}), key)
+
+    def test_every_marked_npc_exists_in_a_map(self):
+        """Isaret tablosundaki anahtarlar gercek NPC adlariyla eslesmeli."""
+        names = set()
+        for build in (MOD.build_ashveil, MOD.build_misty_swamp,
+                      MOD.build_west_river, MOD.build_desert):
+            for npc in build().npcs:
+                names.add(npc.name)
+        for key in MOD.NPC_MARKS:
+            self.assertIn(key, names, f"{key} hicbir haritada yok")

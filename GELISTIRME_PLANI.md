@@ -299,10 +299,52 @@ tam Unicode bidi algoritmasına geçiliyor — kod bunu kendiliğinden algılıy
 tutucularının tutarlılığını, eksik anahtarın Türkçe'ye düşmesini, RTL sıralamasını ve
 **arayüzde çeviriden geçmemiş Türkçe metin kalmadığını** doğruluyor.
 
+### ✅ Çizim ve görev genişlemesi (2026-09-28, kullanıcı önerisi)
+
+Oyun testinde "moblar ve karakterlerin çizimi iyileştirilebilir, görevler artırılabilir"
+denmişti. İkisi de yapıldı.
+
+#### Çizim
+
+| Konu | Değişiklik |
+|---|---|
+| Sistemik | Her sprite artık **taban gölgesi** ve **koyu kontur** alıyor (`PA._finish`). Karakterler zeminde yüzüyormuş gibi durmuyor ve karanlık haritalarda arka plandan ayrışıyorlar |
+| Animasyon | Sürekli `sin(frame)` yerine **8 ayrık poz** (`PA.anim`): hem piksel sanatına yakışan basamaklı hareket, hem de sprite'ların önbelleğe alınabilmesi. Önceden her karede yeni yüzey üretiliyordu |
+| Düşmanlar | Hepsi yeniden çizildi. Kurt, domuz ve akrep neredeyse aynı kahverengi lekelerdi; artık dört ayaklılar yandan (baş solda, kulak/burun/kuyruk/4 bacak), golem çatlaklı taş bloğu, akrep kıvrık kuyruk + kıskaç, gölge şövalyesi boynuzlu miğfer + pelerin |
+| NPC'ler | Hepsi aynı gövdeydi, sadece renk değişiyordu. **14 meslek silueti**: muhafız (miğfer+mızrak+kalkan), şövalye (tüylü miğfer), yaşlı (sakal+asa), kâhin (kukuleta+yörünge), çiftçi (hasır şapka+dirgen), demirci (önlük+çekiç), hancı (önlük+bardak), balıkçı (olta), münzevi, kâtip (kitap), çocuk (küçük gövde), gezgin (sırt çantası), ruh (yarı saydam) |
+| Denetim | `tools/sprite_sheet.py` tüm sprite'ları 3× büyütülmüş tabloda çıkarıyor — çizim değişiklikleri göz ile denetlenebiliyor |
+
+#### Görevler
+
+Yan görev sayısı **3 → 8**, üstelik artık **ödül veriyorlar** (önceden hiç ödül yoktu).
+
+| Görev | Hedef | Ödül |
+|---|---|---|
+| Parşömen Avı | 3 parşömen | 80 altın + 60 XP |
+| Domuz Avı | 3 domuz | 50 + 40 |
+| Balıkçı Yardımı | Riva ile konuş | 40 + 30 |
+| **Kurt Sürüsü** | 5 kurt | 70 + 70 |
+| **Kemik Tarlası** | 6 iskelet | 90 + 90 |
+| **Taş Bekçiler** | 2 golem | 120 + 120 |
+| **Bataklığın Sesi** | Cadıyla konuş | 45 + 35 |
+| **Uzletteki Bilge** | Münzeviyi bul | 45 + 35 |
+
+- Görevler artık `SIDE_QUESTS` tablosunda: **yeni görev eklemek tek satır** (ilerleme
+  fonksiyonu + ödül). Yan panel ve görev günlüğü tablodan üretiliyor.
+- Öldürme sayacı türe göre genelleştirildi (`kill_<tür>`); eskiden yalnızca domuz sayılıyordu.
+- **İ5 kısmen:** işi olan NPC'nin üstünde altın sarısı `!` işareti. Kâhin, elinde kristal
+  yokken işaret göstermiyor — oyuncuyu boşuna yürütmesin.
+- Görev günlüğü iki sütuna ayrıldı (solda ana hikâye, sağda 8 yan görev); tek sütuna sığmıyordu.
+
+**Testin yakaladığı hata:** Yeni `kill_<tür>` sayaçları ve `sqpaid_<görev>` ödül işaretleri
+önceden tanımlı bayraklar olmadığı için `load_game` bunları **atıyordu** — kayıt yükleyince
+yan görev ilerlemesi sıfırlanıyor, ödüller tekrar verilebiliyordu. Yükleyici bu iki önekli
+anahtarı da kabul ediyor artık; regresyon testi eklendi.
+
 ### ⬜ Faz 5 — İçerik derinliği
-- [ ] İ5 — görev işaretçileri + mini harita
+- [x] İ5 (yarısı) — görev işaretçileri **yapıldı**; mini harita kaldı
 - [ ] İ7 — dükkân ve ekonomi
-- [ ] İ8 — düşman davranış çeşitliliği
+- [ ] İ8 — düşman davranış çeşitliliği (çizim ayrıştı, davranış hâlâ tek tip)
 - [ ] B10 — yerelleştirmeyi tamamla
 - [ ] T1, T2 — modülerleştirme
 - **Kabul:** Kullanılmayan çeviri anahtarı sayısı 21 → 0; tek dosya birden fazla modüle bölünmüş, testler geçiyor
@@ -329,6 +371,9 @@ tutucularının tutarlılığını, eksik anahtarın Türkçe'ye düşmesini, RT
 | 2026-09-28 | 4 | Faz 4 commit'lendi (`faz-4-atmosfer` dalı) | 65 test |
 | 2026-09-28 | — | **Oyun testi geri bildirimi:** pencere/görev çubuğu ikonu, envanterde TAB keşfedilebilirliği, ekipman yuvası çakışması | Üçü de düzeltildi |
 | 2026-09-28 | — | 5 dilli yerelleştirme (TR/EN/DE/RU/AR), 333 anahtar | `tests/test_locales.py` ile 11 yeni test; toplam 77 test |
+| 2026-09-28 | — | Tüm fazlar `main`'e alındı (fast-forward) | 5 dal zinciri |
+| 2026-09-28 | — | Sprite'lara gölge+kontur+ayrık animasyon; düşman ve NPC çizimleri yenilendi | `tools/sprite_sheet.py` ile göz denetimi |
+| 2026-09-28 | — | Yan görev tablosu: 3 → 8 görev, ödüller, `!` işaretçileri | 11 yeni test; toplam 88 test |
 
 ---
 
