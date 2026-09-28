@@ -27,10 +27,38 @@ except Exception:
 SW, SH = 960, 640
 TILE    = 32
 FPS     = 60
+VERSION = "5.0"
 TITLE   = "Karanlik Tac'in Laneti"
 
-# ─── Ayarlar (JSON kaydı) ────────────────────────────────────────
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+# ─── Dizinler ────────────────────────────────────────────────────
+# Betiğin kendi dizini: SALT-OKUNUR varlıklar (fontlar, ikonlar) için.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# PyInstaller onefile: varlıklar geçici _MEIxxxx dizinine açılır.
+ASSET_DIR = getattr(sys, "_MEIPASS", BASE_DIR)
+
+def _user_data_dir() -> str:
+    """YAZILABİLİR kullanıcı verisi dizini (ayarlar, kayıtlar).
+
+    Oyun Program Files altına kurulduğunda ya da onefile olarak paketlendiğinde
+    exe'nin yanına yazmak çalışmaz (izin yok / geçici dizin siliniyor).
+    """
+    if sys.platform == "win32":
+        root = os.environ.get("APPDATA") or os.path.expanduser("~")
+    elif sys.platform == "darwin":
+        root = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
+    else:
+        root = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+    path = os.path.join(root, "KaranlikTacinLaneti")
+    try:
+        os.makedirs(path, exist_ok=True)
+    except Exception:
+        path = BASE_DIR  # son çare: eski davranış
+    return path
+
+USER_DIR = _user_data_dir()
+SETTINGS_FILE = os.path.join(USER_DIR, "settings.json")
+# v5.0 öncesi ayarlar exe'nin yanındaydı; bir kereliğine oradan da okuyoruz.
+LEGACY_SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 
 class Settings:
     DEFAULTS = {
@@ -39,17 +67,22 @@ class Settings:
     }
     def __init__(self):
         self.data = dict(self.DEFAULTS)
+        self.save_failed = False
         self.load()
     def load(self):
-        try:
-            with open(SETTINGS_FILE) as f:
-                saved = json.load(f)
-                self.data.update({k:v for k,v in saved.items() if k in self.DEFAULTS})
-        except Exception: pass
+        for path in (SETTINGS_FILE, LEGACY_SETTINGS_FILE):
+            try:
+                with open(path) as f:
+                    saved = json.load(f)
+                    self.data.update({k:v for k,v in saved.items() if k in self.DEFAULTS})
+                return
+            except Exception: continue
     def save(self):
         try:
             with open(SETTINGS_FILE,"w") as f: json.dump(self.data,f,indent=2)
-        except Exception: pass
+            self.save_failed = False
+        except Exception:
+            self.save_failed = True
     def __getattr__(self,k): return self.data.get(k, self.DEFAULTS.get(k))
     def __setattr__(self,k,v):
         if k in ("data",): super().__setattr__(k,v)
@@ -145,24 +178,41 @@ def T_(key:str, *args) -> str:
 # ─── Font Yöneticisi ─────────────────────────────────────────────
 class FontManager:
     _cache:Dict={}
-    FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"assets","fonts")
+    FONT_DIR = os.path.join(ASSET_DIR,"assets","fonts")
+    # NOT: dosya adları assets/fonts içindekilerle birebir eşleşmeli.
     PREFERRED = [
-        ("Cinzel-Bold.ttf","Cinzel-Regular.ttf"),      # başlık / HUD
-        ("Almendra-Bold.ttf","Almendra-Regular.ttf"),  # diyalog
-        ("UncialAntiqua-Regular.ttf",),                # dekoratif
+        ("Cinzel-Bold.ttf","Cinzel-Regular.ttf"),        # başlık / HUD
+        ("MedievalSharp-Regular.ttf",),                  # diyalog
+        ("MedievalSharp-Regular.ttf",),                  # dekoratif
     ]
+    # Oyun Türkçe: bu harfleri çizemeyen font kullanılamaz.
+    # (Örn. Almendra ğ/ş glifi içermez, harfleri sessizce yutar.)
+    TR_PROBE = "ğĞşŞıİçÇöÖüÜ"
+
+    @classmethod
+    def _renders_turkish(cls, font) -> bool:
+        try:
+            for ch in cls.TR_PROBE:
+                if not pygame.mask.from_surface(font.render(ch,True,WH)).count():
+                    return False
+            return True
+        except Exception:
+            return False
+
     @classmethod
     def _find(cls, names, size):
         for name in names:
             path = os.path.join(cls.FONT_DIR, name)
             if os.path.exists(path):
-                try: return pygame.font.Font(path, size)
+                try:
+                    f=pygame.font.Font(path, size)
+                    if cls._renders_turkish(f): return f
                 except Exception: pass
         # System fallback
         for sf in ["georgia","times new roman","palatino","serif","monospace"]:
             try:
                 f=pygame.font.SysFont(sf, size, bold=True)
-                if f: return f
+                if f and cls._renders_turkish(f): return f
             except Exception: pass
         return pygame.font.SysFont("monospace", size, bold=True)
 
@@ -392,6 +442,9 @@ EQUIP_ITEMS = {
     "mage_focus":   ("Odak Kristali",UI_AC,  {"int":3,"wis":1},  "ring",      {"mage"}),
     "archer_token": ("Nisan Tası",   G_L,    {"agi":2,"str":1},  "ring",      {"archer"}),
 }
+
+# Ekipman yuvalarının sabit sırası — envanter imleci ve çizim bunu paylaşır.
+EQUIP_SLOTS = ("weapon","armor","ring")
 
 ITEMS = {
     "hp_pot": ("Saglik Iksiri", HP_G,   "heal",   35,  "35 HP iyilestirir."),
@@ -1723,17 +1776,25 @@ def build_mystic_library():
 # ─── UI ─────────────────────────────────────────────────────────
 class UI:
     def __init__(self):
+        # Sayısal/hizalı bilgi monospace kalır (sütunlar kaymasın),
+        # başlıklar ve diyalog ortaçağ fontlarıyla çizilir.
         self.fsm=pygame.font.SysFont("monospace",9, bold=True)
         self.fss=pygame.font.SysFont("monospace",11,bold=True)
         self.fmd=pygame.font.SysFont("monospace",14,bold=True)
-        self.flg=pygame.font.SysFont("monospace",20,bold=True)
-        self.fxl=pygame.font.SysFont("monospace",28,bold=True)
-        self.fti=pygame.font.SysFont("monospace",34,bold=True)
+        self.flg=FontManager.get("title",22)
+        self.fxl=FontManager.get("title",30)
+        self.fti=FontManager.get("title",38)
+        self.fdlg=FontManager.get("dialog",17)
 
     def txt(self,surf,text,x,y,col=UI_TX,fnt=None,shadow=True):
         f=fnt or self.fss
         if shadow: surf.blit(f.render(text,True,BK),(x+1,y+1))
         surf.blit(f.render(text,True,col),(x,y))
+
+    def txt_c(self,surf,text,cx,y,col=UI_TX,fnt=None,shadow=True):
+        """Metni cx merkezine göre ortalar — font genişliğinden bağımsız."""
+        f=fnt or self.fss
+        self.txt(surf,text,cx-f.size(text)[0]//2,y,col,f,shadow)
 
     def grad_bar(self,surf,x,y,w,h,val,mx,c1,c2,bg=(20,10,35)):
         pygame.draw.rect(surf,bg,(x,y,w,h))
@@ -1761,7 +1822,7 @@ class UI:
         self.panel(surf,px,py,pw,ph,glow=True)
         title="SEVIYE ATLADI!" if is_lu else "NITELIK DAGITIMI"
         col=UI_GD if is_lu else UI_AC
-        self.txt(surf,title,px+pw//2-len(title)*5,py+12,col,self.flg)
+        self.txt_c(surf,title,px+pw//2,py+12,col,self.flg)
         self.txt(surf,f"{'Kalan:'+str(free)+' puan' if is_lu else '10 puan harca. Kalan:'+str(free)}",px+18,py+42,LGR,self.fss)
         stat_cols={"str":HP_R,"int":UI_BL,"agi":UI_GN,"vit":UI_GD,"wis":UI_PR}
         for si,(sk,sname) in enumerate(STAT_NAMES):
@@ -1788,7 +1849,7 @@ class UI:
             random.seed(i*137+42);sx2=random.randint(0,SW);sy2=random.randint(0,SH//2);br=random.randint(60,180)
             pygame.draw.circle(surf,(br,br,br),(sx2,sy2),1)
         random.seed()
-        self.txt(surf,"SINIF SEC",SW//2-100,26,UI_AC,self.fxl)
+        self.txt_c(surf,T_("class_select"),SW//2,26,UI_AC,self.fxl)
         self.txt(surf,"Karakterin icin bir yol sec",SW//2-130,62,LGR,self.fmd)
         keys=list(CLASS_INFO.keys());cw,ch2=210,320;gap=8;total_w=(cw+gap)*4-gap;start_x=SW//2-total_w//2
         for i,k in enumerate(keys):
@@ -1821,14 +1882,14 @@ class UI:
             random.seed(i*251);sx2=random.randint(0,SW);sy2=random.randint(0,SH);br=random.randint(50,160)
             pygame.draw.circle(surf,(br,br,br),(sx2,sy2),1)
         random.seed()
-        self.txt(surf,TITLE,SW//2-len(TITLE)*9,36,UI_AC,self.fxl)
+        self.txt_c(surf,TITLE,SW//2,36,UI_AC,self.fxl)
         for i,(line,col) in enumerate(STORY_LINES[:lines_shown]):
             y=130+i*30
             if line==" " or y>SH-50: continue
             ts=self.fmd.render(line,True,col);surf.blit(ts,(SW//2-ts.get_width()//2,y))
         if lines_shown>=len(STORY_LINES):
             pv=int(abs(math.sin(tick*0.003))*80)+120
-            self.txt(surf,"[ ENTER ] Devam",SW//2-90,SH-60,(int(pv),120,255),self.flg)
+            self.txt_c(surf,"[ ENTER ] Devam",SW//2,SH-60,(int(pv),120,255),self.flg)
 
     def draw_title(self,surf,tick):
         surf.fill(DKG)
@@ -1839,13 +1900,14 @@ class UI:
         random.seed()
         tt=self.fti.render(TITLE,True,UI_AC)
         surf.blit(self.fti.render(TITLE,True,(50,30,80)),(SW//2-tt.get_width()//2+3,143));surf.blit(tt,(SW//2-tt.get_width()//2,140))
-        self.txt(surf,"v4.0 — Sinifa Ozgun Saldiri | Ekipman Sistemi",SW//2-200,190,UI_GD,self.fmd)
+        self.txt_c(surf,f"v{VERSION} — Sinifa Ozgun Saldiri | Ekipman Sistemi",SW//2,190,UI_GD,self.fmd)
         for i2,cls in enumerate(CLASS_INFO.keys()):
             sp=PA.player_surf("down",tick//50,cls);surf.blit(pygame.transform.scale(sp,(56,56)),(SW//2-112+i2*56,240))
         pv2=int(abs(math.sin(tick*0.003))*80)+120
         btn=pygame.Surface((300,42),pygame.SRCALPHA);btn.fill((*UI_BD,90));pygame.draw.rect(btn,UI_AC,(0,0,300,42),2);surf.blit(btn,(SW//2-150,320))
-        self.txt(surf,"[ ENTER ]  Maceraya Basla",SW//2-120,330,(int(pv2*0.8),100,255),self.fmd)
-        self.txt(surf,"WASD Hareket  E Konus  Spc Saldiri  1-4 Yetenek  I Envanter",SW//2-250,386,GR,self.fsm)
+        self.txt_c(surf,T_("title_play"),SW//2,330,(int(pv2*0.8),100,255),self.fmd)
+        self.txt_c(surf,T_("title_settings"),SW//2,368,UI_GD,self.fss)
+        self.txt_c(surf,"WASD Hareket  E Konus  Spc Saldiri  1-4 Yetenek  I Envanter  ESC Cikis",SW//2,390,GR,self.fsm)
 
     def draw_levelup_popup(self,surf,level,tick):
         pw,ph=380,76;px=SW//2-pw//2;py=100
@@ -1857,7 +1919,7 @@ class UI:
 
     def draw_gameover(self,surf):
         ov=pygame.Surface((SW,SH),pygame.SRCALPHA);ov.fill((0,0,0,185));surf.blit(ov,(0,0))
-        self.txt(surf,"OLDUN",SW//2-60,SH//2-70,HP_R,self.fxl)
+        self.txt_c(surf,T_("gameover_title"),SW//2,SH//2-70,HP_R,self.fxl)
         self.txt(surf,"Karanlik seni yuttu...",SW//2-120,SH//2-10,LGR,self.fmd)
         self.txt(surf,"[ R ] Yeniden Basla",SW//2-100,SH//2+40,UI_AC,self.fmd)
 
@@ -1868,9 +1930,9 @@ class UI:
             pv=int(abs(math.sin(tick*0.002+i*0.5))*120)+80;pygame.draw.circle(surf,(pv,int(pv*0.8),50),(sx2,sy2),1)
         random.seed()
         gv=int(abs(math.sin(tick*0.002))*60)+80
-        self.txt(surf,"ZAFER!",SW//2-80,120,(255,gv+80,gv//2),self.fti)
-        self.txt(surf,"Malachar yenildi!",SW//2-130,200,UI_GD,self.fxl)
-        self.txt(surf,"Dunya bir kez daha kurtarildi.",SW//2-180,260,UI_TX,self.flg)
+        self.txt_c(surf,T_("victory_title"),SW//2,120,(255,gv+80,gv//2),self.fti)
+        self.txt_c(surf,T_("victory_sub"),SW//2,200,UI_GD,self.fxl)
+        self.txt_c(surf,T_("victory_sub2"),SW//2,260,UI_TX,self.flg)
         self.txt(surf,"[ ESC ] Ana Menu",SW//2-100,380,(int(abs(math.sin(tick*0.003))*100)+120,100,255),self.fmd)
 
     def draw_transition(self,surf,alpha,name):
@@ -1936,16 +1998,16 @@ class UI:
     def draw_dialog(self,surf,npc_name,lines,page,total):
         bh=112;bx=8;by=SH-bh-8
         self.panel(surf,bx,by,SW-16,bh,glow=True)
-        pygame.draw.rect(surf,UI_BD,(bx,by-2,len(npc_name)*8+16,18))
+        pygame.draw.rect(surf,UI_BD,(bx,by-2,self.fmd.size(npc_name)[0]+16,18))
         self.txt(surf,npc_name,bx+8,by,UI_AC,self.fmd,shadow=False)
         for i,line in enumerate(lines[:4]):
             col=UI_GD if line.startswith("[") else UI_TX
-            self.txt(surf,line,bx+14,by+22+i*20,col,self.fss)
+            self.txt(surf,line,bx+14,by+20+i*21,col,self.fdlg)
         if(pygame.time.get_ticks()//600)%2==0:
             self.txt(surf,T_("dialog_continue"),SW-130,by+bh-20,UI_AC,self.fsm)
         if total>1: self.txt(surf,f"{page}/{total}",SW-50,by+4,GR,self.fsm)
 
-    def draw_inventory(self,surf,player,sel,eq_tab,tick):
+    def draw_inventory(self,surf,player,sel,eq_tab,tick,eq_sel=0):
         pw,ph=640,440;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         # Sekmeler
@@ -2002,9 +2064,13 @@ class UI:
             slot_data=[("weapon","Silah",UI_RD),("armor","Zirh",ST_L),("ring","Yuzuk",UI_GD)]
             for si2,(slot,sname,scol) in enumerate(slot_data):
                 iy=py+48+si2*110
+                is_sel=(si2==eq_sel)
                 ss=pygame.Surface((pw-28,100),pygame.SRCALPHA)
-                ss.fill((*UI_BD,25));pygame.draw.rect(ss,scol,(0,0,pw-28,100),2)
+                ss.fill((*UI_BD,60 if is_sel else 25))
+                pygame.draw.rect(ss,UI_AC if is_sel else scol,(0,0,pw-28,100),3 if is_sel else 2)
                 surf.blit(ss,(px+14,iy))
+                if is_sel:
+                    self.txt(surf,">",px+2,iy+40,UI_AC,self.fmd)
                 eic2=PA.equip_icon(slot,scol);surf.blit(eic2,(px+20,iy+30))
                 self.txt(surf,sname,px+64,iy+8,scol,self.fmd)
                 ik=st.equipment.get(slot)
@@ -2023,14 +2089,16 @@ class UI:
             for si3,(sk,sc) in enumerate(stats_show):
                 b=st._equip_bonus(sk)
                 if b>0: self.txt(surf,f"+{b}{sk.upper()}",px+14+si3*80,py+ph-36,sc,self.fsm)
-        self.txt(surf,"[Tab]Sekme  [I/ESC]Kapat  [Yon]Sec  [E]Kullan/Giy",px+14,py+ph-12,GR,self.fsm)
+        hint=("[Tab]Sekme  [I/ESC]Kapat  [Yon]Sec  [E]Kullan/Giy" if eq_tab==0
+              else "[Tab]Sekme  [I/ESC]Kapat  [Yukari/Asagi]Yuva Sec  [E]Cikar")
+        self.txt(surf,hint,px+14,py+ph-12,GR,self.fsm)
 
     def draw_pause(self,surf,tick,pause_sel=0):
         """ESC ile açılan duraklama menüsü."""
         ov=pygame.Surface((SW,SH),pygame.SRCALPHA); ov.fill((0,0,0,160)); surf.blit(ov,(0,0))
         pw,ph=360,260; px=SW//2-pw//2; py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
-        self.txt(surf,"OYUN DURAKLATILDI",px+pw//2-110,py+14,UI_AC,self.flg)
+        self.txt_c(surf,"OYUN DURAKLATILDI",px+pw//2,py+14,UI_AC,self.flg)
         opts=[
             ("[ DEVAM ]",  (100,220,100)),
             ("[ AYARLAR ]",(180,140,250)),
@@ -2050,7 +2118,7 @@ class UI:
         """Ayarlar paneli."""
         pw,ph=480,360;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
-        self.txt(surf,T_("settings"),px+pw//2-60,py+12,UI_AC,self.flg)
+        self.txt_c(surf,T_("settings"),px+pw//2,py+12,UI_AC,self.flg)
 
         opts=[
             (T_("set_fullscreen"), T_("set_on") if CFG.fullscreen else T_("set_off"), "fullscreen"),
@@ -2220,7 +2288,7 @@ class Game:
             "rocky_pass":build_rocky_pass(),"misty_swamp":build_misty_swamp(),
         }
         self.cur_key="ashveil";self.cur_map=self.maps["ashveil"]
-        self.state="title";self.tick=0
+        self.state="title";self.tick=0;self.frame_no=0
         self.class_sel=0;self.stat_sel=0;self.free_pts=10
         self.temp_stats:Optional[PlayerStats]=None;self.is_lu=False
         self.story_shown=0;self.story_timer=0
@@ -2239,12 +2307,15 @@ class Game:
         self.hit_fx=[];self.dmg_nums=[]
         self.levelup_timer=0;self.ch_announce=0
         self.trans_alpha=0;self.pending_trans=None;self.transitioning=False;self.entering_name=""
-        self.inv_sel=0;self.inv_tab=0
+        self.inv_sel=0;self.inv_tab=0;self.eq_sel=0  # eq_sel: ekipman sekmesi imleci
         self.projectiles:List[Projectile]=[]
         self.settings_sel=0  # Ayarlar menüsü seçimi
         self.settings_open=False
         self.pause_open=False
         self._pause_sel=0  # Pause menüsü: 0=devam,1=ayarlar,2=ana menu,3=cikis
+
+    # Oyun dünyasının (HUD, bildirimler) çizildiği durumlar
+    HUD_STATES = ("playing","dialog","inventory","quest_log","levelup_alloc")
 
     # Harita → müzik teması eşleşmesi
     MAP_MUSIC = {
@@ -2252,6 +2323,7 @@ class Game:
         "desert":"battle","ice_cave":"dungeon","shadow_castle":"castle",
         "village_dungeon":"dungeon","south_meadow":"village",
         "west_river":"village","mystic_library":"library",
+        "rocky_pass":"dungeon","misty_swamp":"forest",
     }
 
     def _start_game(self):
@@ -2259,7 +2331,6 @@ class Game:
         sx,sy=_snap(self.maps["ashveil"],29,25)
         self.player=Player(sx,sy,st)
         self.cur_key="ashveil";self.cur_map=self.maps["ashveil"];self.state="playing"
-        SoundManager.play_music(self.MAP_MUSIC.get("ashveil","village"))
         SoundManager.play_music(self.MAP_MUSIC.get("ashveil","village"))
 
     def _cam(self):
@@ -2614,7 +2685,7 @@ class Game:
     def run(self):
         running=True
         while running:
-            self.tick=pygame.time.get_ticks(); self.clock.tick(FPS)
+            self.tick=pygame.time.get_ticks(); self.frame_no+=1; self.clock.tick(FPS)
             for ev in pygame.event.get():
                 if ev.type==pygame.QUIT:
                     running=False; break
@@ -2720,16 +2791,23 @@ class Game:
                     elif self.state=="inventory":
                         u=list(dict.fromkeys(self.player.inventory))
                         if k==pygame.K_TAB: self.inv_tab=1-self.inv_tab; SoundManager.play("menu_sel")
+                        elif self.inv_tab==1:
+                            # Ekipman sekmesi: kendi imleci (silah / zirh / yuzuk)
+                            if k in(pygame.K_UP,pygame.K_w): self.eq_sel=max(0,self.eq_sel-1); SoundManager.play("menu_sel")
+                            elif k in(pygame.K_DOWN,pygame.K_s): self.eq_sel=min(2,self.eq_sel+1); SoundManager.play("menu_sel")
+                            elif k==pygame.K_e:
+                                slot=EQUIP_SLOTS[self.eq_sel]
+                                old=self.player.stats.unequip(slot)
+                                if old:
+                                    self.player.inventory.append(old); SoundManager.play("equip")
+                                else:
+                                    SoundManager.play("error")
+                            elif k in(pygame.K_i,pygame.K_ESCAPE): self.state="playing"
                         elif k in(pygame.K_LEFT,pygame.K_a): self.inv_sel=max(0,self.inv_sel-1)
                         elif k in(pygame.K_RIGHT,pygame.K_d): self.inv_sel=min(max(0,len(u)-1),self.inv_sel+1)
                         elif k in(pygame.K_UP,pygame.K_w): self.inv_sel=max(0,self.inv_sel-5)
                         elif k in(pygame.K_DOWN,pygame.K_s): self.inv_sel=min(max(0,len(u)-1),self.inv_sel+5)
-                        elif k==pygame.K_e:
-                            if self.inv_tab==0: self._inv_use_item()
-                            elif self.inv_tab==1:
-                                slots=["weapon","armor","ring"]; slot=slots[min(self.stat_sel,2)]
-                                old=self.player.stats.unequip(slot)
-                                if old: self.player.inventory.append(old)
+                        elif k==pygame.K_e: self._inv_use_item()
                         elif k in(pygame.K_i,pygame.K_ESCAPE): self.state="playing"
 
                     elif self.state=="quest_log":
@@ -2789,7 +2867,8 @@ class Game:
                 if p.attacking: p.atk_frame+=1
                 if p.atk_frame>=p.atk_max: p.attacking=False
                 p.stats.tick_cds();p.stats.tick_buffs()
-                if p.stats.char_class=="healer" and self.tick%120==0:
+                # NOT: self.tick milisaniyedir; periyodik iş için kare sayacı kullanılır.
+                if p.stats.char_class=="healer" and self.frame_no%120==0:
                     if p.stats.hp<p.stats.max_hp and p.stats.mp>=3: p.stats.heal(2);p.stats.mp-=3
                 if self.levelup_timer>0: self.levelup_timer-=1
                 if self.ch_announce>0: self.ch_announce-=1
@@ -2847,19 +2926,25 @@ class Game:
                         alive_d.append(dn)
                     self.dmg_nums=alive_d
                     self.ps.draw(self.screen,self.cam_x,self.cam_y)
-                    if self.state in("playing","dialog","inventory","quest_log","levelup_alloc"):
+                    in_world=self.state in self.HUD_STATES
+                    if in_world:
                         cq=QUESTS.get(self.flags["ch"],("",""))[0]
                         self.ui.draw_hud(self.screen,p,self.cur_map.name,self.flags["ch"],cq,self.tick)
-                        self.ui.draw_ability_bar(self.screen,p.stats,self.tick)
-                    if self.levelup_timer>0: self.ui.draw_levelup_popup(self.screen,p.stats.level,self.tick)
-                    if self.ch_announce>0: self.ui.draw_chapter(self.screen,self.flags["ch"],min(255,self.ch_announce*3))
+                        # Diyalog kutusu alt şeridi kaplıyor — yetenek çubuğunu gizle.
+                        if self.state!="dialog":
+                            self.ui.draw_ability_bar(self.screen,p.stats,self.tick)
+                    # Bilgi pencereleri yalnızca oyun içindeyken; ölüm/zafer ekranını kapatmasınlar.
+                    if in_world and self.levelup_timer>0:
+                        self.ui.draw_levelup_popup(self.screen,p.stats.level,self.tick)
+                    if in_world and self.ch_announce>0:
+                        self.ui.draw_chapter(self.screen,self.flags["ch"],min(255,self.ch_announce*3))
 
                 if self.state=="dialog":
                     lpp=4;pl=self.dlg_lines[self.dlg_page*lpp:(self.dlg_page+1)*lpp]
                     total=(len(self.dlg_lines)+lpp-1)//lpp
                     self.ui.draw_dialog(self.screen,self.dlg_npc.name if self.dlg_npc else "?",pl,self.dlg_page+1,total)
                 elif self.state=="inventory":
-                    self.ui.draw_inventory(self.screen,self.player,self.inv_sel,self.inv_tab,self.tick)
+                    self.ui.draw_inventory(self.screen,self.player,self.inv_sel,self.inv_tab,self.tick,self.eq_sel)
                 elif self.state=="quest_log":
                     self.ui.draw_quest_log(self.screen,self.flags,self.flags["ch"])
                 elif self.state=="levelup_alloc":
@@ -2891,9 +2976,10 @@ class Game:
 
 if __name__=="__main__":
     print("="*56)
-    print("  KARANLIK TAC'IN LANETI  v4.0")
-    print("  pip install pygame  |  python pixel_rpg.py")
+    print(f"  KARANLIK TAC'IN LANETI  v{VERSION}")
+    print("  pip install pygame numpy  |  python pixel_rpg.py")
     print("  Yeni: Sinifa ozgun saldiri | Ekipman Sistemi")
     print("  Yeni: Gorunmez harita gecisleri | Genis orman")
+    print(f"  Ayarlar: {SETTINGS_FILE}")
     print("="*56)
     Game().run()

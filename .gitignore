@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Oyun tarafindan uretilen
+settings.json
+
+# Test ciktilari
+tests/screenshots/
