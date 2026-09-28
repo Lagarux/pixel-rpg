@@ -4,7 +4,7 @@
 > yol haritasını tutar. Her fazın sonunda testleri çalıştırıp bu dosyayı güncelliyoruz.
 > Böylece "neyi, neden, hangi kanıta dayanarak" değiştirdiğimiz kayıt altında kalır.
 
-**Son güncelleme:** 2026-09-28 · **Oyun sürümü:** v5.0 · **Aktif faz:** Faz 3 (Faz 0-1-2 tamamlandı)
+**Son güncelleme:** 2026-09-28 · **Oyun sürümü:** v5.0 · **Aktif faz:** Faz 4 (Faz 0-1-2-3 tamamlandı)
 
 ---
 
@@ -26,6 +26,7 @@ python tests/test_gameplay_smoke.py
 | `tests/test_file_paths.py` | Kaynak yolları (`settings.json`, `assets/fonts`) betiğin kendi dizinine göre mi çözümleniyor? |
 | `tests/harness.py` | Oyunu testten süren koşum takımı (`pygame.display.flip` kancası ile) |
 | `tests/test_gameplay_smoke.py` | Oyunu baştan sona otomatik oynar, 24 ekran görüntüsü üretir, ölçüm toplar |
+| `tests/test_combat_feel.py` | Dövüş hissi ve arayüz katmanları (telegraf, yol bulma, karartma, rozet) |
 | `tests/screenshots/` | Test çıktısı kareler (her koşumda yeniden üretilir) |
 
 Testler **penceresiz** (`SDL_VIDEODRIVER=dummy`) çalışır: ekran açılmaz, ses kartı gerekmez,
@@ -95,7 +96,7 @@ yalnızca arası dolduruluyor. Çapraz adım `×1,41` sürüyor ki çapraz gitme
 | ✅ A2 | 🔴 | **Kamera sıçrıyor:** hedefe anında atanıyor | ölçüm: kamera adımı {32 px}; `pixel_rpg.py:2267` | Yumuşatma (`cam += (hedef-cam) * 0.15`) + küçük ölü bölge |
 | ✅ A3 | 🟠 | Çapraz hareket yok; `elif` zinciri tek yön seçiyor, öncelik sol > sağ > yukarı > aşağı | ölçüm: ↓+→ → yalnız sağa; `pixel_rpg.py:2778-2781` | Yön vektörünü topla, çapraz hareketi de dene (duvara değince kaydır) |
 | ✅ A4 | 🟠 | Tüm zamanlama **kare sayısına** bağlı (hareket gecikmesi, bekleme süreleri, dokunulmazlık). FPS düşerse oyun yavaşlar | `pixel_rpg.py:2782-2795` | `dt` tabanlı zamanlama |
-| A5 | 🟠 | Düşman AI eksen-açgözlü: tek eksende ilerliyor, duvar köşesinde takılıyor; yol bulma yok (oysa BFS için `deque` projede zaten var) | `pixel_rpg.py:2540-2548`, `:1088` | Kısa menzilli BFS/A* + takılınca yan adım |
+| ✅ A5 | 🟠 | Düşman AI eksen-açgözlü: tek eksende ilerliyor, duvar köşesinde takılıyor; yol bulma yok (oysa BFS için `deque` projede zaten var) | `pixel_rpg.py:2540-2548`, `:1088` | Kısa menzilli BFS/A* + takılınca yan adım |
 | ✅ A6 | 🟡 | `grad_bar` ve `panel` her karede piksel piksel çizgi çiziyor: HUD'da 3 bar + panel yüksekliği → kare başına ~1000 `draw.line` | `pixel_rpg.py:1738-1758`; ham kare 3,27 ms | Bar/panel yüzeylerini önbelleğe al, değişince yeniden üret |
 | ✅ A7 | 🟡 | `NPC.draw` ve boss çizimi **her karede** `SysFont` çağırıyor | ölçüm: 1,0 çağrı/kare (tek NPC); `pixel_rpg.py:978`, `:1005` | Sınıf düzeyinde font önbelleği |
 
@@ -103,11 +104,11 @@ yalnızca arası dolduruluyor. Çapraz adım `×1,41` sürüyor ki çapraz gitme
 
 | ID | Şiddet | Bulgu | Kanıt | Öneri |
 |---|---|---|---|---|
-| E1 | 🔴 | Etkileşim ipucu yok: NPC/sandık yanındayken ekranda `[E]` göstergesi çıkmıyor; üstelik yalnızca tam karşı kare çalışıyor | `pixel_rpg.py:2559-2562` | Yakındaki hedefin üstünde yanıp sönen `[E]` rozeti + 1 karelik tolerans |
-| E2 | 🟠 | Düşman saldırısı telegraflanmıyor: yan yana gelir gelmez otomatik hasar; hazırlanma animasyonu, uyarı yok. Üstelik **çaprazdan da** vuruyor (oyuncu çapraz gidemezken) | `pixel_rpg.py:2549` | Kısa "hazırlanma" fazı + saldırı animasyonu; çapraz vuruşu kaldır ya da oyuncuya da çapraz ver |
-| E3 | 🟠 | Vuruş geri bildirimi zayıf: geri itme, kısa donma (hit-stop), ekran sarsıntısı yok | `pixel_rpg.py:2377-2385` | 3-5 karelik hit-stop + geri itme + boss vuruşunda hafif sarsıntı |
-| E4 | 🟠 | Bölüm duyurusu **260 kare (~4,3 sn)** ekranın ortasını kaplıyor — savaşın tam ortasında bile | `19_saldiri.png`, `21_dusman_yapay_zeka.png`; `pixel_rpg.py:2301`, `:2855` | Süreyi kısalt, üst şeride taşı, savaşta ertele |
-| E5 | 🟠 | Pencereler fazla şeffaf: envanter/görev günlüğünde arka plandaki dünya okunuyor; ölüm ekranında dünya hiç karartılmıyor | `11_envanter.png`, `13_gorev_gunlugu.png`, `23_olum.png` | Panel arkasına karartma katmanı (`alpha ~180`) |
+| ✅ E1 | 🔴 | Etkileşim ipucu yok: NPC/sandık yanındayken ekranda `[E]` göstergesi çıkmıyor; üstelik yalnızca tam karşı kare çalışıyor | `pixel_rpg.py:2559-2562` | Yakındaki hedefin üstünde yanıp sönen `[E]` rozeti + 1 karelik tolerans |
+| ✅ E2 | 🟠 | Düşman saldırısı telegraflanmıyor: yan yana gelir gelmez otomatik hasar; hazırlanma animasyonu, uyarı yok. Üstelik **çaprazdan da** vuruyor (oyuncu çapraz gidemezken) | `pixel_rpg.py:2549` | Kısa "hazırlanma" fazı + saldırı animasyonu; çapraz vuruşu kaldır ya da oyuncuya da çapraz ver |
+| ✅ E3 | 🟠 | Vuruş geri bildirimi zayıf: geri itme, kısa donma (hit-stop), ekran sarsıntısı yok | `pixel_rpg.py:2377-2385` | 3-5 karelik hit-stop + geri itme + boss vuruşunda hafif sarsıntı |
+| ✅ E4 | 🟠 | Bölüm duyurusu **260 kare (~4,3 sn)** ekranın ortasını kaplıyor — savaşın tam ortasında bile | `19_saldiri.png`, `21_dusman_yapay_zeka.png`; `pixel_rpg.py:2301`, `:2855` | Süreyi kısalt, üst şeride taşı, savaşta ertele |
+| ✅ E5 | 🟠 | Pencereler fazla şeffaf: envanter/görev günlüğü/nitelik ekranında arka plandaki dünya okunuyor. *(Düzeltme: ölüm ekranı zaten 185 alfa ile karartıyormuş — ilk tespitte yanlış yazmışım, sorun yalnızca panellerdeydi.)* | `11_envanter.png`, `13_gorev_gunlugu.png`, `23_olum.png` | Panel arkasına karartma katmanı (`alpha ~180`) |
 | ✅ E6 | 🟡 | Diyalog sırasında yetenek çubuğu diyalog kutusuyla çakışıyor | `09_diyalog.png`; `pixel_rpg.py:2853` | Diyalogda alt HUD'u gizle |
 | E7 | 🟡 | Diyalog daktilo efekti, portre ve konuşma sesi içermiyor; 4 satır birden beliriyor | `pixel_rpg.py:1936-1947` | Karakter karakter yazım + `E` ile anında tamamlama |
 | E8 | 🟡 | Başlık ekranında `F1 Ayarlar` ipucu yazmıyor (çeviri anahtarı var, çizim yok); `ESC ile çıkış` da belirtilmemiş | `01_baslik.png`; `pixel_rpg.py:1848` | İpucu satırına ekle |
@@ -198,14 +199,34 @@ değişiklikti; mantığı sabit 1/60 adımda tutup gecikmeyi telafi adımıyla 
 hem tamamen açık hem de kameranın harita kenarına yaslanmadığı bir alana koyuyor — ilk denemede
 çapraz test duvara, kamera testi de harita sınırına denk gelip sessizce anlamsızlaşmıştı.
 
-### ⬜ Faz 3 — Dövüş hissi ve arayüz düzeni
-- [ ] E1 — `[E]` etkileşim rozeti
-- [ ] E2 — düşman saldırı telegrafı, çapraz vuruş düzeltmesi
-- [ ] E3 — hit-stop, geri itme, ekran sarsıntısı
-- [ ] E4 — bölüm duyurusunu üst şeride taşı
-- [ ] E5, E6 — panel karartması, diyalogda HUD gizleme
-- [ ] A5 — düşman yol bulma
-- **Kabul:** Duman testine "saldırı sonrası düşman geri itildi" ve "panel açıkken arka plan karartıldı" doğrulamaları eklenir
+### ✅ Faz 3 — Dövüş hissi ve arayüz düzeni (tamamlandı, 2026-09-28)
+- [x] E1 — `[E]` etkileşim rozeti + bir karelik tolerans
+- [x] E2 — düşman saldırı telegrafı (çapraz vuruş sorunu A3 ile kendiliğinden çözüldü)
+- [x] E3 — hit-stop, geri itme, ekran sarsıntısı
+- [x] E4 — bölüm duyurusu üst şeritte
+- [x] E5, E6 — panel karartması, diyalogda HUD gizleme
+- [x] A5 — düşman yol bulma (kısa menzilli BFS)
+- **Kabul:** `tests/test_combat_feel.py` — 16 test, hepsi geçti ✔
+
+#### Faz 3'te ne değişti
+
+| Bulgu | Değişiklik | Yer |
+|---|---|---|
+| E1 | `_interact_target()` önce bakılan kareye, orada bir şey yoksa komşulara bakar; **tek** aday varsa onu seçer (iki aday varsa seçmez, yanlış hedefe konuşulmasın). Hedefin üstüne yanıp sönen `[E]` rozeti | `_interact_target`, `UI.draw_interact_badge` |
+| E2 | Düşman artık bitişik olunca anında vurmuyor: `wind_up` 26 kare hazırlanıyor (kırmızı daralan halka + `!`), sonra vuruyor, ardından 34 kare bekliyor. Hazırlanırken yerinden kıpırdamıyor; oyuncu bu pencerede kaçarsa darbe boşa gidiyor | `_update_enemies`, `_enemy_strike`, `Enemy.draw` |
+| E3 | `_hit()` her vuruşta 3 kare (kritte 5) donma; kritte ve boss vuruşunda ekran sarsıntısı; kritte düşman bir kare geri itiliyor (boss hariç). Oyuncu hasar alınca da sarsıntı | `_hit`, `_knockback`, `add_shake`, `_cam` |
+| E4 | `draw_chapter` tam ekran karartma + ortada dev yazı yerine 92 px'lik üst şerit; süre 260 → 150 kare | `UI.draw_chapter`, `_advance` |
+| E5 | Ortak `UI.dim()`; envanter, görev günlüğü, nitelik dağıtımı ve pause arkayı karartıyor | `UI.dim` + panel çizimleri |
+| A5 | `_bfs_step()` kısa menzilli BFS (yarıçap 8, diğer düşmanlar engel). Yol yoksa eski basit takibe düşer | `Game._bfs_step` |
+
+**Denge etkisi (izlenecek):** Telegraf düşmanları belirgin şekilde zayıflattı. Önceden bitişik
+düşman her 40 karede bir kaçınılmaz hasar veriyordu; şimdi hazırlanma + bekleme ile en iyi
+ihtimalle 60 karede bir vuruyor ve kaçılabiliyor. Faz 4'te oynanıp düşman hasarı/sayısı
+yeniden ayarlanmalı.
+
+**Test yaklaşımı:** Bu fazın testleri oyunu baştan sürmek yerine parçaları doğrudan çağırıyor
+(`Game.__new__` ile pencere açmadan). Telegraf, yol bulma, karartma ve şerit tek başlarına
+ölçülebilir davranışlar; duman testinden çok daha hızlı ve kesin sonuç veriyorlar.
 
 ### ⬜ Faz 4 — Atmosfer ve süreklilik
 - [ ] İ1 — kayıt/yükleme + "Devam Et"
@@ -238,6 +259,8 @@ hem tamamen açık hem de kameranın harita kenarına yaslanmadığı bir alana 
 | 2026-09-28 | 1 | Faz 1 tek commit olarak kaydedildi (`faz-1-kritik-hatalar` dalı) | 21 test |
 | 2026-09-28 | 2 | Yumuşak hareket, kamera takibi, çapraz yön, sabit adımlı zamanlama, UI/font önbelleği | Adım 32 → 3,2 px; hareketli kare %10 → %92; render 3,27 → 1,0 ms |
 | 2026-09-28 | 2 | Ölçüm penceresi düzeltildi: çapraz ve kamera testleri sessizce anlamsız çalışıyordu | 16 duman testi + 8 yol testi geçiyor |
+| 2026-09-28 | 2 | Faz 2 commit'lendi (`faz-2-akicilik` dalı) | 25 test |
+| 2026-09-28 | 3 | Saldırı telegrafı, hit-stop/geri itme/sarsıntı, `[E]` rozeti, üst şerit duyuru, panel karartması, BFS yol bulma | `tests/test_combat_feel.py` ile 16 yeni test; toplam 41 test geçiyor |
 
 ---
 

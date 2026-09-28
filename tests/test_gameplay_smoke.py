@@ -14,6 +14,10 @@ Calistirmak icin:
     python tests/test_gameplay_smoke.py             (olcum raporu ile birlikte)
 """
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # harness'i bul
+
 import unittest
 
 import pygame

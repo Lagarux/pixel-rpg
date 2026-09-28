@@ -1084,6 +1084,7 @@ class Enemy(Entity):
         self.kind=kind;self.max_hp=hp;self.hp=hp;self.atk=atk;self.xp_r=xp
         self.agro_range=agro*TILE;self.loot=loot or [];self.is_boss=is_boss
         self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
+        self.wind_up=0;self.atk_cd=0   # saldırı telegrafı
     def draw(self,surf,cx,cy):
         if not self.alive: return
         bx=int(self.px-cx); by=int(self.py-cy)
@@ -1093,6 +1094,15 @@ class Enemy(Entity):
         else: surf.blit(sp,(bx,by))
         if self.frozen>0:
             fs=pygame.Surface((TILE,TILE),pygame.SRCALPHA);fs.fill((100,180,255,80));surf.blit(fs,(bx,by))
+        if self.wind_up>0:
+            # Saldırı hazırlığı: kırmızı halka daralır + ünlem. Oyuncuya kaçma penceresi.
+            t=1.0-self.wind_up/26.0
+            r=int(TILE*0.9-TILE*0.35*t)
+            ws=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA)
+            pygame.draw.circle(ws,(255,70,60,150),(TILE,TILE),max(3,r),3)
+            surf.blit(ws,(bx-TILE//2,by-TILE//2))
+            ex=_tag_surf("!",(255,90,80))
+            surf.blit(ex,(bx+TILE//2-ex.get_width()//2,by-24))
         bw=56 if self.is_boss else 28;bh=5 if self.is_boss else 4
         bbx=bx+(TILE-bw)//2;bby=by+(-14 if self.is_boss else -8)
         pygame.draw.rect(surf,HP_R,(bbx,bby,bw,bh))
@@ -1879,6 +1889,10 @@ class UI:
             cls._panel_cache[key]=s
         return s
 
+    def dim(self,surf,alpha=150):
+        """Panel arkasindaki dunyayi karartir — metin okunakli kalsin."""
+        ov=pygame.Surface((SW,SH),pygame.SRCALPHA);ov.fill((0,0,0,alpha));surf.blit(ov,(0,0))
+
     def panel(self,surf,x,y,w,h,alpha=220,glow=False):
         surf.blit(self._panel_surface(w,h,alpha),(x,y))
         if glow:
@@ -1888,6 +1902,7 @@ class UI:
             surf.blit(gs,(x,y))
 
     def draw_stat_alloc(self,surf,stats,free,sel,is_lu=False,tick=0):
+        self.dim(surf)
         pw,ph=510,430;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         title="SEVIYE ATLADI!" if is_lu else "NITELIK DAGITIMI"
@@ -1988,7 +2003,7 @@ class UI:
         surf.blit(s,(px,py))
 
     def draw_gameover(self,surf):
-        ov=pygame.Surface((SW,SH),pygame.SRCALPHA);ov.fill((0,0,0,185));surf.blit(ov,(0,0))
+        self.dim(surf,200)
         self.txt_c(surf,T_("gameover_title"),SW//2,SH//2-70,HP_R,self.fxl)
         self.txt(surf,"Karanlik seni yuttu...",SW//2-120,SH//2-10,LGR,self.fmd)
         self.txt(surf,"[ R ] Yeniden Basla",SW//2-100,SH//2+40,UI_AC,self.fmd)
@@ -2010,13 +2025,20 @@ class UI:
         if alpha>120:
             t=self.flg.render(name,True,UI_AC);t.set_alpha(min(255,alpha*2-240));surf.blit(t,(SW//2-t.get_width()//2,SH//2-16))
 
+    CHAPTER_BANNER_H = 92   # duyuru yalnızca bu yüksekliği kaplar
+
     def draw_chapter(self,surf,chapter,alpha):
+        """Bölüm duyurusu — üst şeritte. Eskiden ekranın ortasını 4 sn kapatıyordu."""
         if chapter not in QUESTS: return
-        ov=pygame.Surface((SW,SH),pygame.SRCALPHA);ov.fill((0,0,0,min(150,alpha)));surf.blit(ov,(0,0))
-        t=self.fti.render(f"{T_('chapter_label')} {chapter}",True,UI_GD)
-        t.set_alpha(min(255,alpha));surf.blit(t,(SW//2-t.get_width()//2,SH//2-55))
+        a=min(255,alpha);bh=self.CHAPTER_BANNER_H
+        band=pygame.Surface((SW,bh),pygame.SRCALPHA)
+        band.fill((0,0,0,min(170,a)))
+        pygame.draw.line(band,(*UI_GD,min(200,a)),(0,bh-1),(SW,bh-1),2)
+        surf.blit(band,(0,0))
+        t=self.fxl.render(f"{T_('chapter_label')} {chapter}",True,UI_GD)
+        t.set_alpha(a);surf.blit(t,(SW//2-t.get_width()//2,10))
         t2=self.flg.render(QUESTS[chapter][0],True,UI_AC)
-        t2.set_alpha(min(255,alpha));surf.blit(t2,(SW//2-t2.get_width()//2,SH//2+10))
+        t2.set_alpha(a);surf.blit(t2,(SW//2-t2.get_width()//2,52))
 
     def draw_ability_bar(self,surf,stats,tick):
         ab_list=ABILITIES.get(stats.char_class,[])
@@ -2065,6 +2087,18 @@ class UI:
                 lk=self.fsm.render(f"Sv{ab['level']}",True,(160,80,80))
                 surf.blit(lk,(sx+slot_w//2-1-lk.get_width()//2,sy+17))
 
+    def draw_interact_badge(self,surf,tx,ty,cx,cy,tick):
+        """Etkileşilebilir hedefin üstünde yanıp sönen [E] rozeti."""
+        sx=tx*TILE-cx+TILE//2;sy=ty*TILE-cy-20
+        if not(0<=sx<SW and 0<=sy<SH): return
+        pulse=int(abs(math.sin(tick*0.006))*60)+150
+        t=self.fsm.render("[E]",True,(255,240,160))
+        bg=pygame.Surface((t.get_width()+8,t.get_height()+4),pygame.SRCALPHA)
+        bg.fill((20,10,35,190));pygame.draw.rect(bg,(pulse,pulse//2,60),bg.get_rect(),1)
+        bob=int(abs(math.sin(tick*0.005))*3)
+        surf.blit(bg,(sx-bg.get_width()//2,sy-bob))
+        surf.blit(t,(sx-t.get_width()//2,sy+2-bob))
+
     def draw_dialog(self,surf,npc_name,lines,page,total):
         bh=112;bx=8;by=SH-bh-8
         self.panel(surf,bx,by,SW-16,bh,glow=True)
@@ -2078,6 +2112,7 @@ class UI:
         if total>1: self.txt(surf,f"{page}/{total}",SW-50,by+4,GR,self.fsm)
 
     def draw_inventory(self,surf,player,sel,eq_tab,tick,eq_sel=0):
+        self.dim(surf)
         pw,ph=640,440;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         # Sekmeler
@@ -2165,7 +2200,7 @@ class UI:
 
     def draw_pause(self,surf,tick,pause_sel=0):
         """ESC ile açılan duraklama menüsü."""
-        ov=pygame.Surface((SW,SH),pygame.SRCALPHA); ov.fill((0,0,0,160)); surf.blit(ov,(0,0))
+        self.dim(surf,160)
         pw,ph=360,260; px=SW//2-pw//2; py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         self.txt_c(surf,"OYUN DURAKLATILDI",px+pw//2,py+14,UI_AC,self.flg)
@@ -2290,6 +2325,7 @@ class UI:
             surf.blit(t2,(SW-t2.get_width()-6,8+i*13))
 
     def draw_quest_log(self,surf,flags,chapter):
+        self.dim(surf)
         pw,ph=560,400;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         self.txt(surf,T_("quest_log"),px+16,py+10,UI_GD,self.flg)
@@ -2373,6 +2409,7 @@ class Game:
         }
         self.player:Optional[Player]=None
         self.cam_x=0;self.cam_y=0;self.cam_fx=0.0;self.cam_fy=0.0
+        self.shake=0;self.shake_mag=0;self.hit_stop=0
         self._acc=0.0;self._last_ms=pygame.time.get_ticks()
         self.dlg_npc=None;self.dlg_lines=[];self.dlg_page=0
         self.hit_fx=[];self.dmg_nums=[]
@@ -2435,6 +2472,9 @@ class Game:
         if abs(tx-self.cam_fx)<0.5: self.cam_fx=tx
         if abs(ty-self.cam_fy)<0.5: self.cam_fy=ty
         self.cam_x=int(self.cam_fx);self.cam_y=int(self.cam_fy)
+        if self.shake>0:
+            m=self.shake_mag
+            self.cam_x+=random.randint(-m,m);self.cam_y+=random.randint(-m,m)
 
     def _tile_free(self,tx,ty)->bool:
         if not self.cur_map.walkable(tx,ty): return False
@@ -2478,7 +2518,7 @@ class Game:
         if ch==5 and self.cur_key=="shadow_castle": self._advance(6)
 
     def _advance(self,ch):
-        if self.flags["ch"]<ch: self.flags["ch"]=ch;self.ch_announce=260
+        if self.flags["ch"]<ch: self.flags["ch"]=ch;self.ch_announce=150
 
     # ── SINIFa ÖZEL AUTO-ATTACK ──────────────────────────────────
     def _auto_attack(self):
@@ -2554,6 +2594,25 @@ class Game:
         pr=Projectile(float(x),float(y),dx,dy,float(spd),dmg,kind,"player")
         self.projectiles.append(pr);return pr
 
+    def add_shake(self,mag,frames):
+        """Ekran sarsıntısı — mevcut sarsıntıdan güçlüyse onu ezer."""
+        if mag>=self.shake_mag or self.shake<=0:
+            self.shake_mag=mag
+        self.shake=max(self.shake,frames)
+
+    def _knockback(self,e,frames=5):
+        """Düşmanı oyuncudan bir kare uzağa iter (boss'lar sabit durur)."""
+        if e.is_boss or not e.alive or e.moving: return
+        p=self.player
+        dx=e.tx-p.tx;dy=e.ty-p.ty
+        if dx==0 and dy==0: return
+        if abs(dx)>=abs(dy): dx=1 if dx>0 else -1;dy=0
+        else: dy=1 if dy>0 else -1;dx=0
+        nx2,ny2=e.tx+dx,e.ty+dy
+        if self.cur_map.walkable(nx2,ny2) and not any(
+                o.alive and o.tx==nx2 and o.ty==ny2 for o in self.cur_map.enemies if o is not e):
+            e.start_step(nx2,ny2,frames)
+
     def _hit(self,e,dmg,crit=False):
         if crit: dmg=int(dmg*1.8)
         e.hp-=dmg;e.hp=max(0,e.hp)
@@ -2562,6 +2621,10 @@ class Game:
         self.dmg_nums.append({"x":e.px+TILE//2,"y":e.py,"v":dmg,"l":45,"col":col,"txt":"KRIT!" if crit else None})
         self.ps.emit_hit(e.px+TILE//2,e.py+TILE//2)
         SoundManager.play("hit_heavy" if e.is_boss else "hit")
+        # Vuruş hissi: kısa donma + krit/boss'ta sarsıntı, kritte geri itme
+        self.hit_stop=max(self.hit_stop,5 if crit else 3)
+        if crit or e.is_boss: self.add_shake(4 if crit else 2,8)
+        if crit: self._knockback(e)
         if e.hp<=0: self._kill(e)
 
     def _kill(self,e):
@@ -2702,6 +2765,33 @@ class Game:
                     self.ps.emit(tt.tx*TILE+TILE//2,tt.ty*TILE+TILE//2,20,(255,180,40),5.0,35);break
         self.cur_map.traps=[tt for tt in self.cur_map.traps if tt.active]
 
+    def _bfs_step(self,e,gx,gy,radius=8):
+        """Düşmandan oyuncuya kısa menzilli BFS; atılacak ilk kareyi döndürür.
+
+        Eksen-açgözlü takip duvar köşelerinde takılıyordu. Yarıçap sınırlı
+        olduğu için maliyeti küçük (en fazla ~17x17 düğüm) ve yalnızca
+        kovalayan düşman adım atacakken çalışır.
+        """
+        m=self.cur_map;start=(e.tx,e.ty);goal=(gx,gy)
+        if start==goal: return None
+        occupied={(o.tx,o.ty) for o in m.enemies if o.alive and o is not e}
+        prev={start:None};q=deque([start])
+        found=False
+        while q:
+            cur=q.popleft()
+            if cur==goal: found=True;break
+            cx,cy=cur
+            for dx,dy in((1,0),(-1,0),(0,1),(0,-1)):
+                nxt=(cx+dx,cy+dy)
+                if nxt in prev: continue
+                if abs(nxt[0]-e.tx)>radius or abs(nxt[1]-e.ty)>radius: continue
+                if nxt!=goal and(not m.walkable(*nxt) or nxt in occupied): continue
+                prev[nxt]=cur;q.append(nxt)
+        if not found: return None
+        node=goal
+        while prev[node] is not None and prev[node]!=start: node=prev[node]
+        return None if node==goal else node   # bitişikse adım yok, saldırı sırası
+
     def _update_enemies(self):
         p=self.player;ppx=p.px+TILE//2;ppy=p.py+TILE//2
         for e in self.cur_map.enemies:
@@ -2711,36 +2801,85 @@ class Game:
             ex=e.px+TILE//2;ey=e.py+TILE//2;dist=math.hypot(ex-ppx,ey-ppy)
             if dist<e.agro_range: e.state="chase"
             elif e.state=="chase" and dist>e.agro_range*1.5: e.state="idle"
-            if e.state!="chase": continue
+            if e.state!="chase":
+                e.wind_up=0;continue
+            adjacent=abs(e.tx-p.tx)<=1 and abs(e.ty-p.ty)<=1
+            if e.atk_cd>0: e.atk_cd-=1
+
+            # ── Saldırı telegrafı: önce hazırlanır, sonra vurur ──
+            if e.wind_up>0:
+                e.wind_up-=1
+                if e.wind_up==0:
+                    if adjacent: self._enemy_strike(e,p,ppx,ppy)
+                    e.atk_cd=self.ENEMY_ATK_CD
+                continue   # hazırlanırken yerinden kıpırdamaz
+            if adjacent:
+                if e.atk_cd<=0:
+                    e.wind_up=self.ENEMY_WINDUP
+                    if e.is_boss: SoundManager.play("boss_alert")
+                continue
+
             e.move_cd-=1
             spd=max(6,20-p.stats.level*2)
             if e.kind in("wolf","ice_wolf"): spd=max(4,spd-4)
             if e.kind=="golem": spd+=8
             if e.move_cd<=0:
                 e.move_cd=spd
-                ddx=0 if e.tx==p.tx else(1 if p.tx>e.tx else -1)
-                ddy=0 if e.ty==p.ty else(1 if p.ty>e.ty else -1)
-                if abs(p.tx-e.tx)>=abs(p.ty-e.ty): ddy=0
-                else: ddx=0
-                nx2=e.tx+ddx;ny2=e.ty+ddy
+                step=self._bfs_step(e,p.tx,p.ty)
+                if step is None:
+                    # Yol bulunamadı (uzak/kapalı) → eski basit takibe düş
+                    ddx=0 if e.tx==p.tx else(1 if p.tx>e.tx else -1)
+                    ddy=0 if e.ty==p.ty else(1 if p.ty>e.ty else -1)
+                    if abs(p.tx-e.tx)>=abs(p.ty-e.ty): ddy=0
+                    else: ddx=0
+                    step=(e.tx+ddx,e.ty+ddy)
+                nx2,ny2=step
                 if(self.cur_map.walkable(nx2,ny2) and
                    not any(o.alive and o.tx==nx2 and o.ty==ny2 for o in self.cur_map.enemies if o is not e) and
                    not(nx2==p.tx and ny2==p.ty)):
                     e.start_step(nx2,ny2,spd)
-            if abs(e.tx-p.tx)<=1 and abs(e.ty-p.ty)<=1 and p.invincible<=0:
-                dmg=max(1,e.atk-p.stats.defense+random.randint(-2,3))
-                if "holy_shield" in p.stats.buffs:
-                    sh=p.stats.buffs["holy_shield"]
-                    if isinstance(sh,int): p.stats.buffs["holy_shield"]=max(0,sh-dmg);dmg=0
-                p.stats.hp-=dmg;p.stats.hp=max(0,p.stats.hp);p.invincible=40
-                self.ps.emit_hit(ppx,ppy)
-                self.dmg_nums.append({"x":ppx,"y":ppy-TILE//2,"v":dmg,"l":40,"col":HP_R})
-                if p.stats.hp<=0: self.state="gameover";SoundManager.play("death")
+
+    ENEMY_WINDUP = 26   # saldırı öncesi hazırlanma (kaçmak için pencere)
+    ENEMY_ATK_CD = 34   # iki saldırı arası bekleme
+
+    def _enemy_strike(self,e,p,ppx,ppy):
+        """Telegraf tamamlandı: hasar uygula."""
+        if p.invincible>0: return
+        dmg=max(1,e.atk-p.stats.defense+random.randint(-2,3))
+        if "holy_shield" in p.stats.buffs:
+            sh=p.stats.buffs["holy_shield"]
+            if isinstance(sh,int): p.stats.buffs["holy_shield"]=max(0,sh-dmg);dmg=0
+        p.stats.hp-=dmg;p.stats.hp=max(0,p.stats.hp);p.invincible=40
+        self.ps.emit_hit(ppx,ppy)
+        self.dmg_nums.append({"x":ppx,"y":ppy-TILE//2,"v":dmg,"l":40,"col":HP_R})
+        if dmg>0: self.add_shake(5 if e.is_boss else 3,10)
+        if p.stats.hp<=0: self.state="gameover";SoundManager.play("death")
+
+    def _interact_target(self):
+        """Etkileşilebilecek hedefi bulur: ('npc', nesne) veya ('chest', (tx,ty)).
+
+        Önce bakılan kare denenir; orada bir şey yoksa komşu karelerde **tek**
+        bir aday varsa o kabul edilir (bir karelik tolerans — hizalama derdi
+        oyuncuyu uğraştırmasın).
+        """
+        p=self.player
+        ox,oy={"right":(1,0),"left":(-1,0),"up":(0,-1),"down":(0,1)}.get(p.direction,(0,1))
+        def at(tx,ty):
+            for npc in self.cur_map.npcs:
+                if npc.tx==tx and npc.ty==ty: return("npc",npc)
+            if(tx,ty) in self.cur_map.chests: return("chest",(tx,ty))
+            return None
+        front=at(p.tx+ox,p.ty+oy)
+        if front: return front
+        near=[t for t in(at(p.tx+dx,p.ty+dy) for dx,dy in((1,0),(-1,0),(0,1),(0,-1))) if t]
+        return near[0] if len(near)==1 else None
 
     def _interact(self):
-        p=self.player;d=p.direction
-        ox,oy={"right":(1,0),"left":(-1,0),"up":(0,-1),"down":(0,1)}.get(d,(0,1))
-        itx=p.tx+ox;ity=p.ty+oy
+        p=self.player
+        target=self._interact_target()
+        if not target: return
+        kind,obj=target
+        itx,ity=(obj.tx,obj.ty) if kind=="npc" else obj
         for npc in self.cur_map.npcs:
             if npc.tx==itx and npc.ty==ity:
                 lines=npc.get_dialog(self.flags);self.dlg_npc=npc;self.dlg_lines=lines;self.dlg_page=0;self.state="dialog"
@@ -2821,9 +2960,18 @@ class Game:
     def _update(self):
         """Bir mantık adımı. Tüm sayaçlar kare cinsinden olduğu için sabit adımlı."""
         self.frame_no+=1
+        if self.shake>0:
+            self.shake-=1
+            if self.shake==0: self.shake_mag=0
         if self.state=="story":
             self.story_timer+=1
             if self.story_timer%35==0: self.story_shown=min(self.story_shown+1,len(STORY_LINES))
+
+        # Vuruş anında kısa donma: darbenin ağırlığını hissettirir.
+        if self.hit_stop>0:
+            self.hit_stop-=1
+            if self.player: self._cam()
+            return
 
         if self.state=="playing" and self.player and not self.pause_open:
             p=self.player
@@ -3079,6 +3227,12 @@ class Game:
                     self.dmg_nums=alive_d
                     self.ps.draw(self.screen,self.cam_x,self.cam_y)
                     in_world=self.state in self.HUD_STATES
+                    if self.state=="playing":
+                        tgt=self._interact_target()
+                        if tgt:
+                            kind,obj=tgt
+                            btx,bty=(obj.tx,obj.ty) if kind=="npc" else obj
+                            self.ui.draw_interact_badge(self.screen,btx,bty,self.cam_x,self.cam_y,self.tick)
                     if in_world:
                         cq=QUESTS.get(self.flags["ch"],("",""))[0]
                         self.ui.draw_hud(self.screen,p,self.cur_map.name,self.flags["ch"],cq,self.tick)
