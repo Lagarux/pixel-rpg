@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 KARANLIK TAC'IN LANETI  v5.0  ─  2D Pixel RPG
-pip install pygame numpy  |  python pixel_rpg.py
+pip install pygame  |  python pixel_rpg.py
 
 Kontroller:
   WASD / Ok      -> Hareket        F11  -> Tam Ekran
@@ -13,7 +13,7 @@ Kontroller:
   U              -> Nitelik Dağıtımı
   F1             -> Ayarlar
 """
-import pygame, sys, math, random, os, json, zlib
+import pygame, sys, math, random, os, json, zlib, array
 from collections import deque
 from typing import List, Optional, Dict, Tuple
 from dataclasses import dataclass
@@ -320,59 +320,107 @@ class FontManager:
         f=cls._find(style if style in cls.CANDIDATES else "title",size)
         cls._cache[key]=f;return f
 
-# ─── Ses Yöneticisi (Prosedürel ses üretimi — numpy) ─────────────
+# ─── Ses Yöneticisi (Prosedürel ses üretimi — saf Python) ────────
 class SoundManager:
+    """Efektleri ve ambiyans müziğini çalışma anında sentezler.
+
+    numpy gerekmiyor: PCM örnekleri stdlib `array` ile üretilip doğrudan
+    `mixer.Sound(buffer=...)`e veriliyor. Böylece oyun ek bir bağımlılık
+    istemiyor ve paketlenen sürüm küçük kalıyor.
+    """
     _sounds:Dict={}
     _enabled=True
-    SR=22050  # sample rate
+    SR=22050            # istenen örnekleme hızı
+    _format=(22050,2)   # mixer'in GERÇEKTEN açtığı (hız, kanal) — init() günceller
+    _fail=""            # son üretim hatası: sessiz kalmışsak nedeni burada
+
+    @classmethod
+    def _osc(cls,wave,freq,dur,vibrato=0.0,noise=0.0):
+        """Dalga formunu -1..1 aralığında örnek listesine açar."""
+        sr=cls._format[0]; n=max(1,int(sr*dur)); out=[0.0]*n
+        tau=2.0*math.pi
+        for k in range(n):
+            t=k/sr; ph=freq*t
+            if   wave=="square": v=(1.0 if math.sin(tau*ph)>=0.0 else -1.0)*0.5
+            elif wave=="saw":    v=2.0*(ph-math.floor(ph+0.5))
+            elif wave=="tri":    v=2.0*abs(2.0*(ph-math.floor(ph+0.5)))-1.0
+            else:                v=math.sin(tau*ph)
+            if vibrato>0.0: v*=math.sin(tau*vibrato*t)*0.1+0.9
+            if noise>0.0:   v+=random.uniform(-noise,noise)
+            out[k]=v
+        return out
+
+    @classmethod
+    def _fade(cls,buf,secs=0.006):
+        """Başta/sonda kısa rampa — ani kesmenin çıkardığı 'tık' sesini önler."""
+        n=len(buf); f=min(int(cls._format[0]*secs),n//2)
+        for k in range(f):
+            g=k/f; buf[k]*=g; buf[n-1-k]*=g
+        return buf
+
+    @classmethod
+    def _envelope(cls,buf,attack,decay,vol):
+        """Yükseliş/düşüş zarfını uygular."""
+        sr=cls._format[0]; n=len(buf)
+        att=min(int(sr*attack),n); dec=int(sr*decay)
+        span=dec if (dec>0 and att+dec<n) else max(1,n-att)
+        for k in range(n):
+            if k<att:    e=k/att
+            elif dec<=0: e=1.0
+            else:
+                d=k-att
+                e=1.0-d/span if d<span else 0.0
+                if e<0.0: e=0.0
+            buf[k]*=e*vol
+        return buf
+
+    @classmethod
+    def _pcm(cls,buf):
+        """Örnek listesini mixer biçiminde (signed 16-bit) Sound'a çevirir."""
+        chans=cls._format[1]; n=len(buf)
+        pcm=array.array("h",bytes(2*chans*n))
+        for k in range(n):
+            v=buf[k]
+            if   v> 1.0: v= 1.0
+            elif v<-1.0: v=-1.0
+            sm=int(v*32767); b=k*chans
+            for c in range(chans): pcm[b+c]=sm
+        return pygame.mixer.Sound(buffer=pcm.tobytes())
 
     @classmethod
     def _make(cls,freq,dur,wave="sine",attack=0.01,decay=0.1,vol=0.4,vibrato=0.0,noise=0.0):
-        """Prosedürel ses oluştur."""
+        """Tek notalı efekt üretir."""
         try:
-            import numpy as np
-            n=int(cls.SR*dur); t=np.linspace(0,dur,n,dtype=np.float32)
-            if wave=="sine":     w=np.sin(2*np.pi*freq*t)
-            elif wave=="square": w=np.sign(np.sin(2*np.pi*freq*t))*0.5
-            elif wave=="saw":    w=2*(t*freq-np.floor(t*freq+0.5))
-            elif wave=="tri":    w=2*np.abs(2*(t*freq-np.floor(t*freq+0.5)))-1
-            else:                w=np.sin(2*np.pi*freq*t)
-            if vibrato>0: w*=np.sin(2*np.pi*vibrato*t)*0.1+0.9
-            if noise>0:   w+=np.random.uniform(-noise,noise,n)
-            env=np.ones(n,dtype=np.float32)
-            att=int(cls.SR*attack); dec=int(cls.SR*decay)
-            if att>0: env[:min(att,n)]=np.linspace(0,1,min(att,n))
-            if dec>0 and att+dec<n:
-                env[att:att+dec]=np.linspace(1,0,dec)
-                env[att+dec:]=0
-            elif dec>0:
-                env[att:]=np.linspace(1,0,n-att)
-            w=w*env*vol
-            w=np.clip(w,-1,1)
-            pcm=(w*32767).astype(np.int16)
-            stereo=np.column_stack([pcm,pcm])
-            return pygame.sndarray.make_sound(stereo)
-        except Exception: return None
+            return cls._pcm(cls._envelope(cls._osc(wave,freq,dur,vibrato,noise),attack,decay,vol))
+        except Exception as e:
+            cls._fail="_make(%s): %s"%(freq,e); return None
 
     @classmethod
     def _chord(cls,freqs,dur,**kw):
+        """Birkaç notayı üst üste bindirip akor üretir."""
         try:
-            import numpy as np
-            n=int(cls.SR*dur); combined=np.zeros(n,dtype=np.float32)
-            for freq in freqs:
-                t=np.linspace(0,dur,n,dtype=np.float32)
-                combined+=np.sin(2*np.pi*freq*t)
-            combined/=len(freqs); combined=np.clip(combined,-1,1)
-            pcm=(combined*kw.get("vol",0.35)*32767).astype(np.int16)
-            stereo=np.column_stack([pcm,pcm])
-            return pygame.sndarray.make_sound(stereo)
-        except Exception: return None
+            mix=cls._osc("sine",freqs[0],dur)
+            for f in freqs[1:]:
+                other=cls._osc("sine",f,dur)
+                for k in range(len(mix)): mix[k]+=other[k]
+            g=kw.get("vol",0.35)/len(freqs)
+            for k in range(len(mix)): mix[k]*=g
+            return cls._pcm(cls._fade(mix))
+        except Exception as e:
+            cls._fail="_chord(%s): %s"%(freqs,e); return None
 
     @classmethod
     def init(cls):
         try:
             pygame.mixer.init(frequency=cls.SR,size=-16,channels=2,buffer=512)
-        except Exception: cls._enabled=False; return
+            got=pygame.mixer.get_init()
+        except Exception as e:
+            cls._enabled=False; cls._fail="mixer.init: %s"%e; return
+        if not got:
+            cls._enabled=False; cls._fail="mixer açılamadı"; return
+        if got[1]!=-16:   # sentezimiz signed 16-bit üretiyor
+            cls._enabled=False; cls._fail="beklenmeyen örnek biçimi: %s"%(got[1],); return
+        cls._format=(got[0],max(1,got[2]))
         defs={
             "hit":      lambda: cls._make(220,0.12,"saw",0.005,0.11,0.5,noise=0.3),
             "hit_heavy":lambda: cls._make(150,0.20,"saw",0.005,0.18,0.6,noise=0.4),
@@ -397,7 +445,12 @@ class SoundManager:
             try:
                 s=fn()
                 if s: cls._sounds[k]=s
-            except Exception: pass
+                else: cls._fail=cls._fail or "%s: üretilemedi"%k
+            except Exception as e: cls._fail="%s: %s"%(k,e)
+        if not cls._sounds:   # sessizce susmak yerine nedenini söyle
+            cls._enabled=False
+            print("[ses] hicbir ses uretilemedi, oyun sessiz devam ediyor:",
+                  cls._fail, file=sys.stderr)
 
     @classmethod
     def play(cls,name:str):
@@ -420,7 +473,7 @@ class SoundManager:
     def play_music(cls, theme:str="village"):
         """Prosedürel ambient müzik loop — ayrı kanalda.
 
-        Üretilen parça önbelleğe alınır: harita geçişinde numpy ile yeniden
+        Üretilen parça önbelleğe alınır: harita geçişinde yeniden
         sentezlemek kareyi takılmaya zorluyordu.
         """
         if not cls._enabled: return
@@ -437,9 +490,7 @@ class SoundManager:
                 return
             except Exception: pass
         try:
-            import numpy as np, threading
-            sr = cls.SR
-            # Her temaya özel nota dizisi ve süre
+            # Her temaya özel nota dizisi, süre, dalga ve ses seviyesi
             themes = {
                 "village":   ([261,329,392,261,329,392,440,392], 0.30, "sine",  0.18),
                 "forest":    ([196,220,247,196,220,261,220,196], 0.40, "sine",  0.14),
@@ -451,27 +502,12 @@ class SoundManager:
             }
             if theme not in themes: theme = "village"
             notes, dur, wave, vol = themes[theme]
-            # Ses parçalarını oluştur
-            segs = []
-            for freq in notes:
-                n = int(sr*dur)
-                t = np.linspace(0, dur, n, dtype=np.float32)
-                if wave=="sine":   w = np.sin(2*np.pi*freq*t)
-                elif wave=="tri":  w = 2*np.abs(2*(t*freq - np.floor(t*freq+0.5)))-1
-                elif wave=="square": w = np.sign(np.sin(2*np.pi*freq*t))*0.5
-                else:              w = 2*(t*freq - np.floor(t*freq+0.5))
-                # Zarif giriş/çıkış
-                fade = min(int(sr*0.06), n//4)
-                env  = np.ones(n, dtype=np.float32)
-                env[:fade]  = np.linspace(0,1,fade)
-                env[-fade:] = np.linspace(1,0,fade)
-                w = w * env * vol
-                segs.append(w)
-            loop = np.concatenate(segs).astype(np.float32)
-            loop = np.clip(loop, -1, 1)
-            pcm  = (loop * 32767).astype(np.int16)
-            stereo = np.column_stack([pcm, pcm])
-            snd = pygame.sndarray.make_sound(stereo)
+            loop = []
+            for freq in notes:                       # notaları sırayla ekle
+                seg = cls._osc(wave, freq, dur)
+                for k in range(len(seg)): seg[k] *= vol
+                loop.extend(cls._fade(seg, 0.06))    # notalar arası tık olmasın
+            snd = cls._pcm(loop)
             cls._music_cache[theme] = snd
             # Mevcut müziği durdur
             cls.stop_music()
@@ -1403,7 +1439,9 @@ class PlayerStats:
         self.ab_cds=[0,0,0,0]
         self.buffs:Dict={}
         # Ekipman yuvaları
-        self.equipment:Dict[str,Optional[str]]={"weapon":None,"armor":None,"ring":None}
+        # Yuvalar EQUIP_SLOTS'tan türetiliyor: elle yazılınca yuva eklendiğinde
+        # burası güncellenmiyor ve bot/muska takmak KeyError veriyordu.
+        self.equipment:Dict[str,Optional[str]]={s:None for s in EQUIP_SLOTS}
         # Sınıfa özel auto-attack cooldown
         self.atk_cd=0
 
@@ -1438,14 +1476,27 @@ class PlayerStats:
                 total+=bonus.get(stat,0)
         return total
 
-    def equip(self,item_k)->str:
-        if item_k not in EQUIP_ITEMS: return "Ekipman degil"
-        _,_,_,slot,cls_set=EQUIP_ITEMS[item_k]
-        if cls_set and self.char_class not in cls_set:
-            return f"Bu ekipmani {self.char_class} kullanamaz"
+    def equip_reason(self,item_k)->Optional[str]:
+        """Eşya giyilemiyorsa nedenin çeviri anahtarı, giyilebiliyorsa None.
+
+        Nedeni equip() döndürmüyor: eskiden hata metnini "yuvadan çıkan eşya"
+        ile aynı dönüş değerinde taşıyordu, çağıran da o metni envantere eşya
+        diye ekliyor ve asıl ekipmanı yok ediyordu.
+        """
+        if item_k not in EQUIP_ITEMS: return "ui.shop_wrong_class"
+        cls_set=EQUIP_ITEMS[item_k][4]
+        if cls_set and self.char_class not in cls_set: return "ui.shop_wrong_class"
+        return None
+
+    def equip(self,item_k)->Optional[str]:
+        """Eşyayı yuvasına takar; yuvadan çıkan eşyanın anahtarını (yoksa None) verir.
+
+        Giyilebilirliği çağıran equip_reason() ile önceden sorar.
+        """
+        slot=EQUIP_ITEMS[item_k][3]
         old=self.equipment[slot]
         self.equipment[slot]=item_k
-        return old or ""
+        return old
 
     def unequip(self,slot)->Optional[str]:
         old=self.equipment.get(slot)
@@ -3900,7 +3951,7 @@ class Game:
                     flag_k="sq_"+ik
                     if not self.flags.get(flag_k):
                         self.flags[flag_k]=True;SoundManager.play("spell")
-                        self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":100,"col":UI_PR,"txt":fT_("ui.scroll_found")})
+                        self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":100,"col":UI_PR,"txt":T_("ui.scroll_found")})
                 else: p.inventory.append(ik)
             self.cur_map.set(itx,ity,T.FLOOR);self.ps.emit_gold(itx*TILE+TILE//2,ity*TILE+TILE//2);SoundManager.play("chest")
             self.dmg_nums.append({"x":itx*TILE+TILE//2,"y":ity*TILE,"v":None,"l":70,"col":UI_GD,"txt":T_("chest_opened")})
@@ -3918,17 +3969,23 @@ class Game:
             self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":60,"col":UI_PR,"txt":T_("ui.take_librarian")})
         elif typ.startswith("stat_"): p.stats.apply_item(typ,itm[3]);p.inventory.remove(ik)
         elif typ=="equip":
-            old=p.stats.equip(ik)
+            reason=p.stats.equip_reason(ik)
+            if reason:            # sınıfa uymuyor: eşyaya dokunma, nedenini göster
+                SoundManager.play("error")
+                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":80,"col":UI_RD,"txt":T_(reason)})
+                return
+            slot=EQUIP_ITEMS[ik][3]
             SoundManager.play("equip")
-            if old=="":  # başarılı ekipleme, eski slot boştu
-                p.inventory.remove(ik)
-                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_GN,"txt":fT_("ui.equipped_msg")})
-            elif old and old!=ik:  # eski ekipman çıkarıldı, envantera döndü
-                p.inventory.remove(ik);p.inventory.append(old)
-                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_GN,"txt":fT_("ui.swapped_msg")})
-            elif old==ik:  # zaten ekipli, çıkar
-                slot=EQUIP_ITEMS[ik][3];p.stats.unequip(slot)
-                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_RD,"txt":fT_("ui.removed_msg")})
+            if p.stats.equipment.get(slot)==ik:   # zaten takılı -> çıkar, envantere dön
+                p.stats.unequip(slot);p.inventory.append(ik)
+                self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_RD,"txt":T_("ui.removed_msg")})
+            else:
+                old=p.stats.equip(ik);p.inventory.remove(ik)
+                if old:           # yuvadaki eski eşya envantere geri dönsün
+                    p.inventory.append(old)
+                    self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_GN,"txt":T_("ui.swapped_msg")})
+                else:
+                    self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":None,"l":60,"col":UI_GN,"txt":T_("ui.equipped_msg")})
 
     # ── Ana Döngü ────────────────────────────────────────────────
     # ── Güncelleme ───────────────────────────────────────────────
@@ -4328,7 +4385,7 @@ class Game:
 if __name__=="__main__":
     print("="*56)
     print(f"  KARANLIK TAC'IN LANETI  v{VERSION}")
-    print("  pip install pygame numpy  |  python pixel_rpg.py")
+    print("  pip install pygame  |  python pixel_rpg.py")
     print("  Yeni: Sinifa ozgun saldiri | Ekipman Sistemi")
     print("  Yeni: Gorunmez harita gecisleri | Genis orman")
     print(f"  Ayarlar: {SETTINGS_FILE}")

@@ -14,9 +14,9 @@
 
 * **Diverse Class System:** Choose between Warrior, Mage, Archer, or Healer.
 * **Epic Questline:** 6 main chapters and various side quests (Scroll Hunt, Boar Hunt, etc.).
-* **Procedural Audio:** All sound effects are generated via mathematical wave functions (numpy), requiring no external audio files.
+* **Procedural Audio:** All sound effects and music are synthesised at runtime from plain Python maths (stdlib `array` + `pygame.mixer`), requiring no external audio files and no numpy.
 * **Character Progression:** Attribute distribution (Stats), inventory management, and class-specific abilities.
-* **Multilingual Support:** Toggle between Turkish and English in the settings menu.
+* **Multilingual Support:** Turkish, English, German, Russian and Arabic, switchable in the settings menu (F1).
 
 ---
 
@@ -81,7 +81,7 @@
 
 ### 2. Run with Python
 ```bash
-pip install pygame numpy
+pip install pygame
 python pixel_rpg.py
 ```
 
@@ -100,7 +100,7 @@ python pixel_rpg.py
 ------------------
 
 * **No External Assets:** The game runs without any external files (no .png, .wav, etc.).
-* **Procedural Audio:** All sound effects are generated mathematically using numpy.
+* **Procedural Audio:** All sound effects are generated mathematically; pygame is the only dependency.
 * **Settings:** Press F1 to adjust volume, language, and fullscreen settings.
 
 <br>

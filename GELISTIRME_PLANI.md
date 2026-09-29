@@ -376,6 +376,86 @@ Mermiler artık sahibine göre ayrılıyor; oyuncuya hasar veren tek bir yol var
 kurdun çekindiği, yaralı goblinin kaçtığı, düşman mermisinin oyuncuya değdiği ama oyuncunun
 kendi mermisinin değmediği doğrulanıyor.
 
+### ✅ Çökme, sessizlik ve ekipman yuvaları (2026-09-29, kullanıcı geri bildirimi)
+
+Kullanıcı iki sorun bildirdi: envanterde `E` her basışta oyunu çökertiyordu ve
+oyundan hiç ses gelmiyordu. İkisini kovalarken üçüncü ve dördüncü sorun çıktı.
+
+#### H1 — Envanterde `E` çökmesi
+
+```
+NameError: name 'fT_' is not defined     (pixel_rpg.py:3925, _inv_use_item)
+```
+
+Yerelleştirme geçişinde bir arama-değiştirme f-string'i yutmuş: `f"Giyildi!"`
+→ `fT_("ui.equipped_msg")`. Dört yerde aynı kaza vardı. Sözdizimi geçerli
+olduğu için ne import ne de 106 test bunu gördü — hata ancak o satır
+**çalışınca** ortaya çıkıyordu.
+
+Tek tek düzeltmek yetmezdi; aynı kaza başka yerde de olabilirdi. Modülün
+tamamı artık `symtable` ile taranıyor: bir fonksiyon modülde var olmayan bir
+global ismi kullanıyorsa test kırılıyor. Tarayıcının kendisi de test ediliyor
+(bilinen bir yazım hatasını yakalayabiliyor mu?).
+
+#### H2 — Oyunda hiç ses yok
+
+Asıl neden kodun içinde saklıydı:
+
+```python
+def _make(cls, ...):
+    try:
+        import numpy as np          # <-- kurulu degil
+        ...
+    except Exception: return None   # <-- hata sessizce yutuluyor
+```
+
+`numpy` kurulu olmadığı için **18 efektin ve 7 müzik temasının hepsi** `None`
+dönüyor, ses bankası boş kalıyor ve oyun sessizce susuyordu. Ses ayarları
+(80/80/60) sorunun kaynağı değildi.
+
+| Konu | Karar |
+|---|---|
+| Çözüm | numpy kurmak yerine sentez **saf Python**'a taşındı: örnekler stdlib `array` ile üretilip `mixer.Sound(buffer=...)`e veriliyor |
+| Neden | Oyun ek bağımlılık istemiyor, PyInstaller çıktısı küçük kalıyor, `requirements.txt` yalnız pygame |
+| Biçim | Mixer'in **gerçekten açtığı** hız/kanal `get_init()` ile okunuyor; cihaz 48 kHz açarsa ses tiz çalmıyor |
+| Sessizlik artık sessiz değil | Hiçbir ses üretilemezse oyun nedenini `stderr`'e yazıyor ve `_fail` alanında tutuyor |
+| Ek iyileştirme | Akorlara 6 ms giriş/çıkış rampası — eskiden her akor "tık" ile kesiliyordu |
+| Maliyet | Açılışta 194 ms (toplam açılış 361 ms). Müzik teması ilk çalışında 50-90 ms, sonra önbellekten |
+
+#### H3 — Yeni karakterde bot/muska takmak çöküyordu
+
+Yeni testler yazılırken çıktı. Yuvalar 3'ten 5'e çıkarılmıştı ama
+`PlayerStats.__init__` hâlâ elle `{"weapon","armor","ring"}` yazıyordu:
+
+```python
+self.equipment = {"weapon":None,"armor":None,"ring":None}   # boots/amulet YOK
+```
+
+Yani **yeni başlayan** bir karakterde hız botu ya da mana taşı takmak
+`KeyError` veriyordu. Kayıttan yüklenen oyunlarda sorun yoktu (yükleyici beş
+yuvayı da kuruyor), bu yüzden kullanıcı henüz çarpmamıştı. Sözlük artık
+`EQUIP_SLOTS`'tan türetiliyor — iki liste bir daha ayrışamaz.
+
+#### H4 — Sınıfına uymayan ekipman eşyayı yok ediyordu
+
+`equip()` hem "yuvadan çıkan eşya"yı hem de hata metnini **aynı dönüş
+değerinde** taşıyordu. Büyücüyle plaka zırh giymeye çalışınca:
+
+```
+önce : ['plate_mail']
+sonra: ['Bu ekipmani mage kullanamaz']     <-- zirh yok oldu
+```
+
+Çağıran hata cümlesini eşya sanıp envantere koyuyordu. Neden artık ayrı bir
+`equip_reason()` metodunda ve çeviri anahtarı döndürüyor; `equip()` yalnız
+yuvadan çıkan eşyayı veriyor. Ayrıca takılı eşyayı tekrar seçmek onu artık
+envantere geri koyuyor (eskiden kayboluyordu).
+
+`tests/test_inventory.py` (13) + `tests/test_sound.py` (12) +
+`tests/test_source_sanity.py` (8): her sınıfın her eşyayı kullanabildiği, ses
+bankasının dolu **ve sessiz olmadığı**, beş yuvanın bağımsız çalıştığı ve
+modülde tanımsız isim kalmadığı doğrulanıyor.
+
 ### ⬜ Faz 5 — İçerik derinliği
 - [x] İ5 (yarısı) — görev işaretçileri **yapıldı**; mini harita kaldı
 - [x] İ7 — dükkân ve ekonomi **yapıldı**
@@ -410,6 +490,8 @@ kendi mermisinin değmediği doğrulanıyor.
 | 2026-09-28 | — | Sprite'lara gölge+kontur+ayrık animasyon; düşman ve NPC çizimleri yenilendi | `tools/sprite_sheet.py` ile göz denetimi |
 | 2026-09-28 | — | Yan görev tablosu: 3 → 8 görev, ödüller, `!` işaretçileri | 11 yeni test; toplam 88 test |
 | 2026-09-29 | 5 | Dükkân sistemi (demirci + hancı, al/sat/konakla) ve düşman davranış çeşitliliği | 18 yeni test; toplam 106 test |
+| 2026-09-29 | — | **Oyun testi geri bildirimi:** envanterde `E` çökmesi (`fT_`) ve oyunda hiç ses olmaması | İkisi de düzeltildi; ses numpy'sız sentezle çalışıyor |
+| 2026-09-29 | — | Testler iki hata daha buldu: yeni karakterde bot/muska `KeyError`, uymayan ekipman eşyayı yok ediyor | 33 yeni test; toplam 139 test |
 
 ---
 
@@ -421,3 +503,7 @@ kendi mermisinin değmediği doğrulanıyor.
 | Oyun döngüsü `pygame.display.flip` kancalanarak sürülüyor | `Game.run` tek parça sonsuz döngü; kaynak kodu değiştirmeden test etmenin en az müdahaleci yolu. Faz 5'te `update`/`draw` ayrımı yapılınca kanca kaldırılabilir |
 | Testlerde `SDL_VIDEODRIVER=dummy` | Pencere açılmadan gerçek kare çizimi; CI'da da çalışır |
 | Testler `CFG.save`'i devre dışı bırakır | Test koşumu kullanıcının `settings.json` dosyasını bozmasın |
+| Ses sentezi numpy yerine saf Python | numpy kurulu değildi ve oyun bu yüzden sessizdi. Bağımlılık eklemek yerine stdlib `array` ile üretmek hem kurulumu hem paketlemeyi basit tutuyor; açılış maliyeti 194 ms |
+| Üretilemeyen ses artık sessizce yutulmuyor | Asıl hata `except Exception: return None` yüzünden aylarca görünmedi. Ses bankası boş kalırsa neden `stderr`'e yazılıyor |
+| Yuva/eşya listeleri tek kaynaktan türetiliyor | `EQUIP_SLOTS` elle kopyalandığı için yuva eklenince `PlayerStats` güncellenmeden kalmıştı |
+| `symtable` ile tanımsız isim taraması | `fT_` gibi yazım hataları sözdizimi denetiminden geçiyor; ancak o satır çalışınca patlıyor. Tarama, oynamadan yakalıyor |
