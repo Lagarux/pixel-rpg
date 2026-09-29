@@ -456,8 +456,32 @@ envantere geri koyuyor (eskiden kayboluyordu).
 bankasının dolu **ve sessiz olmadığı**, beş yuvanın bağımsız çalıştığı ve
 modülde tanımsız isim kalmadığı doğrulanıyor.
 
+### ✅ Mini harita (2026-09-29)
+
+Faz 5'in kalan içerik maddesi. Sağ üst köşede, `M` ile açılıp kapanıyor,
+tercih ayarlarda saklanıyor (F1 → Mini Harita).
+
+| Konu | Karar |
+|---|---|
+| Renkler | Elle renk tablosu yok: her kare türünün rengi **asıl dokusunun ortalaması**. Doku değişirse mini harita kendiliğinden uyuyor |
+| Okunabilirlik | Ortalamalar olduğu gibi kullanılınca harita okunmuyordu — oyunun paleti koyu. Yürünen kareler ×1.7 açılıyor, engeller ×0.45 koyulaşıyor. Amaç sadakat değil, **yolun görünmesi** |
+| İşaretler | Mor = çıkışlar, altın = sandıklar, camgöbeği = NPC, kırmızı = yaşayan düşman, beyaz nabız = oyuncu |
+| Başarım | Zemin harita başına bir kez çizilip önbelleğe alınıyor; her karede yalnız işaretler çiziliyor |
+| Bayatlama | Sandık karesi açılınca zemine dönüşüyor. Zemin katmanında sandıklar **hiç** çizilmiyor, işaret olarak çiziliyor — önbellek bayatlamıyor |
+
+**Yerleşim çakışması:** Mini harita ilk konulduğunda sağ üstteki kontrol
+ipuçlarını tamamen örtüyordu — ekran görüntüsünde görüldü. İpuçları sol HUD
+panelinin altına taşındı (ve `[M]Harita` satırı eklendi). Çakışmayı kalıcı
+yakalamak için iki katman ayrı yüzeylere çizilip ortak boyanan piksel
+sayılıyor; renk tahmini gerekmiyor.
+
+`tests/test_minimap.py` (13): her haritanın ekrana sığdığı, yürünen karelerin
+engellerden parlak olduğu, oyuncu noktasının doğru yöne kaydığı, ölen düşman
+ve açılan sandık işaretlerinin kaybolduğu, zeminin önbelleğe alındığı ve
+panelin HUD ile yetenek çubuğunu örtmediği doğrulanıyor.
+
 ### ⬜ Faz 5 — İçerik derinliği
-- [x] İ5 (yarısı) — görev işaretçileri **yapıldı**; mini harita kaldı
+- [x] İ5 — görev işaretçileri **ve mini harita yapıldı**
 - [x] İ7 — dükkân ve ekonomi **yapıldı**
 - [x] İ8 — düşman davranış çeşitliliği **yapıldı** (melee / ranged / skittish / pack)
 - [ ] B10 — yerelleştirmeyi tamamla
@@ -492,6 +516,7 @@ modülde tanımsız isim kalmadığı doğrulanıyor.
 | 2026-09-29 | 5 | Dükkân sistemi (demirci + hancı, al/sat/konakla) ve düşman davranış çeşitliliği | 18 yeni test; toplam 106 test |
 | 2026-09-29 | — | **Oyun testi geri bildirimi:** envanterde `E` çökmesi (`fT_`) ve oyunda hiç ses olmaması | İkisi de düzeltildi; ses numpy'sız sentezle çalışıyor |
 | 2026-09-29 | — | Testler iki hata daha buldu: yeni karakterde bot/muska `KeyError`, uymayan ekipman eşyayı yok ediyor | 33 yeni test; toplam 139 test |
+| 2026-09-29 | 5 | Mini harita (`M`), kontrol ipuçları sol panelin altına taşındı | 13 yeni test; toplam 152 test |
 
 ---
 
@@ -506,4 +531,5 @@ modülde tanımsız isim kalmadığı doğrulanıyor.
 | Ses sentezi numpy yerine saf Python | numpy kurulu değildi ve oyun bu yüzden sessizdi. Bağımlılık eklemek yerine stdlib `array` ile üretmek hem kurulumu hem paketlemeyi basit tutuyor; açılış maliyeti 194 ms |
 | Üretilemeyen ses artık sessizce yutulmuyor | Asıl hata `except Exception: return None` yüzünden aylarca görünmedi. Ses bankası boş kalırsa neden `stderr`'e yazılıyor |
 | Yuva/eşya listeleri tek kaynaktan türetiliyor | `EQUIP_SLOTS` elle kopyalandığı için yuva eklenince `PlayerStats` güncellenmeden kalmıştı |
+| Mini harita renkleri doku ortalamasından | Elle tutulan bir renk tablosu, doku değiştiğinde sessizce yanlış kalır. Ortalama almak tabloyu gereksiz kılıyor; okunabilirlik için yalnız parlaklık ayarı uygulanıyor |
 | `symtable` ile tanımsız isim taraması | `fT_` gibi yazım hataları sözdizimi denetiminden geçiyor; ancak o satır çalışınca patlıyor. Tarama, oynamadan yakalıyor |

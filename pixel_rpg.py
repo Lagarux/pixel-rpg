@@ -9,6 +9,7 @@ Kontroller:
   Space          -> Sınıfa Özel Saldırı
   1 2 3 4        -> Yetenek Kullan
   I              -> Envanter / Ekipman
+  M              -> Mini Harita
   Q              -> Görev Günlüğü
   U              -> Nitelik Dağıtımı
   F1             -> Ayarlar
@@ -69,6 +70,7 @@ class Settings:
     DEFAULTS = {
         "fullscreen": False, "master_vol": 80, "sfx_vol": 80,
         "music_vol": 60, "language": "TR", "show_fps": False,
+        "minimap": True,
     }
     def __init__(self):
         self.data = dict(self.DEFAULTS)
@@ -2886,6 +2888,7 @@ class UI:
             (T_("set_music"),      f"%d%%" % CFG.music_vol,   "music_vol"),
             (T_("set_language"),   Locale.label(Locale.current()),  "language"),
             (T_("set_fps"),        T_("set_on") if CFG.show_fps else T_("set_off"), "show_fps"),
+            (T_("set_minimap"),    T_("set_on") if CFG.minimap else T_("set_off"), "minimap"),
         ]
         for i,(label,val,_) in enumerate(opts):
             oy=py+56+i*44
@@ -2902,6 +2905,61 @@ class UI:
                 self.txt(surf,">",px+pw-10,oy+10,(80,180,80),self.fss)
 
         self.txt(surf,T_("set_back"),px+16,py+ph-28,GR,self.fss)
+
+    # ── Mini harita ──────────────────────────────────────────────
+    MINI_W,MINI_H = 168,140      # panel içindeki en büyük çizim alanı
+    _mini_terrain:Dict={}        # (harita adı, ölçek) -> statik zemin yüzeyi
+    _mini_col:Dict={}            # kare türü -> mini haritadaki renk
+
+    @classmethod
+    def mini_tile_col(cls,k):
+        """Karenin mini haritadaki rengi: asıl doku karesinin ortalaması.
+
+        Elle renk tablosu tutmuyoruz; doku değişirse mini harita kendiliğinden
+        uyuyor. Oyunun paleti koyu olduğu için ortalamalar olduğu gibi
+        kullanılınca mini harita okunmuyordu: yürünen kareler açılıyor,
+        yürünemeyenler koyulaşıyor. Amaç sadakat değil, yolun görünmesi.
+        """
+        if k not in cls._mini_col:
+            try: c=tuple(pygame.transform.average_color(PA.tile(k))[:3])
+            except Exception: c=(90,90,90)
+            f=1.7 if k in WALKABLE else 0.45
+            cls._mini_col[k]=tuple(min(255,int(v*f)) for v in c)
+        return cls._mini_col[k]
+
+    def draw_minimap(self,surf,m,player,tick):
+        """Sağ üstte mini harita. Zemin önbellekte; yalnız işaretler her karede."""
+        ppt=max(2,min(self.MINI_W//m.w,self.MINI_H//m.h))   # kare başına piksel
+        key=(m.name,ppt)
+        base=self._mini_terrain.get(key)
+        if base is None:
+            flat=pygame.Surface((m.w,m.h))
+            for ty in range(m.h):
+                row=m.tiles[ty]
+                for tx in range(m.w):
+                    t=row[tx]
+                    # Sandık karesi açılınca zemine dönüşüyor: zemini sabit
+                    # tutup sandığı işaret olarak çiziyoruz, önbellek bayatlamasın.
+                    flat.set_at((tx,ty),self.mini_tile_col(T.FLOOR if t==T.CHEST else t))
+            base=pygame.transform.scale(flat,(m.w*ppt,m.h*ppt))
+            self._mini_terrain[key]=base
+        mw,mh=base.get_size();pad=5
+        px=SW-mw-pad*2-6;py=6
+        self.panel(surf,px,py,mw+pad*2,mh+pad*2)
+        surf.blit(base,(px+pad,py+pad))
+
+        def dot(tx,ty,col,grow=0):
+            pygame.draw.rect(surf,col,(px+pad+tx*ppt-grow,py+pad+ty*ppt-grow,
+                                       ppt+grow*2,ppt+grow*2))
+
+        for (tx,ty) in m.transitions: dot(tx,ty,UI_PR)     # çıkışlar
+        for (tx,ty) in m.chests:      dot(tx,ty,UI_GD)     # sandıklar
+        for n in m.npcs:              dot(n.tx,n.ty,UI_CY)
+        for e in m.enemies:
+            if e.alive:               dot(e.tx,e.ty,UI_RD)
+        # Oyuncu: nabız gibi büyüyen beyaz nokta — kalabalıkta kaybolmasın
+        dot(player.tx,player.ty,WH,1 if (tick//20)%2 else 0)
+        pygame.draw.rect(surf,UI_BD,(px+pad,py+pad,mw,mh),1)
 
     def draw_mini_quests(self,surf,flags,player_cls):
         """Yan panel: devam eden yan görevler (en fazla 4 tanesi)."""
@@ -2964,11 +3022,14 @@ class UI:
         atk_name=class_text(st.char_class,"atk_name")
         at=self.fsm.render(f"{T_('atk_label')} {atk_name}",True,(120,160,120))
         surf.blit(at,(SW//2-at.get_width()//2,42))
-        # Sağ üst kontroller
-        tips=[T_("ui.key_move"),T_("ui.key_interact"),T_("ui.key_attack"),T_("ui.key_ability"),T_("ui.key_inventory"),T_("ui.key_quests"),T_("ui.key_settings"),T_("ui.key_fullscreen")]
+        # Kontrol ipuçları: sol panelin altında. Eskiden sağ üstteydi ama mini
+        # harita da o köşeyi istiyor ve ipuçlarını tamamen örtüyordu.
+        tips=[T_("ui.key_move"),T_("ui.key_interact"),T_("ui.key_attack"),T_("ui.key_ability"),
+              T_("ui.key_inventory"),T_("ui.key_quests"),T_("ui.key_minimap"),
+              T_("ui.key_settings"),T_("ui.key_fullscreen")]
         for i,tip in enumerate(tips):
             t2=self.fsm.render(tip,True,(55,65,75))
-            surf.blit(t2,(SW-t2.get_width()-6,8+i*13))
+            surf.blit(t2,(10,144+i*13))
 
     SHOP_ROWS = 7        # ekranda aynı anda görünen satır
 
@@ -4093,7 +4154,7 @@ class Game:
 
                     # ── Settings overlay açıkken ──
                     if self.settings_open:
-                        opts_s=["fullscreen","master_vol","sfx_vol","music_vol","language","show_fps"]
+                        opts_s=["fullscreen","master_vol","sfx_vol","music_vol","language","show_fps","minimap"]
                         if k==pygame.K_ESCAPE or k==pygame.K_F1:
                             self.settings_open=False; CFG.save(); SoundManager.play("menu_back")
                         elif k in(pygame.K_UP,pygame.K_w):
@@ -4108,6 +4169,7 @@ class Game:
                             elif key2=="music_vol": CFG.data["music_vol"]=min(100,CFG.data.get("music_vol",60)+10); SoundManager.update_music_volume()
                             elif key2=="language":  self._cycle_language(+1)
                             elif key2=="show_fps":  CFG.data["show_fps"]=not CFG.data.get("show_fps",False)
+                            elif key2=="minimap":   CFG.data["minimap"]=not CFG.data.get("minimap",True)
                             CFG.save(); SoundManager.play("menu_sel")
                         elif k in(pygame.K_LEFT,pygame.K_a):
                             key2=opts_s[self.settings_sel]
@@ -4257,6 +4319,9 @@ class Game:
                             self.settings_open=True; self.settings_sel=0; SoundManager.play("open_ui")
                         elif k==pygame.K_i:
                             self.inv_sel=0; self.inv_tab=0; self.state="inventory"; SoundManager.play("open_ui")
+                        elif k==pygame.K_m:      # mini haritayı aç/kapat
+                            CFG.data["minimap"]=not CFG.data.get("minimap",True)
+                            CFG.save(); SoundManager.play("menu_sel")
                         elif k==pygame.K_q: self.state="quest_log"; SoundManager.play("open_ui")
                         elif k==pygame.K_e: self._interact()
                         elif k==pygame.K_SPACE: self._auto_attack()
@@ -4376,6 +4441,8 @@ class Game:
                 self.screen.blit(fp,(SW-fp.get_width()-4,SH-fp.get_height()-4))
             # Mini görev yan paneli (sadece playing)
             if self.state=="playing" and self.player and not self.settings_open:
+                if CFG.minimap:
+                    self.ui.draw_minimap(self.screen,self.cur_map,self.player,self.tick)
                 self.ui.draw_mini_quests(self.screen,self.flags,self.player.stats.char_class)
             pygame.display.flip()
 
