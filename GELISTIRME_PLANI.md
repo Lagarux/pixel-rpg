@@ -30,6 +30,7 @@ python tests/test_gameplay_smoke.py
 | `tests/test_save_load.py` | Kayıt/yükleme turu ve bozuk kayda dayanıklılık |
 | `tests/test_atmosphere.py` | Dekor, ışık halesi, NPC gezinmesi, daktilo diyalog |
 | `tests/test_locales.py` | Dil dosyaları: eksik anahtar, yer tutucu, RTL, çevrilmemiş metin |
+| `tests/test_shop.py` | Dükkân: alış/satış, altın kontrolü, sınıf kısıtı, konaklama |
 | `tools/` | Tek seferlik metin çıkarma betikleri ve tüm dillerin kaynağı (`locales_data.py`) |
 | `tests/screenshots/` | Test çıktısı kareler (her koşumda yeniden üretilir) |
 
@@ -341,10 +342,44 @@ Yan görev sayısı **3 → 8**, üstelik artık **ödül veriyorlar** (önceden
 yan görev ilerlemesi sıfırlanıyor, ödüller tekrar verilebiliyordu. Yükleyici bu iki önekli
 anahtarı da kabul ediyor artık; regresyon testi eklendi.
 
+### ✅ Ekonomi ve düşman davranışları (2026-09-29)
+
+#### İ7 — Dükkân
+
+Altın toplanıyordu ama harcanacak yer yoktu; yan görev ödülleri de altın verdiği için
+ekonominin işlevsizliği daha görünür hâle gelmişti.
+
+| Konu | Karar |
+|---|---|
+| Dükkâncılar | **Demirci Boran** silah/zırh satıyor, **Hancı Mira** iksir/aksesuar satıyor ve konaklama sunuyor (18 altın → HP+MP tam dolar) |
+| Erişim | Dükkâncıya `E` basmak doğrudan dükkânı açıyor. Üstlerinde altın para işareti var — görev `!` işaretinden ayrı |
+| Arayüz | `[TAB]` ile Al/Sat sekmesi, ok tuşlarıyla seçim, `E` onay, `R` konaklama. Sınıfına uymayan ekipman **gri** gösteriliyor — parayı boşa vermeyesin |
+| Fiyatlar | İksir 28-34, ekipman 85-280. Satış oranı %40 → alıp satarak para basılamıyor |
+
+#### İ8 — Düşman davranışları
+
+Çizimleri ayrışmıştı ama oynanışta hepsi aynı şekilde kovalıyordu. Artık dört davranış var:
+
+| Davranış | Kimde | Ne yapar |
+|---|---|---|
+| `melee` | slime, iskelet, domuz, golem, gölge şövalyesi | Yanaşır, telegraflı vurur (eski davranış) |
+| `ranged` | **akrep**, Malachar | 5-7 kare mesafeden mermi atar; oyuncu yanaşınca geri çekilir (Malachar hem yakın hem uzak dövüşür) |
+| `skittish` | **goblin** | Canı %30'un altına düşünce kaçar |
+| `pack` | **kurt, buz kurdu** | Yalnızken 2 karede durur, yanaşmaya çekinir; yanında sürüsü varsa cesaretlenip saldırır |
+
+**Testin yakaladığı hata:** Menzilli düşmanlara mermi verdim ama `_update_projs` yalnızca
+düşman çarpışmalarını kontrol ediyordu — **düşman mermileri oyuncunun içinden geçip gidiyordu**.
+Mermiler artık sahibine göre ayrılıyor; oyuncuya hasar veren tek bir yol var
+(`_player_take_hit`), yakın dövüş de aynı yolu kullanıyor.
+
+`tests/test_shop.py` (11) + davranış testleri (7): sürüdeki kurtların yanaştığı ama yalnız
+kurdun çekindiği, yaralı goblinin kaçtığı, düşman mermisinin oyuncuya değdiği ama oyuncunun
+kendi mermisinin değmediği doğrulanıyor.
+
 ### ⬜ Faz 5 — İçerik derinliği
 - [x] İ5 (yarısı) — görev işaretçileri **yapıldı**; mini harita kaldı
-- [ ] İ7 — dükkân ve ekonomi
-- [ ] İ8 — düşman davranış çeşitliliği (çizim ayrıştı, davranış hâlâ tek tip)
+- [x] İ7 — dükkân ve ekonomi **yapıldı**
+- [x] İ8 — düşman davranış çeşitliliği **yapıldı** (melee / ranged / skittish / pack)
 - [ ] B10 — yerelleştirmeyi tamamla
 - [ ] T1, T2 — modülerleştirme
 - **Kabul:** Kullanılmayan çeviri anahtarı sayısı 21 → 0; tek dosya birden fazla modüle bölünmüş, testler geçiyor
@@ -374,6 +409,7 @@ anahtarı da kabul ediyor artık; regresyon testi eklendi.
 | 2026-09-28 | — | Tüm fazlar `main`'e alındı (fast-forward) | 5 dal zinciri |
 | 2026-09-28 | — | Sprite'lara gölge+kontur+ayrık animasyon; düşman ve NPC çizimleri yenilendi | `tools/sprite_sheet.py` ile göz denetimi |
 | 2026-09-28 | — | Yan görev tablosu: 3 → 8 görev, ödüller, `!` işaretçileri | 11 yeni test; toplam 88 test |
+| 2026-09-29 | 5 | Dükkân sistemi (demirci + hancı, al/sat/konakla) ve düşman davranış çeşitliliği | 18 yeni test; toplam 106 test |
 
 ---
 

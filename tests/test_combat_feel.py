@@ -19,6 +19,8 @@ import pygame
 
 from harness import load_game_module
 
+TILE_HALF = 16
+
 MOD = None
 
 
@@ -311,3 +313,97 @@ class TestQuestMarkers(unittest.TestCase):
                 names.add(npc.name)
         for key in MOD.NPC_MARKS:
             self.assertIn(key, names, f"{key} hicbir haritada yok")
+
+
+class TestEnemyBehaviors(unittest.TestCase):
+    """I8: her dusman turunun kendi davranisi olmali."""
+
+    def _game(self):
+        g = MOD.Game.__new__(MOD.Game)
+        g.cur_map = _blank_map(24, 24)
+        g.maps = {"test": g.cur_map}
+        g.cur_key = "test"
+        g.state = "playing"
+        g.ps = MOD.PS()
+        g.dmg_nums = []
+        g.hit_fx = []
+        g.projectiles = []
+        g.shake = g.shake_mag = g.hit_stop = 0
+        g.flags = {"ch": 1}
+        g.player = MOD.Player(10, 10, MOD.PlayerStats("warrior"))
+        return g
+
+    def test_every_enemy_kind_has_a_behavior(self):
+        kinds = set()
+        for build in (MOD.build_ashveil, MOD.build_dark_forest, MOD.build_ruins,
+                      MOD.build_desert, MOD.build_ice_cave, MOD.build_shadow_castle,
+                      MOD.build_south_meadow, MOD.build_rocky_pass, MOD.build_misty_swamp):
+            for e in build().enemies:
+                kinds.add(e.kind)
+        for k in kinds:
+            with self.subTest(kind=k):
+                self.assertIn(k, MOD.BEHAVIORS, f"{k} icin davranis tanimlanmamis")
+
+    def test_ranged_enemy_fires_a_projectile(self):
+        g = self._game()
+        scorp = MOD.Enemy(14, 10, "scorpion", 40, 8, 10, agro=10)
+        g.cur_map.enemies.append(scorp)
+        for _ in range(MOD.Game.ENEMY_WINDUP + 5):
+            g._update_enemies()
+        self.assertTrue(g.projectiles, "menzilli dusman ates etmedi")
+        self.assertEqual(g.projectiles[0].owner, "enemy")
+
+    def test_enemy_projectile_damages_player(self):
+        """Dusman mermisi oyuncuyu vurmali -- once yalnizca dusmanlara carpiyordu."""
+        g = self._game()
+        p = g.player
+        hp0 = p.stats.hp
+        pr = MOD.Projectile(float(p.px + TILE_HALF), float(p.py + TILE_HALF),
+                            1.0, 0.0, 1.0, 20, "shadow_bolt", "enemy")
+        g.projectiles.append(pr)
+        g._update_projs()
+        self.assertLess(p.stats.hp, hp0, "dusman mermisi hasar vermedi")
+
+    def test_player_projectile_does_not_hurt_player(self):
+        g = self._game()
+        p = g.player
+        hp0 = p.stats.hp
+        pr = MOD.Projectile(float(p.px + TILE_HALF), float(p.py + TILE_HALF),
+                            1.0, 0.0, 1.0, 20, "arrow", "player")
+        g.projectiles.append(pr)
+        g._update_projs()
+        self.assertEqual(p.stats.hp, hp0, "oyuncu kendi mermisinden hasar aldi")
+
+    def test_skittish_enemy_runs_when_wounded(self):
+        g = self._game()
+        gob = MOD.Enemy(12, 10, "goblin", 100, 5, 10, agro=10)
+        gob.hp = 10                      # canı azaldı
+        g.cur_map.enemies.append(gob)
+        start = abs(gob.tx - g.player.tx)
+        for _ in range(120):
+            g._update_enemies()
+            gob.advance_step()
+        self.assertGreater(abs(gob.tx - g.player.tx), start, "urkek dusman kacmadi")
+
+    def test_lone_pack_enemy_keeps_distance(self):
+        """Yalniz kurt yanasmaya cekinmeli."""
+        g = self._game()
+        wolf = MOD.Enemy(13, 10, "wolf", 40, 5, 10, agro=10)
+        g.cur_map.enemies.append(wolf)
+        for _ in range(150):
+            g._update_enemies()
+            wolf.advance_step()
+        self.assertGreaterEqual(max(abs(wolf.tx - 10), abs(wolf.ty - 10)), 2,
+                                "yalniz kurt yine de yanasti")
+
+    def test_wolves_in_a_pack_do_close_in(self):
+        """Yaninda dostu olan kurt cesaretlenip yanasmali."""
+        g = self._game()
+        w1 = MOD.Enemy(13, 10, "wolf", 40, 5, 10, agro=10)
+        w2 = MOD.Enemy(14, 11, "wolf", 40, 5, 10, agro=10)
+        g.cur_map.enemies += [w1, w2]
+        for _ in range(200):
+            g._update_enemies()
+            w1.advance_step(); w2.advance_step()
+        closest = min(max(abs(w.tx - 10), abs(w.ty - 10)) for w in (w1, w2))
+        self.assertLessEqual(closest, 1, "surudeki kurtlar yanasmadi")

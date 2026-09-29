@@ -623,6 +623,65 @@ QUESTS = {
     6:("Son Savas",        "Golge Kalesinde Malachar'i yen!"),
 }
 
+
+
+# ─── Düşman davranışları ─────────────────────────────────────────
+# Önceden bütün düşmanlar aynı şekilde kovalıyordu; çizimleri farklı
+# olsa da oynanışta hepsi aynıydı. Artık her türün bir davranışı var.
+#   melee   : yanaşıp vurur (varsayılan)
+#   ranged  : uzaktan mermi atar, oyuncu yaklaşırsa geri çekilir
+#   skittish: canı azalınca kaçar
+#   pack    : yalnızken çekingen, yanında dostu varken cesur
+BEHAVIORS = {
+    "slime":        {"type":"melee"},
+    "goblin":       {"type":"skittish","flee_hp":0.3},
+    "skeleton":     {"type":"melee"},
+    "wolf":         {"type":"pack","pack_range":6},
+    "ice_wolf":     {"type":"pack","pack_range":6},
+    "boar":         {"type":"melee"},
+    "golem":        {"type":"melee"},
+    "scorpion":     {"type":"ranged","range":5,"cool":95,"proj":"shadow_bolt"},
+    "shadow_knight":{"type":"melee"},
+    "malachar":     {"type":"ranged","range":7,"cool":70,"proj":"shadow_bolt","melee_too":True},
+}
+
+def behavior(kind)->Dict:
+    return BEHAVIORS.get(kind,{"type":"melee"})
+
+# ─── Ekonomi ─────────────────────────────────────────────────────
+# Altın toplanıyordu ama harcanacak yer yoktu. Fiyatlar başlangıç
+# altınına (20) ve yan görev ödüllerine (40-120) göre ayarlandı.
+ITEM_PRICES = {
+    "hp_pot":28,"mp_pot":34,
+    "iron_sword":110,"steel_sword":260,"fine_bow":120,"shadow_bow":280,
+    "arcane_staff":115,"elder_staff":270,"holy_scepter":130,
+    "leather_armor":85,"plate_mail":240,"mage_robe":95,"healer_robe":100,"scout_coat":105,
+    "swift_boots":90,"power_ring":95,"mage_focus":110,"mana_gem":100,
+    "warrior_crest":115,"archer_token":105,
+}
+SELL_RATE = 0.4     # satarken alınan oran (dükkân kâr eder)
+REST_PRICE = 18     # handa konaklama
+
+def item_price(key)->int:
+    return ITEM_PRICES.get(key,20)
+
+def sell_price(key)->int:
+    return max(1,int(item_price(key)*SELL_RATE))
+
+# Hangi NPC neyi satıyor
+SHOPS = {
+    "npc.demirci_boran":{
+        "stock":["iron_sword","steel_sword","fine_bow","shadow_bow","arcane_staff",
+                 "elder_staff","holy_scepter","leather_armor","plate_mail","mage_robe",
+                 "healer_robe","scout_coat"],
+        "rest":False,
+    },
+    "npc.hanci_mira":{
+        "stock":["hp_pot","mp_pot","swift_boots","power_ring","mana_gem"],
+        "rest":True,
+    },
+}
+
 # ─── Yan görevler ────────────────────────────────────────────────
 # Yeni görev eklemek tek satır: ilerleme fonksiyonu (bulunan, hedef)
 # döndürür, tamamlanınca ödül bir kez verilir.
@@ -1506,6 +1565,8 @@ class Enemy(Entity):
         self.agro_range=agro*TILE;self.loot=loot or [];self.is_boss=is_boss
         self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
         self.wind_up=0;self.atk_cd=0   # saldırı telegrafı
+        self.wind_kind="melee"        # hazırlanan saldırının türü
+        self.shoot_cd=0               # menzilli saldırı beklemesi
     def draw(self,surf,cx,cy):
         if not self.alive: return
         bx=int(self.px-cx); by=int(self.py-cy)
@@ -2590,6 +2651,17 @@ class UI:
                 lk=self.fsm.render(f"Sv{ab['level']}",True,(160,80,80))
                 surf.blit(lk,(sx+slot_w//2-1-lk.get_width()//2,sy+17))
 
+    def draw_shop_marker(self,surf,tx,ty,cx,cy,tick):
+        """Dükkâncının üstünde para işareti — alışveriş yapılabildiği belli olsun."""
+        sx=tx*TILE-cx+TILE//2;sy=ty*TILE-cy-24
+        if not(-20<=sx<SW+20 and -20<=sy<SH): return
+        bob=int(abs(math.sin(tick*0.004))*3)
+        pygame.draw.circle(surf,(40,30,10),(sx,sy-bob+6),7)
+        pygame.draw.circle(surf,(235,195,70),(sx,sy-bob+5),6)
+        pygame.draw.circle(surf,(180,140,40),(sx,sy-bob+5),6,1)
+        t=self.fsm.render("$",True,(90,65,15))
+        surf.blit(t,(sx-t.get_width()//2,sy-bob+1))
+
     def draw_quest_marker(self,surf,tx,ty,cx,cy,tick):
         """NPC'nin üstünde altın sarısı ünlem — işi olan NPC belli olsun."""
         sx=tx*TILE-cx+TILE//2;sy=ty*TILE-cy-26
@@ -2847,6 +2919,90 @@ class UI:
             t2=self.fsm.render(tip,True,(55,65,75))
             surf.blit(t2,(SW-t2.get_width()-6,8+i*13))
 
+    SHOP_ROWS = 7        # ekranda aynı anda görünen satır
+
+    def draw_shop(self,surf,player,shop,npc_key,tab,sel,tick,msg=None):
+        """Dükkân: solda satılanlar, sağda çantandakiler.
+
+        Sınıfına uymayan ekipman gri gösterilir — parayı boşa vermeyesin.
+        """
+        self.dim(surf)
+        pw,ph=680,430;px=SW//2-pw//2;py=SH//2-ph//2
+        self.panel(surf,px,py,pw,ph,glow=True)
+        self.txt(surf,T_(npc_key),px+16,py+8,UI_GD,self.flg)
+        gold_s="%s: %d"%(T_("gold"),player.stats.gold)
+        self.txt(surf,gold_s,px+pw-self.fmd.size(gold_s)[0]-16,py+14,UI_GD,self.fmd)
+
+        # Sekmeler
+        tw=150
+        for i,label in enumerate((T_("ui.shop_buy"),T_("ui.shop_sell"))):
+            active=(i==tab)
+            tx0=px+16+i*(tw+6)
+            ts=pygame.Surface((tw,24),pygame.SRCALPHA)
+            ts.fill((*UI_AC,80) if active else (*UI_BD,30))
+            pygame.draw.rect(ts,UI_AC if active else UI_BD,(0,0,tw,24),2)
+            surf.blit(ts,(tx0,py+46))
+            self.txt(surf,label,tx0+8,py+50,UI_AC if active else GR,self.fss,shadow=False)
+            if not active:
+                pulse=int(abs(math.sin(tick*0.005))*80)+140
+                b=self.fsm.render("[TAB]",True,(pulse,pulse,120))
+                surf.blit(b,(tx0+tw-b.get_width()-6,py+52))
+
+        rows=self.shop_rows(player,shop,tab)
+        top=max(0,min(sel-self.SHOP_ROWS//2,len(rows)-self.SHOP_ROWS))
+        y=py+82
+        for i in range(top,min(len(rows),top+self.SHOP_ROWS)):
+            key,price,ok=rows[i]
+            sel_this=(i==sel)
+            rs=pygame.Surface((pw-32,40),pygame.SRCALPHA)
+            rs.fill((*UI_AC,55) if sel_this else (*UI_BD,20))
+            if sel_this: pygame.draw.rect(rs,UI_AC,(0,0,pw-32,40),2)
+            surf.blit(rs,(px+16,y))
+            itm=ALL_ITEMS.get(key)
+            col=itm[1] if itm else WH
+            pygame.draw.rect(surf,col,(px+24,y+8,24,24))
+            pygame.draw.rect(surf,WH,(px+24,y+8,24,24),1)
+            if itm and itm[2]=="equip":
+                surf.blit(PA.equip_icon(itm[3],col),(px+22,y+6))
+            name_col=WH if ok else (95,90,95)
+            self.txt(surf,item_name(key),px+58,y+6,name_col,self.fss)
+            self.txt(surf,item_desc(key) or "",px+58,y+22,GR,self.fsm)
+            ps="%d %s"%(price,T_("gold"))
+            self.txt(surf,ps,px+pw-self.fss.size(ps)[0]-26,y+12,
+                     UI_GD if ok else (120,90,60),self.fss)
+            y+=42
+
+        if not rows:
+            self.txt(surf,T_("ui.shop_empty"),px+30,py+100,GR,self.fss)
+        if len(rows)>self.SHOP_ROWS:
+            self.txt(surf,"%d/%d"%(sel+1,len(rows)),px+pw-70,py+52,GR,self.fsm)
+
+        # Handa konaklama
+        hint=T_("ui.shop_keys_buy") if tab==0 else T_("ui.shop_keys_sell")
+        if shop.get("rest"):
+            self.txt(surf,T_("ui.shop_rest",REST_PRICE),px+16,py+ph-40,UI_CY,self.fss)
+        if msg:
+            self.txt_c(surf,msg[0],px+pw//2,py+ph-62,msg[1],self.fmd)
+        self.txt(surf,hint,px+16,py+ph-20,GR,self.fsm)
+
+    @staticmethod
+    def shop_rows(player,shop,tab):
+        """(anahtar, fiyat, islem yapilabilir mi) listesi."""
+        st=player.stats
+        if tab==0:
+            out=[]
+            for k in shop["stock"]:
+                ok=st.gold>=item_price(k)
+                if k in EQUIP_ITEMS:
+                    cls_set=EQUIP_ITEMS[k][4]
+                    if cls_set and st.char_class not in cls_set: ok=False
+                out.append((k,item_price(k),ok))
+            return out
+        seen=[]
+        for k in player.inventory:
+            if k not in seen: seen.append(k)
+        return [(k,sell_price(k),True) for k in seen]
+
     def draw_quest_log(self,surf,flags,chapter):
         """İki sütun: solda ana hikâye bölümleri, sağda yan görevler.
 
@@ -3001,6 +3157,7 @@ class Game:
         self.levelup_timer=0;self.ch_announce=0
         self.trans_alpha=0;self.pending_trans=None;self.transitioning=False;self.entering_name=""
         self.inv_sel=0;self.inv_tab=0;self.eq_sel=0  # eq_sel: ekipman sekmesi imleci
+        self.shop_npc=None;self.shop_tab=0;self.shop_sel=0;self.shop_msg=None
         self.projectiles:List[Projectile]=[]
         self.settings_sel=0  # Ayarlar menüsü seçimi
         self.settings_open=False
@@ -3008,7 +3165,7 @@ class Game:
         self._pause_sel=0  # Pause menüsü: 0=devam,1=ayarlar,2=ana menu,3=cikis
 
     # Oyun dünyasının (HUD, bildirimler) çizildiği durumlar
-    HUD_STATES = ("playing","dialog","inventory","quest_log","levelup_alloc")
+    HUD_STATES = ("playing","dialog","inventory","quest_log","levelup_alloc","shop")
 
     # Harita → müzik teması eşleşmesi
     MAP_MUSIC = {
@@ -3311,6 +3468,45 @@ class Game:
         if lv: self.levelup_timer=180; SoundManager.play("level_up")
         if e.is_boss and e.kind=="malachar": self.flags["malachar_defeated"]=True;self.state="victory";SoundManager.play("victory")
 
+    def _open_shop(self,npc):
+        self.shop_npc=npc.name;self.shop_tab=0;self.shop_sel=0;self.shop_msg=None
+        self.state="shop";SoundManager.play("open_ui")
+
+    def _shop_rows(self):
+        return UI.shop_rows(self.player,SHOPS[self.shop_npc],self.shop_tab)
+
+    def _shop_confirm(self):
+        """Seçili satırı al ya da sat."""
+        rows=self._shop_rows()
+        if not(0<=self.shop_sel<len(rows)):
+            SoundManager.play("error");return
+        key,price,ok=rows[self.shop_sel]
+        st=self.player.stats
+        if self.shop_tab==0:
+            if not ok:
+                reason="ui.shop_no_gold" if st.gold<price else "ui.shop_wrong_class"
+                self.shop_msg=(T_(reason),UI_RD);SoundManager.play("error");return
+            st.gold-=price;self.player.inventory.append(key)
+            self.shop_msg=(T_("ui.shop_bought",item_name(key)),UI_GN)
+            SoundManager.play("chest")
+        else:
+            if key not in self.player.inventory:
+                SoundManager.play("error");return
+            self.player.inventory.remove(key);st.gold+=price
+            self.shop_msg=(T_("ui.shop_sold",item_name(key),price),UI_GD)
+            SoundManager.play("equip")
+            self.shop_sel=min(self.shop_sel,max(0,len(self._shop_rows())-1))
+
+    def _shop_rest(self):
+        st=self.player.stats
+        if not SHOPS.get(self.shop_npc,{}).get("rest"): return
+        if st.hp>=st.max_hp and st.mp>=st.max_mp:
+            self.shop_msg=(T_("ui.shop_rest_full"),GR);SoundManager.play("error");return
+        if st.gold<REST_PRICE:
+            self.shop_msg=(T_("ui.shop_no_gold"),UI_RD);SoundManager.play("error");return
+        st.gold-=REST_PRICE;st.hp=st.max_hp;st.mp=st.max_mp
+        self.shop_msg=(T_("ui.shop_rested"),UI_GN);SoundManager.play("heal")
+
     def _check_side_quests(self):
         """Tamamlanan yan görevin ödülünü bir kez verir."""
         for sq in SIDE_QUESTS:
@@ -3422,13 +3618,21 @@ class Game:
             if not self.cur_map.walkable(tx,ty): continue
             if pr.frame>140: continue
             hit=False
-            for e in self.cur_map.enemies:
-                if not e.alive: continue
-                er=pygame.Rect(e.px+2,e.py+2,TILE-4,TILE-4)
-                if er.collidepoint(pr.x,pr.y):
-                    self._hit(e,pr.dmg,random.random()<0.08)
-                    if pr.kind=="ice_bolt": e.frozen=max(e.frozen,100)
-                    if not pr.pierce: hit=True;break
+            if pr.owner=="enemy":
+                # Menzilli düşmanların mermisi oyuncuyu vurur.
+                p=self.player
+                if p and p.invincible<=0:
+                    prct=pygame.Rect(p.px+4,p.py+4,TILE-8,TILE-8)
+                    if prct.collidepoint(pr.x,pr.y):
+                        self._player_take_hit(pr.dmg);hit=True
+            else:
+                for e in self.cur_map.enemies:
+                    if not e.alive: continue
+                    er=pygame.Rect(e.px+2,e.py+2,TILE-4,TILE-4)
+                    if er.collidepoint(pr.x,pr.y):
+                        self._hit(e,pr.dmg,random.random()<0.08)
+                        if pr.kind=="ice_bolt": e.frozen=max(e.frozen,100)
+                        if not pr.pierce: hit=True;break
             if hit: continue
             alive.append(pr)
         self.projectiles=alive
@@ -3495,6 +3699,29 @@ class Game:
         while prev[node] is not None and prev[node]!=start: node=prev[node]
         return None if node==goal else node   # bitişikse adım yok, saldırı sırası
 
+    ENEMY_FLEE_DIST = 4      # kaçan düşman bu mesafeye kadar uzaklaşır
+
+    def _enemy_step_to(self,e,tx,ty,spd):
+        """Hedef kareye bir adım; dolu ya da duvarsa adım atmaz."""
+        if not self.cur_map.walkable(tx,ty): return False
+        if any(o.alive and o.tx==tx and o.ty==ty for o in self.cur_map.enemies if o is not e): return False
+        if (tx,ty)==(self.player.tx,self.player.ty): return False
+        e.start_step(tx,ty,spd);return True
+
+    def _enemy_flee(self,e,spd):
+        """Oyuncudan uzaklaşan bir kare dene (önce doğrudan, sonra yanlara)."""
+        p=self.player
+        dx=(1 if e.tx>p.tx else -1) if e.tx!=p.tx else 0
+        dy=(1 if e.ty>p.ty else -1) if e.ty!=p.ty else 0
+        for cand in ((e.tx+dx,e.ty+dy),(e.tx+dx,e.ty),(e.tx,e.ty+dy)):
+            if cand!=(e.tx,e.ty) and self._enemy_step_to(e,cand[0],cand[1],spd): return True
+        return False
+
+    def _pack_mates(self,e,rng):
+        return sum(1 for o in self.cur_map.enemies
+                   if o.alive and o is not e and o.kind==e.kind
+                   and abs(o.tx-e.tx)<=rng and abs(o.ty-e.ty)<=rng)
+
     def _update_enemies(self):
         p=self.player;ppx=p.px+TILE//2;ppy=p.py+TILE//2
         for e in self.cur_map.enemies:
@@ -3506,26 +3733,69 @@ class Game:
             elif e.state=="chase" and dist>e.agro_range*1.5: e.state="idle"
             if e.state!="chase":
                 e.wind_up=0;continue
+
+            bh=behavior(e.kind);btype=bh["type"]
             adjacent=abs(e.tx-p.tx)<=1 and abs(e.ty-p.ty)<=1
+            tile_dist=max(abs(e.tx-p.tx),abs(e.ty-p.ty))
             if e.atk_cd>0: e.atk_cd-=1
+            if e.shoot_cd>0: e.shoot_cd-=1
 
             # ── Saldırı telegrafı: önce hazırlanır, sonra vurur ──
             if e.wind_up>0:
                 e.wind_up-=1
                 if e.wind_up==0:
-                    if adjacent: self._enemy_strike(e,p,ppx,ppy)
+                    if e.wind_kind=="shoot": self._enemy_shoot(e,bh)
+                    elif adjacent: self._enemy_strike(e,p,ppx,ppy)
                     e.atk_cd=self.ENEMY_ATK_CD
                 continue   # hazırlanırken yerinden kıpırdamaz
+
+            spd=max(6,20-p.stats.level*2)
+            if e.kind in("wolf","ice_wolf"): spd=max(4,spd-4)
+            if e.kind=="golem": spd+=8
+
+            # ── Menzilli: uzaktan atış, yaklaşınca geri çekilme ──
+            if btype=="ranged":
+                if adjacent and not bh.get("melee_too"):
+                    e.move_cd-=1
+                    if e.move_cd<=0:
+                        e.move_cd=spd;self._enemy_flee(e,spd)
+                    continue
+                if adjacent and bh.get("melee_too"):
+                    if e.atk_cd<=0:
+                        e.wind_up=self.ENEMY_WINDUP;e.wind_kind="melee"
+                        if e.is_boss: SoundManager.play("boss_alert")
+                    continue
+                if tile_dist<=bh.get("range",5) and e.shoot_cd<=0:
+                    e.wind_up=self.ENEMY_WINDUP;e.wind_kind="shoot"
+                    e.shoot_cd=bh.get("cool",90)
+                    continue
+                # menzil dışındaysa yaklaş
+            # ── Ürkek: canı azalınca kaç ────────────────────────
+            elif btype=="skittish" and e.hp<=e.max_hp*bh.get("flee_hp",0.3):
+                e.move_cd-=1
+                if e.move_cd<=0:
+                    e.move_cd=max(4,spd-3)
+                    if tile_dist<self.ENEMY_FLEE_DIST: self._enemy_flee(e,spd)
+                continue
+            # ── Sürü: yalnızken çekingen ────────────────────────
+            elif btype=="pack" and self._pack_mates(e,bh.get("pack_range",6))==0:
+                if adjacent:
+                    if e.atk_cd<=0:
+                        e.wind_up=self.ENEMY_WINDUP;e.wind_kind="melee"
+                    continue
+                if tile_dist<=2:
+                    e.move_cd-=1
+                    if e.move_cd<=0:
+                        e.move_cd=spd;self._enemy_flee(e,spd)
+                    continue   # yalnız kurt yanaşmaya çekinir
+
             if adjacent:
                 if e.atk_cd<=0:
-                    e.wind_up=self.ENEMY_WINDUP
+                    e.wind_up=self.ENEMY_WINDUP;e.wind_kind="melee"
                     if e.is_boss: SoundManager.play("boss_alert")
                 continue
 
             e.move_cd-=1
-            spd=max(6,20-p.stats.level*2)
-            if e.kind in("wolf","ice_wolf"): spd=max(4,spd-4)
-            if e.kind=="golem": spd+=8
             if e.move_cd<=0:
                 e.move_cd=spd
                 step=self._bfs_step(e,p.tx,p.ty)
@@ -3536,28 +3806,43 @@ class Game:
                     if abs(p.tx-e.tx)>=abs(p.ty-e.ty): ddy=0
                     else: ddx=0
                     step=(e.tx+ddx,e.ty+ddy)
-                nx2,ny2=step
-                if(self.cur_map.walkable(nx2,ny2) and
-                   not any(o.alive and o.tx==nx2 and o.ty==ny2 for o in self.cur_map.enemies if o is not e) and
-                   not(nx2==p.tx and ny2==p.ty)):
-                    e.start_step(nx2,ny2,spd)
+                self._enemy_step_to(e,step[0],step[1],spd)
+
+    def _enemy_shoot(self,e,bh):
+        """Menzilli düşman oyuncuya doğru mermi atar."""
+        p=self.player
+        cx=e.px+TILE//2;cy=e.py+TILE//2
+        dx=(p.px+TILE//2)-cx;dy=(p.py+TILE//2)-cy
+        mag=math.hypot(dx,dy)
+        if mag<=0: return
+        pr=Projectile(float(cx),float(cy),dx/mag,dy/mag,4.0,
+                      max(1,e.atk-1),bh.get("proj","shadow_bolt"),"enemy")
+        self.projectiles.append(pr)
+        SoundManager.play("spell")
 
     ENEMY_WINDUP = 26   # saldırı öncesi hazırlanma (kaçmak için pencere)
     ENEMY_ATK_CD = 14   # iki saldırı arası bekleme
     # 26+14=40 kare: telegraf oncesi ritmin aynisi, ustune kacma penceresi.
 
-    def _enemy_strike(self,e,p,ppx,ppy):
-        """Telegraf tamamlandı: hasar uygula."""
-        if p.invincible>0: return
-        dmg=max(1,e.atk-p.stats.defense+random.randint(-2,3))
+    def _player_take_hit(self,raw,shake=3):
+        """Oyuncuya hasar — yakın dövüş ve düşman mermisi aynı yolu kullanır."""
+        p=self.player
+        if not p or p.invincible>0: return 0
+        dmg=max(1,raw-p.stats.defense+random.randint(-2,3))
         if "holy_shield" in p.stats.buffs:
             sh=p.stats.buffs["holy_shield"]
             if isinstance(sh,int): p.stats.buffs["holy_shield"]=max(0,sh-dmg);dmg=0
-        p.stats.hp-=dmg;p.stats.hp=max(0,p.stats.hp);p.invincible=40
+        p.stats.hp=max(0,p.stats.hp-dmg);p.invincible=40
+        ppx=p.px+TILE//2;ppy=p.py+TILE//2
         self.ps.emit_hit(ppx,ppy)
         self.dmg_nums.append({"x":ppx,"y":ppy-TILE//2,"v":dmg,"l":40,"col":HP_R})
-        if dmg>0: self.add_shake(5 if e.is_boss else 3,10)
+        if dmg>0: self.add_shake(shake,10)
         if p.stats.hp<=0: self.state="gameover";SoundManager.play("death")
+        return dmg
+
+    def _enemy_strike(self,e,p,ppx,ppy):
+        """Telegraf tamamlandı: yakın dövüş hasarı uygula."""
+        self._player_take_hit(e.atk,shake=5 if e.is_boss else 3)
 
     DLG_SPEED = 2   # daktilo: kare başına harf
 
@@ -3592,6 +3877,7 @@ class Game:
         itx,ity=(obj.tx,obj.ty) if kind=="npc" else obj
         for npc in self.cur_map.npcs:
             if npc.tx==itx and npc.ty==ity:
+                if npc.name in SHOPS: self._open_shop(npc);return
                 lines=npc.get_dialog(self.flags);self.dlg_npc=npc;self.dlg_lines=lines
                 self.dlg_page=0;self.dlg_reveal=0;self.state="dialog"
                 if npc.name=="npc.yasli_aldric" and not self.flags["speak_aldric"]:
@@ -3873,6 +4159,20 @@ class Game:
                         elif k==pygame.K_e: self._inv_use_item()
                         elif k in(pygame.K_i,pygame.K_ESCAPE): self.state="playing"
 
+                    elif self.state=="shop":
+                        rows=self._shop_rows()
+                        if k==pygame.K_TAB:
+                            self.shop_tab=1-self.shop_tab;self.shop_sel=0;self.shop_msg=None
+                            SoundManager.play("menu_sel")
+                        elif k in(pygame.K_UP,pygame.K_w):
+                            self.shop_sel=max(0,self.shop_sel-1);SoundManager.play("menu_sel")
+                        elif k in(pygame.K_DOWN,pygame.K_s):
+                            self.shop_sel=min(max(0,len(rows)-1),self.shop_sel+1);SoundManager.play("menu_sel")
+                        elif k in(pygame.K_e,pygame.K_RETURN): self._shop_confirm()
+                        elif k==pygame.K_r: self._shop_rest()
+                        elif k==pygame.K_ESCAPE:
+                            self.state="playing";self.shop_msg=None;SoundManager.play("menu_back")
+
                     elif self.state=="quest_log":
                         if k in(pygame.K_q,pygame.K_ESCAPE): self.state="playing"
 
@@ -3964,6 +4264,9 @@ class Game:
                         if npc_has_quest(_n.name,self.flags):
                             self.ui.draw_quest_marker(self.screen,_n.tx,_n.ty,
                                                       self.cam_x,self.cam_y,self.tick)
+                        elif _n.name in SHOPS:
+                            self.ui.draw_shop_marker(self.screen,_n.tx,_n.ty,
+                                                     self.cam_x,self.cam_y,self.tick)
                     if self.state=="playing":
                         tgt=self._interact_target()
                         if tgt:
@@ -3989,6 +4292,10 @@ class Game:
                                         self.dlg_page+1,total,self.dlg_reveal)
                 elif self.state=="inventory":
                     self.ui.draw_inventory(self.screen,self.player,self.inv_sel,self.inv_tab,self.tick,self.eq_sel)
+                elif self.state=="shop":
+                    self.ui.draw_shop(self.screen,self.player,SHOPS[self.shop_npc],
+                                      self.shop_npc,self.shop_tab,self.shop_sel,
+                                      self.tick,self.shop_msg)
                 elif self.state=="quest_log":
                     self.ui.draw_quest_log(self.screen,self.flags,self.flags["ch"])
                 elif self.state=="levelup_alloc":
