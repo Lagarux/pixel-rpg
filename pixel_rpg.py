@@ -798,9 +798,14 @@ class T:
     DOOR=8;CHEST=9;STAIRS_UP=10;STAIRS_DN=11;CACTUS=12;SNOW=13
     ICE=14;SHADOW=15;DARK_TREE=16;RUINS_WALL=17;PORTAL=18
     SNOW_TREE=19;FARMLAND=20;WHEAT=21;RIVER=22;BRIDGE=23;FENCE=24
+    # ROAD: köy yolu. Yollar eskiden STONE ile çiziliyordu ama STONE mağara
+    # duvarı olduğu için yürünemiyordu — köyün ana yolları birer duvardı.
+    # GATE: harita geçidi. Geçişin kendisi bu kare; kapı/mağara ağzı çiziliyor.
+    ROAD=25;GATE=26
 
 WALKABLE={T.GRASS,T.DIRT,T.SAND,T.SNOW,T.FARMLAND,T.WHEAT,
-          T.FLOOR,T.DOOR,T.STAIRS_UP,T.STAIRS_DN,T.PORTAL,T.BRIDGE,T.ICE}
+          T.FLOOR,T.DOOR,T.STAIRS_UP,T.STAIRS_DN,T.PORTAL,T.BRIDGE,T.ICE,
+          T.ROAD,T.GATE}
 
 # ─── Pixel Art ──────────────────────────────────────────────────
 class PA:
@@ -822,6 +827,27 @@ class PA:
                 for c in range(2):
                     ox=c*16+(r*8%16);oy=r*16
                     pygame.draw.rect(s,ST_L,(ox+1,oy+1,13,13));pygame.draw.rect(s,ST,(ox+1,oy+1,13,13),1)
+        elif k==T.ROAD:
+            s.fill((96,92,86))
+            for r in range(4):
+                for c in range(4):
+                    ox=c*8+(r%2)*4;oy=r*8
+                    pygame.draw.rect(s,(126,122,114),(ox+1,oy+1,6,6))
+                    pygame.draw.rect(s,(74,70,66),(ox+1,oy+1,6,6),1)
+        elif k==T.GATE:
+            # Taş çerçeveli karanlık açıklık. Dört kenarı da aynı: geçit
+            # ister dikey ister yatay olsun, yan yana gelen kareler tek bir
+            # geçit ağzı gibi okunuyor.
+            s.fill((24,20,19))
+            for i in range(4, Tp, 7):          # derinlik hissi için iç gölgeler
+                pygame.draw.line(s,(34,29,27),(i,3),(i,Tp-4),1)
+            pygame.draw.rect(s,(96,88,78),(0,0,Tp,3));pygame.draw.rect(s,(96,88,78),(0,Tp-3,Tp,3))
+            pygame.draw.rect(s,(96,88,78),(0,0,3,Tp));pygame.draw.rect(s,(96,88,78),(Tp-3,0,3,Tp))
+            for i in range(0,Tp,8):            # çerçeve taşlarının derzleri
+                pygame.draw.line(s,(66,60,53),(i,0),(i,2),1)
+                pygame.draw.line(s,(66,60,53),(i,Tp-3),(i,Tp-1),1)
+                pygame.draw.line(s,(66,60,53),(0,i),(2,i),1)
+                pygame.draw.line(s,(66,60,53),(Tp-3,i),(Tp-1,i),1)
         elif k==T.WATER:
             phase=(anim%60)/60;s.fill(WD_)
             for wx in range(0,Tp,6):
@@ -1722,9 +1748,11 @@ class GameMap:
         for (tx,ty),(ddx,ddy,dname) in self.trans_hints.items():
             sx2=tx*TILE-cx;sy2=ty*TILE-cy
             if not(-TILE<=sx2<SW+TILE and -TILE<=sy2<SH+TILE): continue
-            gv=int(abs(math.sin(tick*0.004))*80)+80
+            gv=int(abs(math.sin(tick*0.004))*60)+60
             hs=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
-            hs.fill((gv,gv//2,min(255,gv*2),40))
+            # Geçit karesi zaten kapı gibi çiziliyor; parıltı yalnızca
+            # "burası açık" demek için — eski geniş mor bant gitti.
+            hs.fill((gv,int(gv*0.85),min(255,int(gv*0.45)),26))
             ang_map={(1,0):0,(-1,0):180,(0,-1):90,(0,1):270}
             ang=ang_map.get((ddx,ddy),0)
             # Ok çiz
@@ -1734,7 +1762,7 @@ class GameMap:
             rad=_m.radians(ang)
             rot_pts=[(int(cx2+(px-cx2)*_m.cos(rad)-(py-cy2)*_m.sin(rad)),
                       int(cy2+(px-cx2)*_m.sin(rad)+(py-cy2)*_m.cos(rad))) for px,py in pts]
-            pygame.draw.polygon(hs,(min(255,gv+120),160,255,min(200,gv+120)),rot_pts)
+            pygame.draw.polygon(hs,(255,min(255,gv+150),min(255,gv+40),min(210,gv+110)),rot_pts)
             surf.blit(hs,(sx2,sy2))
         for (ptx,pty,kind) in self.props:
             sx3=ptx*TILE-cx;sy3=pty*TILE-cy
@@ -1814,6 +1842,7 @@ def _scatter_props(m,density=0.07):
             m.props.append((tx,ty,rng.choice(kinds)))
 
 def _snap_all(m):
+    _seal_border(m)          # once kenari kapat, sonra varliklari yerlestir
     occ=set()
     for e in m.npcs+m.enemies:
         tx,ty=_snap(m,e.tx,e.ty);att=0
@@ -1832,30 +1861,140 @@ def _add_trans(m,tiles,dst,dtx,dty,ground=T.GRASS,hint_dir=(1,0)):
 
 # ─── Haritalar ───────────────────────────────────────────────────
 
-# ─── Yardımcı: Tek Şerit Geçiş ─────────────────────────────────
-def _trans_strip(m, axis, fixed, start, end, dst, dtx, dty, ground=None, hint=None):
+# ─── Yardımcı: Harita Geçitleri ────────────────────────────────
+def _gate_frame(m, axis, coord, c, half):
+    """Geçidin iki yanına koyulacak engel: kenarda zaten ne varsa o.
+
+    Ormanda ağaç, mağarada kaya çıkıyor; elle tablo tutmaya gerek kalmıyor.
     """
-    Haritanın bir kenarına TEK TILE sırası geçiş koyar.
-    axis='x' → dikey şerit (fixed=tx, start/end=ty aralığı)
-    axis='y' → yatay şerit (fixed=ty, start/end=tx aralığı)
-    Geçiş tile'ları normal zemin olur, karakteri bloke etmez.
-    Spawn noktası (dtx,dty) güvenli konuma snap edilir.
+    for off in (half + 1, half + 2):
+        for r in (c - off, c + off):
+            t = m.get(coord, r) if axis == 'x' else m.get(r, coord)
+            if t not in WALKABLE and t != T.CHEST:
+                return t
+    inner = m.get(m.w // 2, m.h // 2)
+    return T.STONE if inner in (T.FLOOR, T.STONE, T.SHADOW) else T.TREE
+
+
+def _seal_border(m):
+    """Harita kenarını kapatır; dışarı çıkış yalnızca geçitlerden olur.
+
+    Eskiden kenarların çoğu açıktı ve geçiş şeritleri sınırın birkaç kare
+    önünde duruyordu — aradaki boşluk hem çirkin görünüyor hem de oyuncuyu
+    haritanın dışına bakan boş bir şeride bırakıyordu.
     """
-    if ground is None:
-        ground = T.GRASS
-    if hint is None:
-        hint = (1,0) if axis=='x' else (0,1)
-    tiles = []
-    if axis == 'x':
-        for ty in range(start, end):
-            m.set(fixed, ty, ground)
-            m.transitions[(fixed,ty)] = (dst, dtx, dty)
-            m.trans_hints[(fixed,ty)] = (hint[0], hint[1], dst)
+    ring = []
+    for tx in range(m.w): ring += [(tx, 0), (tx, m.h - 1)]
+    for ty in range(m.h): ring += [(0, ty), (m.w - 1, ty)]
+    sayim = {}
+    for (tx, ty) in ring:
+        t = m.get(tx, ty)
+        if t not in WALKABLE and t != T.CHEST:
+            sayim[t] = sayim.get(t, 0) + 1
+    if sayim:
+        dolgu = max(sayim, key=sayim.get)
     else:
-        for tx in range(start, end):
-            m.set(tx, fixed, ground)
-            m.transitions[(tx,fixed)] = (dst, dtx, dty)
-            m.trans_hints[(tx,fixed)] = (hint[0], hint[1], dst)
+        ic = m.get(m.w // 2, m.h // 2)
+        dolgu = T.STONE if ic in (T.FLOOR, T.STONE, T.SHADOW) else T.TREE
+    for (tx, ty) in ring:
+        if m.get(tx, ty) in (T.GATE, T.CHEST): continue
+        m.set(tx, ty, dolgu)
+
+
+def _trans_strip(m, axis, fixed, start, end, dst, dtx, dty, ground=None, hint=None):
+    """Haritaya DAR, çerçeveli bir geçit açar.
+
+    Eskiden bu fonksiyon kenar boyunca 6-10 karelik bir şerit açıyordu ve
+    şerit, harita sınırının birkaç kare içinde duruyordu. Üç sorun çıkıyordu:
+    şeridin önündeki boşluk kötü görünüyor, kenarın yarısı geçiş olduğu için
+    yanlışlıkla harita değiştiriliyor ve varış noktası şeride bitişik
+    düştüğünde oyuncu iki harita arasında sıkışıyordu.
+
+    Artık: geçit 3 kare genişliğinde, tam sınırda duruyor, iki yanı haritanın
+    kendi engeliyle çerçeveleniyor ve geçişi yalnızca en dıştaki kare
+    tetikliyor — koridorda yürümek haritayı değiştirmiyor.
+
+    axis='x' → dikey kenar (fixed=sütun), axis='y' → yatay kenar (fixed=satır)
+    start/end eski şeridin aralığı; geçit bu aralığın ortasına açılıyor.
+    """
+    if ground is None: ground = T.GRASS
+    half = 1                         # 3 kare genişlik
+    c = (start + end) // 2           # eski şeridin ortası
+    if axis == 'x':
+        yakin = fixed < m.w // 2
+        sinir = 0 if yakin else m.w - 1
+        yon = (-1, 0) if yakin else (1, 0)
+    else:
+        yakin = fixed < m.h // 2
+        sinir = 0 if yakin else m.h - 1
+        yon = (0, -1) if yakin else (0, 1)
+    if hint is None: hint = yon
+    derinlik = abs(fixed - sinir)
+    # Kenara yakınsa koridoru sınıra kadar uzat; değilse (zindan ağzı gibi
+    # harita içi girişler) olduğu yerde tek kare kalsın.
+    if derinlik <= 3:
+        # Koridoru sınırdan içeri, AÇIK ARAZİYE DEĞENE KADAR kaz. Yalnızca
+        # `fixed`e kadar kazmak koridoru kör bir cebe çıkarabiliyordu:
+        # oyuncu geçitten girip 6 karelik bir çukura düşüyordu.
+        ust = m.w if axis == 'x' else m.h
+        adim = 1 if yakin else -1
+        koridor = []; v = sinir
+        for _ in range(10):
+            koridor.append(v)
+            ileri = v + adim
+            if not (0 <= ileri < ust): break
+            if abs(ileri - sinir) > derinlik:
+                t = m.get(ileri, c) if axis == 'x' else m.get(c, ileri)
+                if t in WALKABLE: break      # iç araziye bağlandı
+            v = ileri
+        kapi = sinir; kenarda = True
+    else:
+        koridor = [fixed]; kapi = fixed; kenarda = False
+
+    cerceve = _gate_frame(m, axis, kapi, c, half) if kenarda else None
+    satirlar = range(c - half, c + half + 1)
+    for r in satirlar:
+        for v in koridor:
+            if axis == 'x': m.set(v, r, ground)
+            else:           m.set(r, v, ground)
+    if cerceve is not None:          # koridorun iki yanı kapalı olsun
+        for r in (c - half - 1, c + half + 1):
+            for v in koridor:
+                if axis == 'x': m.set(v, r, cerceve)
+                else:           m.set(r, v, cerceve)
+    for r in satirlar:               # geçişi yalnızca en dıştaki kare tetikler
+        pt = (kapi, r) if axis == 'x' else (r, kapi)
+        m.set(pt[0], pt[1], T.GATE)
+        m.transitions[pt] = (dst, dtx, dty)
+        m.trans_hints[pt] = (hint[0], hint[1], dst)
+
+
+def _arrival_tile(m, tx, ty):
+    """Varış karesi: yürünebilir VE komşusunda geçiş olmayan en yakın kare.
+
+    Geçiş karesine ya da yanına düşmek oyuncuyu iki harita arasında
+    sıkıştırıyordu: adım atar atmaz geri dönüyordu.
+    """
+    def uygun(p):
+        if not m.walkable(*p) or p in m.transitions: return False
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if (p[0] + dx, p[1] + dy) in m.transitions: return False
+        return True
+
+    if uygun((tx, ty)): return (tx, ty)
+    gorulen = {(tx, ty)}; q = deque([(tx, ty)])
+    yedek = None
+    while q:
+        cx, cy = q.popleft()
+        if uygun((cx, cy)): return (cx, cy)
+        if yedek is None and m.walkable(cx, cy) and (cx, cy) not in m.transitions:
+            yedek = (cx, cy)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            n = (cx + dx, cy + dy)
+            if n in gorulen or not (0 <= n[0] < m.w and 0 <= n[1] < m.h): continue
+            gorulen.add(n); q.append(n)
+    return yedek or _snap(m, tx, ty)
 
 
 def build_ashveil():
@@ -1870,17 +2009,17 @@ def build_ashveil():
             if m.get(tx,ty)==T.GRASS and any(m.get(tx+dx,ty+dy)==T.WATER for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
                 m.set(tx, ty, T.SAND)
     # Ana yollar
-    _path(m, 2, 24, 60, 24, T.STONE, 2)
-    _path(m, 30, 2, 30, 50, T.STONE, 2)
+    _path(m, 2, 24, 60, 24, T.ROAD, 2)
+    _path(m, 30, 2, 30, 50, T.ROAD, 2)
     # Evler — yoldan uzak, bağlantılı
     _room(m, 16,  7, 10, 8, T.WALL, T.FLOOR, "south")
     _room(m, 34,  7, 10, 8, T.WALL, T.FLOOR, "south")
     _room(m, 16, 30, 10, 8, T.WALL, T.FLOOR, "north")
     _room(m, 34, 30, 10, 8, T.WALL, T.FLOOR, "north")
-    _path(m, 20, 15, 20, 24, T.STONE, 2)
-    _path(m, 38, 15, 38, 24, T.STONE, 2)
-    _path(m, 20, 30, 20, 24, T.STONE, 2)
-    _path(m, 38, 30, 38, 24, T.STONE, 2)
+    _path(m, 20, 15, 20, 24, T.ROAD, 2)
+    _path(m, 38, 15, 38, 24, T.ROAD, 2)
+    _path(m, 20, 30, 20, 24, T.ROAD, 2)
+    _path(m, 38, 30, 38, 24, T.ROAD, 2)
     # Sandıklar
     m.set(18, 10, T.CHEST); m.chests[(18,10)] = ["hp_pot","gold"]
     m.set(36, 10, T.CHEST); m.chests[(36,10)] = ["mp_pot","iron_sword"]
@@ -1899,7 +2038,7 @@ def build_ashveil():
                 if col < 3 and row < 3:
                     m.set(tx, ty, T.TREE)
     for tx in range(40, 62):
-        m.set(tx, 23, T.STONE); m.set(tx, 24, T.STONE)
+        m.set(tx, 23, T.ROAD); m.set(tx, 24, T.ROAD)
     for ty in range(20, 29):
         for tx in range(40, 62):
             if m.get(tx, ty) == T.TREE: m.set(tx, ty, T.GRASS)
@@ -1934,7 +2073,9 @@ def build_ashveil():
     def south_d(f): return ["dlg.south.1","dlg.south.2"]
     m.npcs.append(NPC(24,48,"npc.yolcu",(160,180,140),south_d,"traveler"))
     def west_d(f): return ["dlg.west.1","dlg.west.2","dlg.west.3"]
-    m.npcs.append(NPC(4,24,"npc.koy_yerlisi",(140,160,180),west_d))
+    # Yolun ortasinda degil kenarinda dursun: bati gecidinden donen oyuncu
+    # dogrudan ona carpiyordu.
+    m.npcs.append(NPC(4,27,"npc.koy_yerlisi",(140,160,180),west_d))
     m.enemies += [
         Enemy(48,12,"slime",20,4,12,agro=4,loot=["gold"]),
         Enemy(52,8, "slime",20,4,12,agro=4),
@@ -3361,7 +3502,7 @@ class Game:
 
     def _finish_trans(self):
         dst,tx,ty=self.pending_trans;self.cur_key=dst;self.cur_map=self.maps[dst]
-        tx,ty=_snap(self.cur_map,tx,ty)
+        tx,ty=_arrival_tile(self.cur_map,tx,ty)
         self.player.snap(tx,ty)
         self.pending_trans=None;self.transitioning=False;self.trans_alpha=0
         self.projectiles.clear();self._check_ch();self._cam_snap()

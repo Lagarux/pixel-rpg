@@ -480,6 +480,48 @@ engellerden parlak olduğu, oyuncu noktasının doğru yöne kaydığı, ölen d
 ve açılan sandık işaretlerinin kaybolduğu, zeminin önbelleğe alındığı ve
 panelin HUD ile yetenek çubuğunu örtmediği doğrulanıyor.
 
+### ✅ Harita geçitleri ve sıkışma hatası (2026-10-01, kullanıcı geri bildirimi)
+
+Kullanıcı nehir haritasından köye dönerken **iki harita arasında sıkışıyordu**:
+duvara takılıyor, bir adım atsa yine batıya gönderiliyordu. Ölçtüm — geçişe
+basmadan ulaşılabilen kare sayısı **1**. Gerçekten hapis.
+
+Üç hata üst üste binmişti:
+
+| # | Hata | Neden görünmedi |
+|---|---|---|
+| 1 | Köyün ana yolları `T.STONE` ile çiziliyordu, ama STONE mağara duvarı — **yollar yürünemezdi** | Ekranda yol gibi görünüyor; kimse üstünden geçmeyi denememiş |
+| 2 | Varış noktası (3,24) o duvarın üstünde olduğu için `_snap` oyuncuyu (2,24)'e taşıyordu — **geçiş karesinin ta kendisi** | `_snap` yalnız "yürünebilir mi" diye bakıyordu |
+| 3 | Geçiş şeritleri kenar boyunca 6-10 kare uzunluktaydı, o yüzden o karenin **bütün** yürünebilir komşuları da geçişti | Şeritler haritayı bağlamak için fazlasıyla geniş tutulmuştu |
+
+#### Yapılanlar
+
+| Konu | Karar |
+|---|---|
+| `T.ROAD` | Yürünebilir arnavut kaldırımı. Köy yolları artık gerçekten yol; `T.STONE` mağara duvarı olarak kalıyor |
+| `T.GATE` | Geçişin kendisi bir kare türü: taş çerçeveli karanlık bir açıklık. Dört kenarı simetrik, böylece yan yana üç kare tek bir geçit ağzı gibi okunuyor |
+| Geçit boyutu | Kenar şeridi (6-10 kare) → **3 kare**, tam sınırda. Sınırın birkaç kare önünde duran şeridin bıraktığı boşluk kalktı |
+| Koridor | Geçitten içeri 3 kare genişliğinde çerçeveli bir koridor açılıyor ve **açık araziye değene kadar** uzuyor. Yalnızca en dıştaki kare geçişi tetikliyor — koridorda yürümek haritayı değiştirmiyor |
+| Kenar kapatma | `_seal_border` her haritanın kenarını haritanın kendi engeliyle (ormanda ağaç, mağarada kaya) kapatıyor. Çıkış yalnızca geçitlerden |
+| Varış | `_arrival_tile`: yürünebilir **ve** bir kare yakınında geçiş olmayan en yakın kare. Geçişe düşmek ya da bitişik doğmak artık imkânsız |
+| Görsel | Geniş mor bant gitti; geçit karesi kapı gibi çiziliyor, ok kehribar rengine döndü |
+
+#### Ölçüm
+
+| | Önce | Sonra |
+|---|---|---|
+| Köy–nehir dönüşünde serbest alan | **1 kare** | 2504 kare |
+| Haritadaki geçiş karesi (köy) | 23 | 12 |
+| Her geçit genişliği | 6-10 kare | 3 kare |
+| Sıkışmalı bağlantı (28 bağlantı) | en az 1 | 0 |
+| Kapanmamış harita kenarı | çok | 0 |
+
+`tests/test_world.py` (15): 28 bağlantının hepsinde varışın geçiş karesi
+olmadığı, geçişe bitişik olmadığı ve 200'den fazla kareye açıldığı; her
+geçidin 3 kare olup sınırda durduğu; kenarların kapalı olduğu; köyün ana
+yolunun yürünebildiği; mağara kayasının hâlâ blok olduğu ve köyden her
+haritaya ulaşılabildiği doğrulanıyor.
+
 ### ⬜ Faz 5 — İçerik derinliği
 - [x] İ5 — görev işaretçileri **ve mini harita yapıldı**
 - [x] İ7 — dükkân ve ekonomi **yapıldı**
@@ -517,6 +559,7 @@ panelin HUD ile yetenek çubuğunu örtmediği doğrulanıyor.
 | 2026-09-29 | — | **Oyun testi geri bildirimi:** envanterde `E` çökmesi (`fT_`) ve oyunda hiç ses olmaması | İkisi de düzeltildi; ses numpy'sız sentezle çalışıyor |
 | 2026-09-29 | — | Testler iki hata daha buldu: yeni karakterde bot/muska `KeyError`, uymayan ekipman eşyayı yok ediyor | 33 yeni test; toplam 139 test |
 | 2026-09-29 | 5 | Mini harita (`M`), kontrol ipuçları sol panelin altına taşındı | 13 yeni test; toplam 152 test |
+| 2026-10-01 | — | **Oyun testi geri bildirimi:** harita geçişlerinde sıkışma; geçiş bölgeleri yeniden tasarlandı | 15 yeni test; toplam 167 test |
 
 ---
 
