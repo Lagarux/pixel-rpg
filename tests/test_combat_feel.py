@@ -44,6 +44,17 @@ def _blank_map(w=12, h=12, name="test"):
     return m
 
 
+def fresh_game():
+    """Gercek dunyayi kurulmus bir Game (pencere acmadan)."""
+    import tempfile
+    MOD.SAVE_FILE = os.path.join(tempfile.gettempdir(), "pixelrpg_cf_save.json")
+    g = MOD.Game.__new__(MOD.Game)
+    g.ui = MOD.UI()
+    g.ps = MOD.PS()
+    g._reset()
+    return g
+
+
 class TestEnemyTelegraph(unittest.TestCase):
     """E2: dusman once hazirlanmali, sonra vurmali."""
 
@@ -407,3 +418,77 @@ class TestEnemyBehaviors(unittest.TestCase):
             w1.advance_step(); w2.advance_step()
         closest = min(max(abs(w.tx - 10), abs(w.ty - 10)) for w in (w1, w2))
         self.assertLessEqual(closest, 1, "surudeki kurtlar yanasmadi")
+
+
+class TestAggroRanges(unittest.TestCase):
+    """Fark etme ve birakma mesafeleri.
+
+    Eskiden her Enemy(...) satirinda elle yaziliyordu ve 4-7 arasinda
+    dagınıktı: golem ayni haritada 4, 5, 6 ve 7 ile doguyordu. Daha kotusu
+    akrep 5 kareden ates ettigi halde ancak 5-6 karede fark ediyor, mevzi
+    alamadan menzile giriyordu. Artik tur bazinda ve davranisla tutarli.
+    """
+
+    def kinds(self):
+        g = fresh_game()
+        turler = {}
+        for m in g.maps.values():
+            for e in m.enemies:
+                turler.setdefault(e.kind, e)
+        return turler
+
+    def test_every_kind_has_a_declared_range(self):
+        for kind in self.kinds():
+            self.assertIn(kind, MOD.AGGRO, "%s icin mesafe tanimlanmamis" % kind)
+
+    def test_ranges_are_consistent_within_a_kind(self):
+        """Ayni turden iki dusman farkli mesafeyle dogmamali."""
+        g = fresh_game()
+        gorulen = {}
+        for m in g.maps.values():
+            for e in m.enemies:
+                onceki = gorulen.setdefault(e.kind, (e.agro_range, e.leash_range))
+                self.assertEqual((e.agro_range, e.leash_range), onceki,
+                                 "%s farkli mesafelerle doguyor" % e.kind)
+
+    def test_leash_is_longer_than_aggro(self):
+        """Birakma mesafesi fark etmeden kisa olursa dusman surekli
+        kovalamaya baslayip biraktigi icin titrer."""
+        for kind, e in self.kinds().items():
+            self.assertGreater(e.leash_range, e.agro_range,
+                               "%s: birakma mesafesi fark etmeden kisa" % kind)
+
+    def test_nothing_aggros_from_off_screen(self):
+        """Goremedigin bir seyin seni kovalamaya baslamasi adil degil.
+        Ekranin yarisi dikeyde 10 kare."""
+        yari = (MOD.SH // MOD.TILE) // 2
+        for kind, e in self.kinds().items():
+            if e.is_boss:
+                continue          # boss odasinda zaten karsi karsiyasin
+            self.assertLessEqual(e.agro_range // MOD.TILE, yari,
+                                 "%s ekran disindan (%d kare) kovaliyor"
+                                 % (kind, e.agro_range // MOD.TILE))
+
+    def test_ranged_enemies_notice_before_they_can_shoot(self):
+        """Menzilli dusman atis menzilinden uzakta fark etmeli, yoksa mevzi
+        alamadan menzile girer ve geri cekilip durur."""
+        for kind, e in self.kinds().items():
+            bh = MOD.behavior(kind)
+            if bh.get("type") != "ranged":
+                continue
+            atis = bh.get("range", 5)
+            self.assertGreater(e.agro_range // MOD.TILE, atis,
+                               "%s atis menzilinden (%d) once fark etmiyor" % (kind, atis))
+
+    def test_pack_hunters_notice_earlier_than_slow_melee(self):
+        """Tasarim: kurt kokuyla avlanir, balcik bir yigindir."""
+        t = self.kinds()
+        self.assertGreater(t["wolf"].agro_range, t["slime"].agro_range,
+                           "kurt balciktan daha gec fark ediyor")
+
+    def test_the_golem_gives_up_last(self):
+        """Golem gec fark eder ama bir kez uyandi mi birakmaz."""
+        t = self.kinds()
+        self.assertGreaterEqual(t["golem"].leash_range,
+                                max(e.leash_range for k, e in t.items() if not e.is_boss),
+                                "golem en inatci kovalayan degil")

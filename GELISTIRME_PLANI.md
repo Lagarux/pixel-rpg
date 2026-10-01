@@ -649,6 +649,68 @@ dokunmadığı zaman damgasıyla doğrulandı.
 
 **Yayınlandı:** https://github.com/Lagarux/pixel-rpg/releases/tag/v6.0
 
+### ✅ Parşömen görevi ve düşman fark etme mesafeleri (2026-10-01)
+
+#### Parşömenler dünyada hiç yoktu
+
+Kullanıcı "Parşömenler nerede?" diye sordu. Ölçtüm:
+
+| | |
+|---|---|
+| `scroll1` (Karanlık Parşömen) | **hiçbir sandıkta, hiçbir ganimette yok** |
+| `scroll2` (Ateş Parşömeni) | **yok** |
+| `scroll3` (Buz Parşömeni) | **yok** |
+
+Kütüphaneci Elan "harabelerde, çölde ve buz mağarasında olabilirler" diyor;
+oralarda hiçbir şey yoktu. Eşyalar `ITEMS` içinde tanımlıydı, bayrağı set
+eden kod da doğruydu (`sq_`+eşya adı, sandıktan alınca kendiliğinden) —
+yalnızca **dünyaya konmamışlardı**. Görev baştan beri bitirilemezdi.
+
+Söylenen üç haritaya, bölgeyle uyumlu biçimde kondu:
+
+| Parşömen | Harita | Sandık |
+|---|---|---|
+| Karanlık Parşömen | Antik Harabeler | (42, 5) |
+| **Ateş** Parşömeni | Çöl Yolu | (30, 7) |
+| **Buz** Parşömeni | Buz Mağarası | (19, 6) |
+
+**Testler bunu neden kaçırdı:** `test_quests.py` yalnız *öldürme*
+görevlerini ölçüyordu. Eklenen `TestItemQuests`, `ITEMS` içindeki her
+`quest_sq` eşyasının dünyada bulunabildiğini, kristallerin var olduğunu ve
+parşömenlerin kütüphanecinin saydığı haritalarda olduğunu denetliyor.
+Eski durumda ikisi de kırılıyor — doğrulandı.
+
+#### Fark etme ve bırakma mesafeleri
+
+Mesafeler her `Enemy(...)` satırında elle yazılıyordu ve 4-7 arasında
+dağınıktı; **golem aynı haritada 4, 5, 6 ve 7 ile doğuyordu.** Daha kötüsü
+akrep 5 kareden ateş ettiği hâlde ancak 5-6 karede fark ediyordu — mevzi
+alamadan menzile giriyor, girer girmez geri çekiliyordu.
+
+Artık tür bazında bir tabloda ve davranışla tutarlı:
+
+| Tür | Fark eder | Bırakır | Gerekçe |
+|---|---|---|---|
+| Balçık | 4 | 7 | Yavaş, geç fark eder |
+| Domuz | 5 | 9 | Yakından irkilir |
+| Goblin | 7 | 9 | Çabuk fark eder, çabuk kaçar |
+| **Kurt / buz kurdu** | **8** | 13 | Kokuyla avlanır, inat eder |
+| İskelet | 6 | 10 | |
+| **Akrep** | **9** | 12 | Atış menzili 5 → **4 kare mevzi payı** |
+| **Golem** | 5 | **15** | Geç fark eder ama bırakmaz |
+| Gölge şövalyesi | 7 | 11 | |
+| Malachar | 12 | ∞ | Boss odası |
+
+Yeni testler tasarımı kayda geçiriyor: bırakma mesafesi fark etmeden uzun
+olmalı (yoksa düşman titrer), **hiçbir düşman ekran dışından kovalamamalı**
+(ekranın yarısı dikeyde 10 kare; boss hariç), menzilli düşman atış
+menzilinden önce fark etmeli, kurt balçıktan erken fark etmeli, golem en
+inatçı kovalayan olmalı.
+
+**Yığılma ölçümü:** aynı anda kovalayan düşman sayısı — ortalama 0,07-0,69,
+en kötü 3 (Karanlık Orman'da kurt sürüsü). Hiçbir harita sürü basmasına
+dönüşmüyor.
+
 ### ⬜ Faz 5 — İçerik derinliği
 - [x] İ5 — görev işaretçileri **ve mini harita yapıldı**
 - [x] İ7 — dükkân ve ekonomi **yapıldı**
@@ -693,6 +755,7 @@ dokunmadığı zaman damgasıyla doğrulandı.
 | 2026-10-01 | — | Kapanış anlatısı (epilog + özet kartı) ve ses yumuşatması | 14 yeni test; toplam 247 test |
 | 2026-10-01 | — | Köz Vadisi (13. harita) | Mevcut dünya testleri kendiliğinden denetledi |
 | 2026-10-01 | — | **v6.0 yayını:** README, kurulum betikleri, depo temizliği (1977 → 59 dosya), GitHub Release | 247 test |
+| 2026-10-01 | — | **Parşömen görevi bitirilemiyordu:** üç parşömen de dünyada yoktu. Düşman fark etme mesafeleri tür bazına alındı | 12 yeni test; toplam 259 test |
 
 ---
 

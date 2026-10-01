@@ -767,6 +767,24 @@ EQUIP_RESIST = {
 
 # Düşman dayanıklılığı: bazı türler 2 vuruşta ölüyordu. Çarpanları tek
 # yerde tutuyoruz ki her Enemy(...) satırını elle düzeltmek gerekmesin.
+# Fark etme (agro) ve kovalamayı bırakma mesafeleri — kare cinsinden.
+# Eskiden her Enemy(...) satırında elle yazılıyordu ve 4-7 arasında dağınıktı:
+# golem aynı haritada 4, 5, 6 ve 7 ile doğuyordu. Daha kötüsü akrep 5 kareden
+# ateş ettiği hâlde ancak 5-6 karede fark ediyor, mevzi alamadan menzile
+# giriyordu. Artık tür bazında ve davranışla tutarlı.
+AGGRO = {
+    "slime":         (4,  7),   # yavaş, geç fark eder, çabuk bırakır
+    "boar":          (5,  9),   # yakından irkilir, kısa mesafe kovalar
+    "goblin":        (7,  9),   # çabuk fark eder, canı azalınca kaçar
+    "wolf":          (8, 13),   # kokuyla avlanır: erken fark eder, inat eder
+    "ice_wolf":      (8, 13),
+    "skeleton":      (6, 10),
+    "scorpion":      (9, 12),   # atış menzili 5; mevzi alabilmek için uzaktan fark eder
+    "golem":         (5, 15),   # geç fark eder ama bir kez uyandı mı bırakmaz
+    "shadow_knight": (7, 11),
+    "malachar":     (12, 99),   # boss: oda sınırları içinde her zaman takip eder
+}
+
 ENEMY_TUNE = {   # tür -> (HP çarpanı, saldırı çarpanı)
     "slime":(1.75,1.20), "wolf":(1.40,1.05), "boar":(1.35,1.05),
     "goblin":(1.45,1.05), "skeleton":(1.30,1.00), "scorpion":(1.30,1.00),
@@ -1837,7 +1855,11 @@ class Enemy(Entity):
         hp=int(hp*hp_k);atk=int(round(atk*atk_k))
         self.kind=kind;self.max_hp=hp;self.hp=hp;self.atk=atk;self.xp_r=xp
         self.elem=ENEMY_ELEM.get(kind,"physical")
-        self.agro_range=agro*TILE;self.loot=loot or [];self.is_boss=is_boss
+        # agro parametresi artik tur tablosundan geliyor; cagri yerlerindeki
+        # dagınık degerler yok sayiliyor (bkz. AGGRO yorumu).
+        a_fark,a_birak=AGGRO.get(kind,(agro,int(agro*1.6)))
+        self.agro_range=a_fark*TILE;self.leash_range=a_birak*TILE
+        self.loot=loot or [];self.is_boss=is_boss
         self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
         self.wind_up=0;self.atk_cd=0   # saldırı telegrafı
         self.wind_kind="melee"        # hazırlanan saldırının türü
@@ -2527,7 +2549,7 @@ def build_ruins():
 
     m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["hp_pot","mp_pot"]
     m.set(20, 5,T.CHEST); m.chests[(20,5)] = ["arcane_staff","gold"]
-    m.set(42, 5,T.CHEST); m.chests[(42,5)] = ["mage_robe","gold"]
+    m.set(42, 5,T.CHEST); m.chests[(42,5)] = ["mage_robe","gold","scroll1"]
     m.set(6, 20,T.CHEST); m.chests[(6,20)] = ["hp_pot","power_ring"]
     m.set(44,44,T.CHEST); m.chests[(44,44)]= ["earth_c","hp_pot","hp_pot"]
 
@@ -2573,7 +2595,7 @@ def build_desert():
     _trans_strip(m,'y',42,26,32, "ember_valley",28,6, T.SAND,(0,1))
     m.set(5, 28,T.CHEST); m.chests[(5,28)]  = ["hp_pot","hp_pot","gold"]
     m.set(54,28,T.CHEST); m.chests[(54,28)] = ["shadow_bow","gold"]
-    m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot"]
+    m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot","scroll2"]
     def oracle_d(f):
         O=lambda a,b:["dlg.oracle.%d"%i for i in range(a,b)]
         if f.get("water_crystal"): return O(1,6)
@@ -2620,7 +2642,7 @@ def build_ice_cave():
     _trans_strip(m,'x',2,  17,25, "desert",        57,27, T.SNOW,(-1,0))
     _trans_strip(m,'y',46,  4,12, "shadow_castle",  22,40, T.SNOW,(0,1))
     m.set(5, 6,T.CHEST); m.chests[(5,6)]   = ["hp_pot","mp_pot"]
-    m.set(19, 6,T.CHEST); m.chests[(19,6)] = ["scout_coat","gold"]
+    m.set(19, 6,T.CHEST); m.chests[(19,6)] = ["scout_coat","gold","scroll3"]
     m.set(5, 19,T.CHEST); m.chests[(5,19)] = ["hp_pot","mp_pot"]
     m.set(38,42,T.CHEST); m.chests[(38,42)]= ["water_c","hp_pot","mp_pot","hp_pot"]
     def spirit_d(f):
@@ -4421,7 +4443,8 @@ class Game:
             if e.frozen>0: e.frozen-=1;continue
             ex=e.px+TILE//2;ey=e.py+TILE//2;dist=math.hypot(ex-ppx,ey-ppy)
             if dist<e.agro_range: e.state="chase"
-            elif e.state=="chase" and dist>e.agro_range*1.5: e.state="idle"
+            elif e.state=="chase" and dist>getattr(e,"leash_range",e.agro_range*1.5):
+                e.state="idle"
             if e.state!="chase":
                 e.wind_up=0;continue
 

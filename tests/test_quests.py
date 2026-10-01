@@ -128,6 +128,73 @@ class TestCompletable(unittest.TestCase):
                                 % (cayir, target_of("boar")))
 
 
+class TestItemQuests(unittest.TestCase):
+    """Esya toplama gorevleri.
+
+    Parsomen gorevi bitirilemiyordu: kutuphaneci "harabelerde, colde ve buz
+    magarasinda" diyordu ama uc parsomenin HICBIRI dunyada yoktu. Oldurme
+    gorevlerini olcen testler bunu goremedi, cunku bu bir esya gorevi.
+    """
+
+    def world_items(self):
+        """Dunyada ele gecirilebilen her esya: sandiklar + dusman ganimeti."""
+        bulunan = {}
+        for key, m in G.maps.items():
+            for pos, icerik in m.chests.items():
+                for it in icerik:
+                    bulunan.setdefault(it, []).append((key, pos))
+            for e in m.enemies:
+                for it in (e.loot or []):
+                    bulunan.setdefault(it, []).append((key, (e.tx, e.ty)))
+        return bulunan
+
+    def test_every_quest_item_exists_in_the_world(self):
+        """ITEMS icinde quest_sq turundeki her esya bulunabilir olmali."""
+        dunya = self.world_items()
+        eksik = [ik for ik, row in MOD.ITEMS.items()
+                 if row[2] == "quest_sq" and ik not in dunya]
+        self.assertEqual(eksik, [], "gorev esyasi dunyada hic yok: %s" % eksik)
+
+    def test_every_crystal_exists(self):
+        dunya = self.world_items()
+        for ik in ("earth_c", "water_c"):
+            self.assertIn(ik, dunya, "%s dunyada yok -- ana gorev kilitlenir" % ik)
+
+    def test_scrolls_are_where_the_librarian_says(self):
+        """Kutuphaneci harabe, col ve buz magarasi diyor; sozu tutulmali."""
+        dunya = self.world_items()
+        soylenen = {"ruins", "desert", "ice_cave"}
+        yerler = set()
+        for ik in ("scroll1", "scroll2", "scroll3"):
+            self.assertIn(ik, dunya, "%s hicbir yerde yok" % ik)
+            yerler.update(h for h, _ in dunya[ik])
+        self.assertTrue(yerler <= soylenen,
+                        "parsomenler kutuphanecinin saymadigi haritalarda: %s"
+                        % (yerler - soylenen))
+        self.assertEqual(yerler, soylenen,
+                         "soylenen haritalarin hepsinde parsomen yok: eksik %s"
+                         % (soylenen - yerler))
+
+    def test_scroll_quest_can_actually_be_completed(self):
+        """Uc parsomeni alan oyuncu gorevi bitirebilmeli."""
+        sq = next(s for s in MOD.SIDE_QUESTS if s["id"] == "scroll")
+        f = {"sq_scroll1": True, "sq_scroll2": True, "sq_scroll3": True}
+        self.assertTrue(MOD.sq_done(sq, f), "parsomenler toplandi ama gorev bitmiyor")
+
+    def test_picking_a_scroll_sets_its_flag(self):
+        """Sandiktan alinca bayrak kendiliginden set ediliyor mu?"""
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        g.temp_stats = MOD.PlayerStats("warrior"); g._start_game()
+        g.cur_key = "ruins"; g.cur_map = g.maps["ruins"]
+        yer = next(pos for pos, ic in g.cur_map.chests.items() if "scroll1" in ic)
+        g.player.snap(yer[0], yer[1] - 1); g.player.direction = "down"
+        g.dmg_nums = []
+        g._interact()
+        self.assertTrue(g.flags.get("sq_scroll1"), "parsomen alindi ama bayrak set edilmedi")
+        self.assertIn("scroll1", g.player.inventory)
+
+
 class TestQuestTable(unittest.TestCase):
     def test_ids_are_unique(self):
         ids = [sq["id"] for sq in MOD.SIDE_QUESTS]
