@@ -9,7 +9,7 @@ python --version >nul 2>&1
 if errorlevel 1 ( echo HATA: Python bulunamadi! & pause & exit /b 1 )
 
 echo [1/5] Bagimliliklar yukleniyor...
-pip install pygame numpy pyinstaller --quiet
+pip install pygame pyinstaller --quiet
 if errorlevel 1 ( echo HATA: Bagimlilik hatasi! & pause & exit /b 1 )
 
 echo [2/5] Fontlar indiriliyor (opsiyonel)...
@@ -24,7 +24,7 @@ echo [4/5] EXE olusturuluyor...
 pyinstaller --clean KaranlikTacinLaneti.spec
 if errorlevel 1 (
     echo Spec basarisiz, dogrudan deneniyor...
-    pyinstaller --onefile --windowed --name "KaranlikTacinLaneti" --hidden-import pygame --hidden-import numpy pixel_rpg.py
+    pyinstaller --onefile --windowed --name "KaranlikTacinLaneti" --hidden-import pygame --add-data "assets;assets" --icon "assets\icon.ico" pixel_rpg.py
     if errorlevel 1 ( echo HATA: EXE olusturulamadi! & pause & exit /b 1 )
 )
 

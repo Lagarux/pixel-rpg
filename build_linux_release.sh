@@ -16,7 +16,7 @@ echo " KARANLIK TAC'IN LANETI - Linux Release"
 echo "============================================"
 
 # ── Gereksinimler ────────────────────────────────────────────
-pip3 install pygame numpy pyinstaller --quiet
+pip3 install pygame pyinstaller --quiet
 
 # ── Icon & Font ──────────────────────────────────────────────
 python3 make_icon.py  || true
@@ -26,7 +26,7 @@ python3 download_fonts.py || true
 echo "[1/4] EXE oluşturuluyor..."
 pyinstaller --clean KaranlikTacinLaneti.spec || \
 pyinstaller --onefile --name "$EXE_NAME" \
-    --hidden-import pygame --hidden-import numpy \
+    --hidden-import pygame \
     --add-data "assets:assets" \
     pixel_rpg.py
 

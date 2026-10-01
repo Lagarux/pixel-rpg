@@ -1,87 +1,93 @@
 ╔══════════════════════════════════════════════════════════════╗
-║         KARANLIK TAC'IN LANETI  v5.0  — 2D Pixel RPG        ║
+║        KARANLIK TAÇ'IN LANETİ  v6.0  —  2D Pixel RPG         ║
 ╚══════════════════════════════════════════════════════════════╝
 
-KURULUM (EXE olarak çalıştırma)
-─────────────────────────────────
-  Windows:
-    1. build_windows.bat dosyasını çift tıklayın
-    2. dist\game\KaranlikTacinLaneti.exe dosyasını çalıştırın
+  Yüz yıl önce atalarımız Malachar'ı dört kristalle mühürledi.
+  Mühür zayıflıyor.
 
-  macOS / Linux:
-    1. chmod +x build_mac_linux.sh && ./build_mac_linux.sh
-    2. dist/game/KaranlikTacinLaneti çalıştırın
 
-PYTHON İLE DOĞRUDAN ÇALIŞTIRMA
-──────────────────────────────
-  pip install pygame numpy
-  python pixel_rpg.py
+NASIL OYNANIR
+─────────────────────────────────────────────────────────────
+  KaranlikTacinLaneti.exe dosyasını çalıştırın. Kurulum gerekmez.
 
-FONTlar (Otomatik İndir)
-─────────────────────────
-  python download_fonts.py
-  (İnternet bağlantısı gerekir — opsiyonel, sistem fontu da çalışır)
+  Oyuna ilk girişte kontrolleri gösteren bir tanıtım açılır.
+  Sonradan görmek isterseniz: ESC → Kontroller
+
 
 KONTROLLER
-──────────
-  WASD / Ok Tuşları   Hareket
-  E                   Konuş / Etkileşim / Onayla
-  Space               Sınıfa Özel Saldırı
-  1 / 2 / 3 / 4       Yetenek Kullan
-  I                   Envanter / Ekipman  (Tab ile sekme değiştir)
-  Q                   Görev Günlüğü
-  U                   Nitelik Dağıtımı
-  F1                  Ayarlar (ses, dil, tam ekran)
-  F11                 Tam Ekran Aç/Kapat
-  R (Oyun Bitti)      Yeniden Başla
-  ESC                 Çık / Geri
+─────────────────────────────────────────────────────────────
+  WASD / Ok tuşları  Hareket
+  Space              Sınıfına özel saldırı
+  1 2 3 4            Yetenekler
+  E                  Konuş / Eşya al / Dükkân aç
+  I                  Envanter ve Ekipman   (TAB: sekme değiştir)
+  Q                  Görev günlüğü
+  M                  Mini harita aç / kapat
+  U                  Nitelik dağıtımı
+  F1                 Ayarlar (ses, dil, tam ekran)
+  F11                Tam ekran
+  ESC                Duraklat / Geri
 
-SINIFLAR
-─────────
-  Savaşçı  — Melee koni saldırı, kalkan yetenekleri
-  Büyücü   — Oto-nişan arcane bolt, meteor yetenekleri
-  Okçu     — Hassas ok atışı, çoklu atış yetenekleri
-  Şifacı   — Kutsal darbe + iyileşme, kalkan yetenekleri
 
-ANA GÖREVLER (6 Bölüm)
-───────────────────────
-  1. Ashveil'de Yaşlı Aldric ile konuş
-  2. Karanlık Orman'da Sir Roland'ı bul
-  3. Antik Harabeler'den Toprak Kristali al
-  4. Çöl'de Oracle Nyx'i bul
-  5. Buz Mağarası'ndan Su Kristali al
-  6. Gölge Kalesi'nde Malachar'ı yen!
+ELEMENTLER
+─────────────────────────────────────────────────────────────
+  Her düşmanın ve her saldırının bir elementi var. Can çubuğunun
+  solundaki renkli taş düşmanın elementini gösterir; sol üstte de
+  kendi saldırı elementiniz yazar.
 
-YAN GÖREVLER (Mini Quests)
-──────────────────────────
-  • Parşömen Avı   — Gizemli Kütüphane: 3 parşömen topla
-  • Domuz Avı      — Güney Çayırı: 3 yaban domuzu öldür
-  • Balıkçı Yardımı — Batı Nehri: Balıkçı Riva ile konuş
+    Ateş    güçlü: Doğa, Buz
+    Buz     güçlü: Doğa, Toprak
+    Doğa    güçlü: Toprak, Gölge
+    Gölge   güçlü: Kutsal, Doğa
+    Kutsal  güçlü: Gölge
+    Toprak  güçlü: Ateş
 
-HARİTALAR
-──────────
-  Ashveil Köyü → (sağ) Karanlık Orman → (kuzey) Antik Harabeler
-  Ashveil      → (güney) Güney Çayırı
-  Ashveil      → (batı) Batı Nehri → (kuzey) Gizemli Kütüphane
-  Antik Harabeler → (doğu) Çöl Yolu → (doğu) Buz Mağarası
-  Buz Mağarası → (alt portal) Gölge Kalesi
-  Ashveil      → (güney yol) Köy Altı Zindanı
+  Her element kendine karşı dirençlidir. Fiziksel saldırı nötrdür:
+  ne bonus alır ne ceza. Taktığınız silah temel saldırınızın
+  elementini belirler, zırh ve muskalar bir elemente karşı korur.
 
-AYARLAR (settings.json)
-────────────────────────
-  F1 ile açın:
-  - Tam Ekran açma/kapama
-  - Ana Ses / Efekt / Müzik sesi (0-100)
-  - Dil: Türkçe / English
-  - FPS Göstergesi
 
-SESler
-───────
-  Prosedürel ses sentezi (numpy) — harici ses dosyasına ihtiyaç yok!
-  Tüm ses efektleri matematiksel dalga fonksiyonları ile üretilir.
+İPUÇLARI
+─────────────────────────────────────────────────────────────
+  • Düşman saldırmadan önce kırmızı bir halka daralır — kaçın.
+  • Kurtlar sürü hâlinde cesur, yalnızken çekingendir.
+  • Goblinler yaralanınca kaçar; dar yerlere çekmelerine izin vermeyin.
+  • Akrepler uzaktan atar, yanaşınca geri çekilir.
+  • Pazar meydanı köyün güneybatısındadır; dört tezgâh farklı şeyler satar.
+  • Handa konaklamak (18 altın) can ve manayı tam doldurur.
+  • Oyun harita geçişlerinde kendiliğinden kaydeder.
 
-LİSANS
-───────
-  Kaynak kod: MIT Lisansı
-  Fontlar: Google Fonts — SIL Open Font License
-  Ses: Prosedürel (telif hakkı yok)
+
+DİL
+─────────────────────────────────────────────────────────────
+  Türkçe, İngilizce, Almanca, Rusça, Arapça.
+  F1 → Dil satırında sol/sağ ok ile değiştirin. Tercihiniz saklanır.
+
+
+KAYIT DOSYALARI NEREDE
+─────────────────────────────────────────────────────────────
+  Windows : %APPDATA%\KaranlikTacinLaneti\
+  Linux   : ~/.local/share/KaranlikTacinLaneti/
+
+  Oyunun kurulu olduğu klasöre hiçbir şey yazılmaz.
+
+
+SORUN GİDERME
+─────────────────────────────────────────────────────────────
+  Ses gelmiyorsa    : F1 → Ses seviyelerini kontrol edin.
+  Yazılar bozuksa   : assets/fonts klasörünün yanında olduğundan
+                      emin olun; yoksa sistem yazı tipine düşer.
+  Oyun açılmıyorsa  : Klasörü tam olarak, assets dahil kopyaladığınızdan
+                      emin olun.
+
+
+KAYNAK KOD
+─────────────────────────────────────────────────────────────
+  https://github.com/Lagarux/pixel-rpg
+
+  Python ile doğrudan çalıştırmak isterseniz:
+      pip install pygame
+      python pixel_rpg.py
+
+  Tek bağımlılık pygame'dir. Bütün grafikler ve sesler oyun
+  çalışırken üretilir — yanında hiçbir görsel ya da ses dosyası yoktur.

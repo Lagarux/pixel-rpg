@@ -5,7 +5,7 @@
 ; ============================================================
 
 !define APP_NAME "Karanlik Tacin Laneti"
-!define APP_VERSION "5.0"
+!define APP_VERSION "6.0"
 !define APP_PUBLISHER "KTL Studio"
 !define APP_EXE "KaranlikTacinLaneti.exe"
 !define INSTALL_DIR "$PROGRAMFILES\${APP_NAME}"

@@ -3,8 +3,20 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Oyun tarafindan uretilen
+# Oyunun urettigi
 settings.json
+save1.json
 
 # Test ciktilari
 tests/screenshots/
+
+# Derleme ciktilari (surumler GitHub Releases'te yayinlanir)
+build/
+dist/
+release/
+*.spec.bak
+KTL-Setup-*.exe
+
+# Eski yedekler / dagınık dosyalar
+README_bck.md
+screenshot_*.png
