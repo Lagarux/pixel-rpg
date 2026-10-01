@@ -696,6 +696,7 @@ ITEM_PRICES = {
     "leather_armor":85,"plate_mail":240,"mage_robe":95,"healer_robe":100,"scout_coat":105,
     "swift_boots":90,"power_ring":95,"mage_focus":110,"mana_gem":100,
     "warrior_crest":115,"archer_token":105,
+    "farm_tool":140,"river_gem":150,      # kalıcı nitelik veriyorlar, pahalı
 }
 SELL_RATE = 0.4     # satarken alınan oran (dükkân kâr eder)
 REST_PRICE = 18     # handa konaklama
@@ -718,6 +719,12 @@ SHOPS = {
         "stock":["hp_pot","mp_pot","swift_boots","power_ring","mana_gem"],
         "rest":True,
     },
+    # ── Pazar tezgâhları ──
+    "npc.otaci_nesrin":{"stock":["hp_pot","mp_pot","river_gem"],"rest":False},
+    "npc.avci_doruk":{"stock":["fine_bow","shadow_bow","scout_coat","archer_token"],"rest":False},
+    "npc.tuccar_salim":{"stock":["swift_boots","power_ring","mana_gem","mage_focus",
+                                 "warrior_crest"],"rest":False},
+    "npc.ciftci_hale":{"stock":["farm_tool","hp_pot"],"rest":False},
 }
 
 # ─── Yan görevler ────────────────────────────────────────────────
@@ -802,6 +809,7 @@ class T:
     # duvarı olduğu için yürünemiyordu — köyün ana yolları birer duvardı.
     # GATE: harita geçidi. Geçişin kendisi bu kare; kapı/mağara ağzı çiziliyor.
     ROAD=25;GATE=26
+    STALL=27        # pazar tezgâhı: tenteli ahşap kepenk, yürünmez
 
 WALKABLE={T.GRASS,T.DIRT,T.SAND,T.SNOW,T.FARMLAND,T.WHEAT,
           T.FLOOR,T.DOOR,T.STAIRS_UP,T.STAIRS_DN,T.PORTAL,T.BRIDGE,T.ICE,
@@ -827,6 +835,15 @@ class PA:
                 for c in range(2):
                     ox=c*16+(r*8%16);oy=r*16
                     pygame.draw.rect(s,ST_L,(ox+1,oy+1,13,13));pygame.draw.rect(s,ST,(ox+1,oy+1,13,13),1)
+        elif k==T.STALL:
+            s.fill(DT)
+            for i in range(0,Tp,8):        # çizgili tente
+                pygame.draw.rect(s,(188,62,56) if (i//8)%2==0 else (238,228,208),(i,0,8,13))
+            pygame.draw.rect(s,(122,42,38),(0,12,Tp,3))
+            pygame.draw.rect(s,(86,62,40),(1,15,3,Tp-20))      # direkler
+            pygame.draw.rect(s,(86,62,40),(Tp-4,15,3,Tp-20))
+            pygame.draw.rect(s,(112,84,54),(0,Tp-6,Tp,6))      # tezgâh tahtası
+            for i in range(0,Tp,7): pygame.draw.line(s,(78,56,34),(i,Tp-6),(i,Tp-1),1)
         elif k==T.ROAD:
             s.fill((96,92,86))
             for r in range(4):
@@ -2055,24 +2072,54 @@ def build_ashveil():
     # Batı → Nehir  (y=20..28, x=2)
     _trans_strip(m,'x',2,  21,28, "west_river",  52,22, T.GRASS,(-1,0))
 
+    # ── PAZAR MEYDANI ──
+    # Köyün güneybatısı boştu; altın harcanacak tek yer iki NPC'ydi.
+    _rect(m, 14, 38, 14, 10, T.ROAD)              # taş döşeli meydan
+    _path(m, 27, 42, 30, 42, T.ROAD, 2)           # ana yola bağlantı
+    for sx in (15, 22):                           # karşılıklı iki sıra tezgâh
+        for dx in range(3):
+            m.set(sx+dx, 39, T.STALL)
+            m.set(sx+dx, 46, T.STALL)
+
+    def otaci_d(f):
+        D=lambda a,b:["dlg.otaci.%d"%i for i in range(a,b)]
+        return D(7,13) if f.get("ch",1)>=4 else D(1,7)
+    m.npcs.append(NPC(16,40,"npc.otaci_nesrin",(120,180,130),otaci_d,"oracle"))
+
+    def avci_d(f):
+        D=lambda a,b:["dlg.avci.%d"%i for i in range(a,b)]
+        return D(7,13) if f.get("kill_wolf",0)>=3 else D(1,7)
+    m.npcs.append(NPC(23,40,"npc.avci_doruk",(150,130,90),avci_d,"fisher"))
+
+    def tuccar_d(f):
+        D=lambda a,b:["dlg.tuccar.%d"%i for i in range(a,b)]
+        return D(7,13) if f.get("ch",1)>=5 else D(1,7)
+    m.npcs.append(NPC(16,45,"npc.tuccar_salim",(190,160,100),tuccar_d,"traveler"))
+
+    def ciftci_d(f):
+        D=lambda a,b:["dlg.ciftci.%d"%i for i in range(a,b)]
+        return D(7,13) if f.get("kill_boar",0)>=3 else D(1,7)
+    m.npcs.append(NPC(23,45,"npc.ciftci_hale",(170,150,110),ciftci_d,"farmer"))
+
     # NPCler
     def aldric_d(f):
-        if f.get("ch",1)>=6: return ["dlg.aldric.1","dlg.aldric.2"]
-        if f.get("water_crystal"): return ["dlg.aldric.3","dlg.aldric.4","dlg.aldric.5"]
-        if f.get("earth_crystal"): return ["dlg.aldric.6","dlg.aldric.7","dlg.aldric.8","dlg.aldric.9"]
-        return ["dlg.aldric.10","dlg.aldric.11","dlg.aldric.12","dlg.aldric.13","dlg.aldric.14"]
+        A=lambda a,b:["dlg.aldric.%d"%i for i in range(a,b)]
+        if f.get("ch",1)>=6:        return A(1,7)
+        if f.get("water_crystal"):  return A(7,13)
+        if f.get("earth_crystal"):  return A(13,19)
+        return A(19,26)
     m.npcs.append(NPC(24,19,"npc.yasli_aldric",(160,100,60),aldric_d,"elder"))
-    def smith_d(f): return ["dlg.smith.1","dlg.smith.2","dlg.smith.3"]
+    def smith_d(f): return ["dlg.smith.%d"%i for i in range(1,8)]
     m.npcs.append(NPC(18,13,"npc.demirci_boran",(140,90,50),smith_d,"smith"))
-    def inn_d(f): return ["dlg.inn.1","dlg.inn.2","dlg.inn.3"]
+    def inn_d(f): return ["dlg.inn.%d"%i for i in range(1,8)]
     m.npcs.append(NPC(38,13,"npc.hanci_mira",(180,130,160),inn_d,"inn"))
     def guard_d(f):
-        if not f.get("speak_aldric"): return ["dlg.guard.1","dlg.guard.2"]
-        return ["dlg.guard.3","dlg.guard.4","dlg.guard.5"]
+        if not f.get("speak_aldric"): return ["dlg.guard.%d"%i for i in range(1,7)]
+        return ["dlg.guard.%d"%i for i in range(7,13)]
     m.npcs.append(NPC(56,22,"npc.koy_muhafizi",(100,120,180),guard_d,"guard"))
-    def south_d(f): return ["dlg.south.1","dlg.south.2"]
+    def south_d(f): return ["dlg.south.%d"%i for i in range(1,7)]
     m.npcs.append(NPC(24,48,"npc.yolcu",(160,180,140),south_d,"traveler"))
-    def west_d(f): return ["dlg.west.1","dlg.west.2","dlg.west.3"]
+    def west_d(f): return ["dlg.west.%d"%i for i in range(1,7)]
     # Yolun ortasinda degil kenarinda dursun: bati gecidinden donen oyuncu
     # dogrudan ona carpiyordu.
     m.npcs.append(NPC(4,27,"npc.koy_yerlisi",(140,160,180),west_d))
@@ -2133,8 +2180,8 @@ def build_dark_forest():
     m.set(16,30,T.CHEST); m.chests[(16,30)] = ["leather_armor","gold"]
 
     def roland_d(f):
-        if f.get("ch",1)>=3: return ["dlg.roland.1","dlg.roland.2","dlg.roland.3"]
-        return ["dlg.roland.4","dlg.roland.5","dlg.roland.6","dlg.roland.7","dlg.roland.8"]
+        R=lambda a,b:["dlg.roland.%d"%i for i in range(a,b)]
+        return R(1,7) if f.get("ch",1)>=3 else R(7,14)
     m.npcs.append(NPC(22,22,"npc.sir_roland",(130,160,130),roland_d,"knight"))
 
     m.enemies += [
@@ -2184,7 +2231,7 @@ def build_rocky_pass():
     m.set(36, 4, T.CHEST); m.chests[(36,4)]  = ["mp_pot","power_ring"]
     m.set(24,28, T.CHEST); m.chests[(24,28)] = ["hp_pot","iron_sword","gold"]
 
-    def scout_d(f): return ["dlg.scout.1","dlg.scout.2","dlg.scout.3","dlg.scout.4"]
+    def scout_d(f): return ["dlg.scout.%d"%i for i in range(1,8)]
     m.npcs.append(NPC(24,16,"npc.gecit_gozcusu",(160,140,100),scout_d,"guard"))
 
     m.enemies += [
@@ -2241,7 +2288,7 @@ def build_misty_swamp():
     m.set(10,20, T.CHEST); m.chests[(10,20)] = ["hp_pot","gold","gold"]
     m.set(46,20, T.CHEST); m.chests[(46,20)] = ["mp_pot","fine_bow"]
 
-    def witch_d(f): return ["dlg.witch.1","dlg.witch.2","dlg.witch.3","dlg.witch.4"]
+    def witch_d(f): return ["dlg.witch.%d"%i for i in range(1,8)]
     m.npcs.append(NPC(30,19,"npc.bataklik_cadisi",(100,160,100),witch_d,"oracle"))
 
     m.enemies += [
@@ -2295,8 +2342,8 @@ def build_ruins():
     m.set(44,44,T.CHEST); m.chests[(44,44)]= ["earth_c","hp_pot","hp_pot"]
 
     def ghost_d(f):
-        if f.get("earth_crystal"): return ["dlg.ghost.1","dlg.ghost.2"]
-        return ["dlg.ghost.3","dlg.ghost.4"]
+        G=lambda a,b:["dlg.ghost.%d"%i for i in range(a,b)]
+        return G(1,6) if f.get("earth_crystal") else G(6,11)
     m.npcs.append(NPC(8,19,"npc.antik_ruh",(180,200,220),ghost_d,"spirit"))
     m.enemies += [
         Enemy(6, 6,"skeleton",55,11,30,agro=5,loot=["gold"]),
@@ -2337,9 +2384,10 @@ def build_desert():
     m.set(54,28,T.CHEST); m.chests[(54,28)] = ["shadow_bow","gold"]
     m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot"]
     def oracle_d(f):
-        if f.get("water_crystal"): return ["dlg.oracle.1","dlg.oracle.2"]
-        if f.get("earth_crystal"): return ["dlg.oracle.3","dlg.oracle.4"]
-        return ["dlg.oracle.5","dlg.oracle.6"]
+        O=lambda a,b:["dlg.oracle.%d"%i for i in range(a,b)]
+        if f.get("water_crystal"): return O(1,6)
+        if f.get("earth_crystal"): return O(6,11)
+        return O(11,16)
     m.npcs.append(NPC(30,8,"npc.oracle_nyx",(120,80,180),oracle_d,"oracle"))
     m.enemies += [
         Enemy(10,10,"scorpion",45,10,30,agro=5,loot=["gold"]),
@@ -2383,8 +2431,8 @@ def build_ice_cave():
     m.set(5, 19,T.CHEST); m.chests[(5,19)] = ["hp_pot","mp_pot"]
     m.set(38,42,T.CHEST); m.chests[(38,42)]= ["water_c","hp_pot","mp_pot","hp_pot"]
     def spirit_d(f):
-        if f.get("water_crystal"): return ["dlg.spirit.1","dlg.spirit.2"]
-        return ["dlg.spirit.3","dlg.spirit.4"]
+        S=lambda a,b:["dlg.spirit.%d"%i for i in range(a,b)]
+        return S(1,6) if f.get("water_crystal") else S(6,11)
     m.npcs.append(NPC(8,20,"npc.buz_ruhu",(180,220,255),spirit_d,"spirit"))
     m.enemies += [
         Enemy(5, 5,"ice_wolf",55,12,35,agro=5,loot=["gold"]),
@@ -2422,8 +2470,8 @@ def build_shadow_castle():
     m.set(5, 44,T.CHEST); m.chests[(5,44)] = ["hp_pot","hp_pot","steel_sword"]
     m.set(48,44,T.CHEST); m.chests[(48,44)]= ["mage_focus","elder_staff"]
     def king_d(f):
-        if f.get("malachar_defeated"): return ["dlg.king.1","dlg.king.2"]
-        return ["dlg.king.3","dlg.king.4","dlg.king.5"]
+        K=lambda a,b:["dlg.king.%d"%i for i in range(a,b)]
+        return K(1,7) if f.get("malachar_defeated") else K(7,13)
     m.npcs.append(NPC(10,8,"npc.kral_alderon",(200,160,80),king_d,"knight"))
     m.enemies += [
         Enemy(8, 8,"shadow_knight",100,20,65,agro=6,loot=["hp_pot","gold"]),
@@ -2486,11 +2534,11 @@ def build_south_meadow():
     _trans_strip(m,'y',2,  16,26, "ashveil",  22,49, T.GRASS,(0,-1))
     m.set(8, 30,T.CHEST); m.chests[(8,30)]  = ["farm_tool","hp_pot","gold"]
     m.set(46,22,T.CHEST); m.chests[(46,22)] = ["hp_pot","mana_gem"]
-    def farmer_d(f): return ["dlg.farmer.1","dlg.farmer.2","dlg.farmer.3"]
+    def farmer_d(f): return ["dlg.farmer.%d"%i for i in range(1,7)]
     m.npcs.append(NPC(10,30,"npc.ciftci_torben",(160,120,80),farmer_d,"farmer"))
-    def kid_d(f): return ["dlg.kid.1"]
+    def kid_d(f): return ["dlg.kid.%d"%i for i in range(1,6)]
     m.npcs.append(NPC(35,12,"npc.ciftlik_cocugu",(180,200,160),kid_d,"child"))
-    def traveler_d(f): return ["dlg.traveler.1","dlg.traveler.2"]
+    def traveler_d(f): return ["dlg.traveler.%d"%i for i in range(1,7)]
     m.npcs.append(NPC(50,22,"npc.gezgin",(140,150,180),traveler_d,"traveler"))
     m.enemies += [
         Enemy(36, 4,"boar", 40, 9,25,agro=5,loot=["gold"]),
@@ -2527,10 +2575,10 @@ def build_west_river():
     m.set(46,  5,T.CHEST); m.chests[(46,5)] = ["hp_pot","hp_pot","mana_gem"]
     m.set(46, 33,T.CHEST); m.chests[(46,33)]= ["fine_bow","gold"]
     def fisher_d(f):
-        if f.get("sq_fish_done"): return ["dlg.fisher.1","dlg.fisher.2","dlg.fisher.3"]
-        return ["dlg.fisher.4","dlg.fisher.5","dlg.fisher.6","dlg.fisher.7","dlg.fisher.8"]
+        F=lambda a,b:["dlg.fisher.%d"%i for i in range(a,b)]
+        return F(1,7) if f.get("sq_fish_done") else F(7,14)
     m.npcs.append(NPC(6,16,"npc.balikci_riva",(100,140,180),fisher_d,"fisher"))
-    def hermit_d(f): return ["dlg.hermit.1","dlg.hermit.2"]
+    def hermit_d(f): return ["dlg.hermit.%d"%i for i in range(1,7)]
     m.npcs.append(NPC(44,4,"npc.munzevi",(180,160,200),hermit_d,"hermit"))
     m.enemies += [
         Enemy(18, 4,"slime",   30, 6,18,agro=4,loot=["gold"]),
@@ -2565,8 +2613,9 @@ def build_mystic_library():
     m.set(37,30,T.CHEST); m.chests[(37,30)]= ["hp_pot","mp_pot","swift_boots","gold"]
     def libr_d(f):
         n=sum(1 for k in["sq_scroll1","sq_scroll2","sq_scroll3"] if f.get(k))
-        if n>=3: return ["dlg.libr.1","dlg.libr.2","dlg.libr.3"]
-        return ["dlg.libr.4",("dlg.libr.5",n),"dlg.libr.6"]
+        if n>=3: return ["dlg.libr.%d"%i for i in range(1,7)]
+        return ["dlg.libr.7","dlg.libr.8",("dlg.libr.9",n),
+                "dlg.libr.10","dlg.libr.11","dlg.libr.12"]
     m.npcs.append(NPC(21,19,"npc.kutuphaneci_elan",(140,100,200),libr_d,"scholar"))
     m.enemies += [
         Enemy(10, 8,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),

@@ -522,6 +522,51 @@ geçidin 3 kare olup sınırda durduğu; kenarların kapalı olduğu; köyün an
 yolunun yürünebildiği; mağara kayasının hâlâ blok olduğu ve köyden her
 haritaya ulaşılabildiği doğrulanıyor.
 
+### ✅ Pazar meydanı ve NPC diyalogları (2026-10-01, kullanıcı isteği)
+
+#### Pazar
+
+Köyde altın harcanacak tek yer iki NPC'ydi. Güneybatıdaki boş alana taş
+döşeli bir meydan, karşılıklı dört tezgâh ve dört satıcı kondu.
+
+| Satıcı | Tezgâh |
+|---|---|
+| **Otacı Nesrin** | Sağlık/mana iksiri, Nehir Taşı (kalıcı WIS +1) |
+| **Avcı Doruk** | İnce Yay, Gölge Yay, İzci Palto, Nişan Taşı |
+| **Gezgin Tüccar Salim** | Hız Botları, Güç Yüzüğü, Mana Taşı, Odak Kristali, Savaşçı Nişanı |
+| **Çiftçi Hale** | Çiftçi Aleti (kalıcı STR +1), iksir |
+
+Pazarın varlık sebebi ölçülüyor: dört tezgâhın stoğu birbirinden farklı ve
+eski iki dükkânın hiç satmadığı eşyaları içeriyor (`mage_focus`,
+`warrior_crest`, `archer_token`, `farm_tool`, `river_gem`). Tezgâhlar
+yürümeyi engelliyor; satıcılar meydanın açık tarafında duruyor.
+
+#### Diyaloglar
+
+Diyaloglar yer tutucu gibiydi: *"Dikkat et."*, *"Kuzeye git!"* — bir NPC
+(çiftlik çocuğu) **tek cümle** söylüyordu. 23 NPC'nin tamamı yeniden yazıldı.
+
+| | Önce | Sonra |
+|---|---|---|
+| Ortalama konuşma uzunluğu | 2,9 satır | **6,1 satır** |
+| En kısa konuşma | 1 satır | **5 satır** |
+| 5 satırdan kısa NPC | 20 / 23 | **0 / 23** |
+| Toplam çeviri anahtarı | 402 | **520** |
+
+Satırlar artık karakter taşıyor: Aldric kendine "bu köyün en yaşlısı, en
+işe yaramazı" diyor; muhafız ormana girenlerin ikisinin dönmediğini
+söylüyor; Kral Alderon tacın konuştuğunu ve "hep haklı olduğunu söylediğini"
+anlatıyor. Satıcılar oyuncunun ne yaptığını fark ediyor — üç kurt
+öldürdüysen Avcı Doruk sürüyü dağıttığını biliyor.
+
+`tests/test_dialogue.py` (10): her NPC'nin yeterince konuştuğu, hiçbir
+satırın 20 karakterden kısa olmadığı, **beş dilde** eksiksiz çevrildiği,
+`%d` yer tutucularının her dilde korunduğu, NPC'lerin yarısından fazlasının
+ilerlemeye tepki verdiği ve **hiçbir satırın diyalog kutusundan taşmadığı**
+(en geniş 717 px / 916 px) doğrulanıyor.
+`tests/test_bazaar.py` (14): meydanın yürünerek erişilebildiği, her
+satıcının yanına varılabildiği ve her tezgâhın gerçek bir dükkân olduğu.
+
 ### ⬜ Faz 5 — İçerik derinliği
 - [x] İ5 — görev işaretçileri **ve mini harita yapıldı**
 - [x] İ7 — dükkân ve ekonomi **yapıldı**
@@ -560,6 +605,8 @@ haritaya ulaşılabildiği doğrulanıyor.
 | 2026-09-29 | — | Testler iki hata daha buldu: yeni karakterde bot/muska `KeyError`, uymayan ekipman eşyayı yok ediyor | 33 yeni test; toplam 139 test |
 | 2026-09-29 | 5 | Mini harita (`M`), kontrol ipuçları sol panelin altına taşındı | 13 yeni test; toplam 152 test |
 | 2026-10-01 | — | **Oyun testi geri bildirimi:** harita geçişlerinde sıkışma; geçiş bölgeleri yeniden tasarlandı | 15 yeni test; toplam 167 test |
+| 2026-10-01 | — | Tek seferlik klavye tanıtımı; HUD'daki soluk tuş listesi kalktı | 10 yeni test; toplam 177 test |
+| 2026-10-01 | — | Pazar meydanı (4 tezgâh) ve 23 NPC'nin diyaloglarının yeniden yazımı | 24 yeni test; toplam 201 test |
 
 ---
 
