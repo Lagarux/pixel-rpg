@@ -97,6 +97,31 @@ class TestEffectBank(unittest.TestCase):
     def test_play_tolerates_unknown_name(self):
         SM.play("bilinmeyen_ses")   # patlamamali
 
+    def test_sounds_are_not_harsh(self):
+        """Kullanici "bazi sesler kulagimi tirmaliyor" dedi. Parlaklik =
+        ortalama|ornek farki| / ortalama|ornek|; testere ve gurultu dalgalari
+        bunu yukseltiyor. Yuruyus sesi 0.76 ile acik ara en sertti ve her
+        adimda caliyordu."""
+        import array as _a
+        for k in ("walk", "hit", "hit_heavy", "arrow", "trap"):
+            d = _a.array("h")
+            d.frombytes(SM._sounds[k].get_raw())
+            d = d[::SM._format[1]]
+            n = len(d)
+            mut = sum(abs(v) for v in d) / n
+            fark = sum(abs(d[i] - d[i - 1]) for i in range(1, n)) / (n - 1)
+            parlak = fark / max(1.0, mut)
+            self.assertLess(parlak, 0.25, "%s sesi fazla sert: parlaklik %.2f" % (k, parlak))
+
+    def test_the_walking_sound_stays_quiet(self):
+        """Her adimda calan ses, vurus sesi kadar yuksek olmamali."""
+        import array as _a
+        def tepe(k):
+            d = _a.array("h"); d.frombytes(SM._sounds[k].get_raw())
+            return max(max(d), -min(d))
+        self.assertLess(tepe("walk"), tepe("hit"), "yuruyus sesi vurustan yuksek")
+        self.assertGreater(tepe("walk"), 2500, "yuruyus sesi duyulmayacak kadar kisik")
+
 
 class TestMusic(unittest.TestCase):
     def setUp(self):

@@ -353,6 +353,20 @@ class SoundManager:
         return out
 
     @classmethod
+    def _lowpass(cls,buf,hz):
+        """Tek kutuplu alçak geçiren süzgeç: tiz harmonikleri yumuşatır.
+
+        Testere ve gürültü dalgaları doğrudan kullanıldığında ses "tırmalıyor"
+        — ölçtük: yürüme sesinin parlaklığı 0.76'ydı, diğerlerinin 0.2'si.
+        """
+        sr=cls._format[0]
+        a=1.0-math.exp(-2.0*math.pi*float(hz)/sr)
+        y=0.0
+        for k in range(len(buf)):
+            y+=a*(buf[k]-y); buf[k]=y
+        return buf
+
+    @classmethod
     def _fade(cls,buf,secs=0.006):
         """Başta/sonda kısa rampa — ani kesmenin çıkardığı 'tık' sesini önler."""
         n=len(buf); f=min(int(cls._format[0]*secs),n//2)
@@ -390,10 +404,13 @@ class SoundManager:
         return pygame.mixer.Sound(buffer=pcm.tobytes())
 
     @classmethod
-    def _make(cls,freq,dur,wave="sine",attack=0.01,decay=0.1,vol=0.4,vibrato=0.0,noise=0.0):
-        """Tek notalı efekt üretir."""
+    def _make(cls,freq,dur,wave="sine",attack=0.01,decay=0.1,vol=0.4,vibrato=0.0,
+              noise=0.0,lp=None):
+        """Tek notalı efekt üretir. lp: alçak geçiren süzgeç kesim frekansı."""
         try:
-            return cls._pcm(cls._envelope(cls._osc(wave,freq,dur,vibrato,noise),attack,decay,vol))
+            buf=cls._osc(wave,freq,dur,vibrato,noise)
+            if lp: buf=cls._lowpass(buf,lp)
+            return cls._pcm(cls._envelope(buf,attack,decay,vol))
         except Exception as e:
             cls._fail="_make(%s): %s"%(freq,e); return None
 
@@ -424,23 +441,26 @@ class SoundManager:
             cls._enabled=False; cls._fail="beklenmeyen örnek biçimi: %s"%(got[1],); return
         cls._format=(got[0],max(1,got[2]))
         defs={
-            "hit":      lambda: cls._make(220,0.12,"saw",0.005,0.11,0.5,noise=0.3),
-            "hit_heavy":lambda: cls._make(150,0.20,"saw",0.005,0.18,0.6,noise=0.4),
+            # Tiz harmonikler süzülüyor: ölçülen parlaklık 0.43/0.53 idi.
+            "hit":      lambda: cls._make(200,0.12,"saw",0.006,0.11,0.46,noise=0.16,lp=2000),
+            "hit_heavy":lambda: cls._make(140,0.20,"saw",0.008,0.18,0.55,noise=0.22,lp=1400),
             "heal":     lambda: cls._chord([523,659,784],0.35,vol=0.4),
             "level_up": lambda: cls._chord([261,329,392,523,659,784],0.9,vol=0.5),
             "chest":    lambda: cls._chord([392,494,587,784],0.5,vol=0.4),
-            "walk":     lambda: cls._make(80,0.04,"noise",0.001,0.035,0.15,noise=0.8),
+            # Yürüme her adımda çalıyor: en sert ses buydu (parlaklık 0.76).
+            # Daha pes, daha kısık, iyice süzülmüş bir "pat" sesi.
+            "walk":     lambda: cls._make(110,0.05,"sine",0.002,0.045,0.16,noise=0.30,lp=700),
             "spell":    lambda: cls._chord([440,554,659],0.25,vol=0.45),
-            "arrow":    lambda: cls._make(600,0.10,"saw",0.001,0.09,0.3,noise=0.1),
+            "arrow":    lambda: cls._make(520,0.10,"tri",0.003,0.09,0.28,noise=0.05,lp=3000),
             "menu_sel": lambda: cls._make(660,0.08,"sine",0.005,0.07,0.3),
             "menu_back":lambda: cls._make(440,0.08,"sine",0.005,0.07,0.25),
             "boss_alert":lambda: cls._chord([110,138,165],0.8,vol=0.55),
             "victory":  lambda: cls._chord([523,659,784,1046],1.2,vol=0.5),
             "death":    lambda: cls._chord([110,138],0.8,vol=0.45),
             "equip":    lambda: cls._chord([330,415,494],0.25,vol=0.35),
-            "error":    lambda: cls._make(180,0.18,"square",0.005,0.15,0.3),
+            "error":    lambda: cls._make(190,0.18,"tri",0.006,0.15,0.30,lp=1800),
             "open_ui":  lambda: cls._chord([392,494,587],0.18,vol=0.3),
-            "trap":     lambda: cls._make(330,0.15,"square",0.005,0.12,0.4,noise=0.2),
+            "trap":     lambda: cls._make(320,0.15,"tri",0.006,0.12,0.38,noise=0.10,lp=2200),
             "freeze":   lambda: cls._chord([880,1108,1318],0.3,vol=0.35),
         }
         for k,fn in defs.items():
@@ -903,6 +923,39 @@ STORY_LINES=[
     ("Koyun yasli bilgesi seni cagiriyor.",(200,255,200)),
     ("Kader bir kez daha bir kahraman istiyor.",UI_GD),
 ]
+
+# ─── Kapanış ─────────────────────────────────────────────────────
+# Malachar düşünce oyun doğrudan zafer ekranına atlıyordu. Kapanış bir
+# oyunun en çok hatırlanan yeri; burada sayfa sayfa anlatılıyor ve oyuncunun
+# NE YAPTIĞINA göre değişiyor: bitirdiği yan görevler epiloğa giriyor.
+# (koşul, satır anahtarları) — koşul None ise sayfa her zaman gösterilir.
+EPILOGUE = [
+    (None,                                ["epi.1.1","epi.1.2","epi.1.3","epi.1.4"]),
+    (None,                                ["epi.2.1","epi.2.2","epi.2.3","epi.2.4"]),
+    (lambda f: f.get("sqpaid_fish"),      ["epi.fish.1","epi.fish.2"]),
+    (lambda f: f.get("sqpaid_scroll"),    ["epi.scroll.1","epi.scroll.2"]),
+    (lambda f: f.get("sqpaid_boar"),      ["epi.boar.1","epi.boar.2"]),
+    (lambda f: f.get("sqpaid_witch") or f.get("sqpaid_hermit"),
+                                          ["epi.quiet.1","epi.quiet.2"]),
+    (None,                                ["epi.3.1","epi.3.2","epi.3.3","epi.3.4"]),
+]
+
+# Bitirilen yan görev sayısına göre unvan
+ENDING_RANKS = [(14,"epi.rank_legend"),(10,"epi.rank_hero"),
+                (5,"epi.rank_wanderer"),(0,"epi.rank_sealer")]
+
+
+def epilogue_pages(flags):
+    """Oyuncunun yaptıklarına göre gösterilecek epilog sayfaları."""
+    return [satir for kosul,satir in EPILOGUE if kosul is None or kosul(flags)]
+
+
+def ending_rank(flags)->str:
+    n=sum(1 for sq in SIDE_QUESTS if flags.get("sqpaid_"+sq["id"]))
+    for esik,anahtar in ENDING_RANKS:
+        if n>=esik: return anahtar
+    return ENDING_RANKS[-1][1]
+
 
 # ─── Tile Tipleri ───────────────────────────────────────────────
 class T:
@@ -2941,17 +2994,47 @@ class UI:
         self.txt(surf,T_("gameover_sub"),SW//2-120,SH//2-10,LGR,self.fmd)
         self.txt(surf,T_("gameover_restart"),SW//2-100,SH//2+40,UI_AC,self.fmd)
 
-    def draw_victory(self,surf,tick):
+    def _night_sky(self,surf,tick,n=160,warm=True):
+        """Kapanış ekranlarının ortak arka planı: yavaşça nefes alan yıldızlar."""
         surf.fill(DKG)
-        for i in range(200):
+        for i in range(n):
             random.seed(i*313);sx2=random.randint(0,SW);sy2=random.randint(0,SH)
-            pv=int(abs(math.sin(tick*0.002+i*0.5))*120)+80;pygame.draw.circle(surf,(pv,int(pv*0.8),50),(sx2,sy2),1)
+            pv=int(abs(math.sin(tick*0.002+i*0.5))*110)+70
+            col=(pv,int(pv*0.85),60) if warm else (int(pv*0.8),int(pv*0.9),pv)
+            pygame.draw.circle(surf,col,(sx2,sy2),1)
         random.seed()
+
+    def draw_epilogue(self,surf,satirlar,sayfa,toplam,tick):
+        """Kapanış anlatısı — hikâye ekranıyla aynı dilde, sayfa sayfa."""
+        self._night_sky(surf,tick,110,warm=False)
+        self.txt_c(surf,T_("epi.title"),SW//2,40,UI_AC,self.fxl)
+        y=SH//2-len(satirlar)*18
+        for k in satirlar:
+            t=T_(k)
+            ts=self.fmd.render(t,True,UI_TX)
+            surf.blit(ts,(SW//2-ts.get_width()//2,y));y+=36
+        self.txt_c(surf,"%d/%d"%(sayfa+1,toplam),SW//2,SH-86,GR,self.fsm)
+        pv=int(abs(math.sin(tick*0.003))*80)+120
+        self.txt_c(surf,T_("ui.story_next"),SW//2,SH-56,(pv,120,255),self.fmd)
+
+    def draw_victory(self,surf,tick,stats=None,rank=None):
+        self._night_sky(surf,tick,200,warm=True)
         gv=int(abs(math.sin(tick*0.002))*60)+80
-        self.txt_c(surf,T_("victory_title"),SW//2,120,(255,gv+80,gv//2),self.fti)
-        self.txt_c(surf,T_("victory_sub"),SW//2,200,UI_GD,self.fxl)
-        self.txt_c(surf,T_("victory_sub2"),SW//2,260,UI_TX,self.flg)
-        self.txt(surf,T_("victory_menu"),SW//2-100,380,(int(abs(math.sin(tick*0.003))*100)+120,100,255),self.fmd)
+        self.txt_c(surf,T_("victory_title"),SW//2,54,(255,gv+80,gv//2),self.fti)
+        if rank: self.txt_c(surf,T_(rank),SW//2,132,UI_GD,self.fxl)
+        self.txt_c(surf,T_("victory_sub"),SW//2,180,UI_TX,self.fmd)
+        # Yolculuğun özeti: oyuncunun ne yaptığı tek karede görünsün
+        if stats:
+            pw,ph=420,180;px=SW//2-pw//2;py=224
+            self.panel(surf,px,py,pw,ph)
+            for i,(ad,deger) in enumerate(stats):
+                yy=py+16+i*28
+                self.txt(surf,ad,px+22,yy,LGR,self.fmd)
+                ts=self.fmd.render(str(deger),True,UI_GD)
+                surf.blit(ts,(px+pw-22-ts.get_width(),yy))
+        self.txt_c(surf,T_("victory_sub2"),SW//2,SH-92,UI_TX,self.fsm)
+        self.txt_c(surf,T_("victory_menu"),SW//2,SH-56,
+                   (int(abs(math.sin(tick*0.003))*100)+120,100,255),self.fmd)
 
     def draw_transition(self,surf,alpha,name):
         ov=pygame.Surface((SW,SH),pygame.SRCALPHA);ov.fill((0,0,0,min(255,alpha)));surf.blit(ov,(0,0))
@@ -3658,6 +3741,7 @@ class Game:
         self.levelup_timer=0;self.ch_announce=0
         self.trans_alpha=0;self.pending_trans=None;self.transitioning=False;self.entering_name=""
         self.inv_sel=0;self.inv_tab=0;self.eq_sel=0  # eq_sel: ekipman sekmesi imleci
+        self.epi_pages=[];self.epi_page=0            # kapanış sayfaları
         self.shop_npc=None;self.shop_tab=0;self.shop_sel=0;self.shop_msg=None
         self.projectiles:List[Projectile]=[]
         self.settings_sel=0  # Ayarlar menüsü seçimi
@@ -3740,7 +3824,9 @@ class Game:
             return False
         dur=p.stats.move_delay*(1.41 if (dx and dy) else 1.0)
         p.start_step(ntx,nty,dur)
-        SoundManager.play("walk")
+        # İki adımda bir: aynı ses saniyede 7 kez çalınca tekrar yoruyor
+        self._step_n=getattr(self,"_step_n",0)+1
+        if self._step_n%2==0: SoundManager.play("walk")
         pt=(p.tx,p.ty)
         if pt in self.cur_map.transitions:
             dst,tx2,ty2=self.cur_map.transitions[pt];self._start_trans(dst,tx2,ty2)
@@ -3982,7 +4068,10 @@ class Game:
         kk="kill_"+e.kind
         self.flags[kk]=self.flags.get(kk,0)+1
         if lv: self.levelup_timer=180; SoundManager.play("level_up")
-        if e.is_boss and e.kind=="malachar": self.flags["malachar_defeated"]=True;self.state="victory";SoundManager.play("victory")
+        if e.is_boss and e.kind=="malachar":
+            self.flags["malachar_defeated"]=True
+            self.epi_pages=epilogue_pages(self.flags);self.epi_page=0
+            self.state="epilogue";SoundManager.play("victory")
 
     def _open_shop(self,npc):
         self.shop_npc=npc.name;self.shop_tab=0;self.shop_sel=0;self.shop_msg=None
@@ -4022,6 +4111,19 @@ class Game:
             self.shop_msg=(T_("ui.shop_no_gold"),UI_RD);SoundManager.play("error");return
         st.gold-=REST_PRICE;st.hp=st.max_hp;st.mp=st.max_mp
         self.shop_msg=(T_("ui.shop_rested"),UI_GN);SoundManager.play("heal")
+
+    def _ending_stats(self):
+        """Kapanış kartındaki özet: oyuncunun yolculuğu rakamlarla."""
+        st=self.player.stats if self.player else None
+        if not st: return []
+        oldurulen=sum(v for k,v in self.flags.items()
+                      if k.startswith("kill_") and isinstance(v,int))
+        biten=sum(1 for sq in SIDE_QUESTS if self.flags.get("sqpaid_"+sq["id"]))
+        return [(T_("epi.stat_level"),st.level),
+                (T_("epi.stat_quests"),"%d/%d"%(biten,len(SIDE_QUESTS))),
+                (T_("epi.stat_kills"),oldurulen),
+                (T_("epi.stat_chests"),self.flags.get("chests_opened",0)),
+                (T_("epi.stat_gold"),st.gold)]
 
     def _check_side_quests(self):
         """Tamamlanan yan görevin ödülünü bir kez verir."""
@@ -4734,6 +4836,14 @@ class Game:
                     elif self.state=="gameover":
                         if k==pygame.K_r: self._reset()
 
+                    elif self.state=="epilogue":
+                        if k in(pygame.K_RETURN,pygame.K_SPACE,pygame.K_e):
+                            self.epi_page+=1
+                            SoundManager.play("menu_sel")
+                            if self.epi_page>=len(self.epi_pages): self.state="victory"
+                        elif k==pygame.K_ESCAPE:
+                            self.state="victory"
+
                     elif self.state=="victory":
                         if k in(pygame.K_ESCAPE,pygame.K_RETURN): self._reset()
 
@@ -4851,8 +4961,12 @@ class Game:
                     self.ui.draw_stat_alloc(self.screen,self.player.stats,self.player.stats.skill_points,self.stat_sel,True,self.tick)
                 elif self.state=="gameover":
                     self.ui.draw_gameover(self.screen)
+                elif self.state=="epilogue":
+                    sf=self.epi_pages[min(self.epi_page,len(self.epi_pages)-1)]
+                    self.ui.draw_epilogue(self.screen,sf,self.epi_page,len(self.epi_pages),self.tick)
                 elif self.state=="victory":
-                    self.ui.draw_victory(self.screen,self.tick)
+                    self.ui.draw_victory(self.screen,self.tick,self._ending_stats(),
+                                         ending_rank(self.flags))
 
             if self.trans_alpha>0: self.ui.draw_transition(self.screen,self.trans_alpha,T_(self.entering_name))
             # Pause overlay
