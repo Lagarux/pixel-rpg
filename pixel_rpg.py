@@ -70,7 +70,7 @@ class Settings:
     DEFAULTS = {
         "fullscreen": False, "master_vol": 80, "sfx_vol": 80,
         "music_vol": 60, "language": "TR", "show_fps": False,
-        "minimap": True,
+        "minimap": True, "tutorial_seen": False,
     }
     def __init__(self):
         self.data = dict(self.DEFAULTS)
@@ -2993,13 +2993,18 @@ class UI:
               else T_("ui.inv_keys_gear"))
         self.txt(surf,hint,px+14,py+ph-12,GR,self.fsm)
 
-    PAUSE_OPTS=[
-        (T_("ui.pause_resume"),   (100,220,100)),
-        (T_("ui.pause_save"),  (120,200,240)),
-        (T_("ui.pause_settings"), (180,140,250)),
-        (T_("ui.pause_menu"),(220,150,60)),
-        (T_("ui.pause_quit"),   (220,80,80)),
-    ]
+    @staticmethod
+    def pause_opts():
+        """Her çizimde yeniden kuruluyor: liste sabit olunca dil değişince
+        duraklatma menüsü eski dilde kalıyordu."""
+        return [
+            (T_("ui.pause_resume"),   (100,220,100)),
+            (T_("ui.pause_save"),     (120,200,240)),
+            (T_("ui.pause_controls"), (240,210,120)),
+            (T_("ui.pause_settings"), (180,140,250)),
+            (T_("ui.pause_menu"),     (220,150,60)),
+            (T_("ui.pause_quit"),     (220,80,80)),
+        ]
 
     def draw_pause(self,surf,tick,pause_sel=0):
         """ESC ile açılan duraklama menüsü."""
@@ -3007,7 +3012,7 @@ class UI:
         pw,ph=360,270; px=SW//2-pw//2; py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         self.txt_c(surf,T_("ui.paused"),px+pw//2,py+14,UI_AC,self.flg)
-        for i,(label,col) in enumerate(self.PAUSE_OPTS):
+        for i,(label,col) in enumerate(self.pause_opts()):
             oy=py+58+i*40
             sel_this=(i==pause_sel)
             ss=pygame.Surface((pw-28,34),pygame.SRCALPHA)
@@ -3015,6 +3020,75 @@ class UI:
             pygame.draw.rect(ss,col if sel_this else (*col[:3],80),(0,0,pw-28,34),2 if sel_this else 1)
             surf.blit(ss,(px+14,oy))
             self.txt_c(surf,label,px+pw//2,oy+7,col if sel_this else LGR,self.fmd)
+
+    # ── Kontrol tanıtımı ─────────────────────────────────────────
+    # Oyun içindeki soluk tuş listesi yerine, oyuna başlarken bir kez açılan
+    # gerçek bir klavye görseli. Duraklatma menüsünden tekrar açılabiliyor.
+    def keycap(self,surf,x,y,w,h,label,vurgu=False,ok=None):
+        """Tek bir tuş kapağı çizer. `ok` verilirse yazı yerine üçgen çizilir
+        (ok tuşlarının glifi her yazı tipinde yok)."""
+        yuz   = (74,80,96) if not vurgu else (96,86,52)
+        kenar = (150,158,178) if not vurgu else (240,210,120)
+        pygame.draw.rect(surf,(18,19,26),(x+2,y+3,w,h),border_radius=5)
+        pygame.draw.rect(surf,yuz,(x,y,w,h),border_radius=5)
+        pygame.draw.rect(surf,(int(yuz[0]*1.3),int(yuz[1]*1.3),int(yuz[2]*1.25)),
+                         (x+2,y+2,w-4,max(3,h//2-2)),border_radius=4)
+        pygame.draw.rect(surf,kenar,(x,y,w,h),2,border_radius=5)
+        if ok:
+            cx,cy=x+w//2,y+h//2;r=7
+            uc={"up":[(cx,cy-r),(cx-r,cy+r-2),(cx+r,cy+r-2)],
+                "down":[(cx,cy+r),(cx-r,cy-r+2),(cx+r,cy-r+2)],
+                "left":[(cx-r,cy),(cx+r-2,cy-r),(cx+r-2,cy+r)],
+                "right":[(cx+r,cy),(cx-r+2,cy-r),(cx-r+2,cy+r)]}[ok]
+            pygame.draw.polygon(surf,(245,246,250),uc)
+        else:
+            f=self.fsm if len(label)>2 else self.fmd
+            t=f.render(label,True,(245,246,250))
+            surf.blit(t,(x+w//2-t.get_width()//2,y+h//2-t.get_height()//2))
+        return pygame.Rect(x,y,w,h)
+
+    def draw_tutorial(self,surf,tick):
+        self.dim(surf,185)
+        pw,ph=720,500;px=SW//2-pw//2;py=SH//2-ph//2
+        self.panel(surf,px,py,pw,ph,glow=True)
+        self.txt_c(surf,T_("ui.tut_title"),px+pw//2,py+14,UI_AC,self.flg)
+
+        # ── Sol: hareket tuşları ──
+        lx,ly=px+40,py+70
+        self.txt(surf,T_("ui.tut_move"),lx,ly,UI_GD,self.fmd)
+        k=34;g=4
+        self.keycap(surf,lx+k+g,      ly+24,k,k,"W",True)
+        self.keycap(surf,lx,          ly+24+k+g,k,k,"A",True)
+        self.keycap(surf,lx+k+g,      ly+24+k+g,k,k,"S",True)
+        self.keycap(surf,lx+2*(k+g),  ly+24+k+g,k,k,"D",True)
+        ax=lx+170
+        self.txt_c(surf,T_("ui.tut_or"),lx+140,ly+24+k+g+9,GR,self.fsm)
+        self.keycap(surf,ax+k+g,      ly+24,k,k,"",ok="up")
+        self.keycap(surf,ax,          ly+24+k+g,k,k,"",ok="left")
+        self.keycap(surf,ax+k+g,      ly+24+k+g,k,k,"",ok="down")
+        self.keycap(surf,ax+2*(k+g),  ly+24+k+g,k,k,"",ok="right")
+
+        # ── Saldırı: geniş boşluk tuşu ──
+        sy=ly+24+2*(k+g)+22
+        self.keycap(surf,lx,sy,236,k,"SPACE",True)
+        self.txt(surf,T_("ui.tut_attack"),lx+248,sy+8,UI_TX,self.fmd)
+
+        # ── Sağ sütun: eylem tuşları ──
+        satirlar=[("E",T_("ui.tut_interact")),("1-4",T_("ui.tut_ability")),
+                  ("I",T_("ui.tut_inventory")),("Q",T_("ui.tut_quests")),
+                  ("M",T_("ui.tut_minimap")),  ("U",T_("ui.tut_stats")),
+                  ("F1",T_("ui.tut_settings")),("ESC",T_("ui.tut_pause")),
+                  ("F11",T_("ui.tut_fullscreen"))]
+        cy0=sy+k+26
+        for i,(tus,ad) in enumerate(satirlar):
+            col=i//5; row=i%5
+            bx=px+40+col*340; by=cy0+row*38
+            self.keycap(surf,bx,by,46,30,tus)
+            self.txt(surf,ad,bx+58,by+7,LGR,self.fsm)
+
+        self.txt_c(surf,T_("ui.tut_again"),px+pw//2,py+ph-44,GR,self.fsm)
+        pulse=int(abs(math.sin(tick*0.005))*70)+170
+        self.txt_c(surf,T_("ui.tut_start"),px+pw//2,py+ph-26,(pulse,pulse,120),self.fmd)
 
     def draw_settings(self,surf,sel,tick):
         """Ayarlar paneli."""
@@ -3163,14 +3237,8 @@ class UI:
         atk_name=class_text(st.char_class,"atk_name")
         at=self.fsm.render(f"{T_('atk_label')} {atk_name}",True,(120,160,120))
         surf.blit(at,(SW//2-at.get_width()//2,42))
-        # Kontrol ipuçları: sol panelin altında. Eskiden sağ üstteydi ama mini
-        # harita da o köşeyi istiyor ve ipuçlarını tamamen örtüyordu.
-        tips=[T_("ui.key_move"),T_("ui.key_interact"),T_("ui.key_attack"),T_("ui.key_ability"),
-              T_("ui.key_inventory"),T_("ui.key_quests"),T_("ui.key_minimap"),
-              T_("ui.key_settings"),T_("ui.key_fullscreen")]
-        for i,tip in enumerate(tips):
-            t2=self.fsm.render(tip,True,(55,65,75))
-            surf.blit(t2,(10,144+i*13))
+        # Eskiden burada soluk bir tuş listesi vardı. Yerini oyuna başlarken
+        # bir kez açılan klavye tanıtımı aldı (duraklatma → Kontroller).
 
     SHOP_ROWS = 7        # ekranda aynı anda görünen satır
 
@@ -3433,7 +3501,9 @@ class Game:
         st=self.temp_stats;st.hp=st.max_hp;st.mp=st.max_mp
         sx,sy=_snap(self.maps["ashveil"],29,25)
         self.player=Player(sx,sy,st)
-        self.cur_key="ashveil";self.cur_map=self.maps["ashveil"];self.state="playing"
+        self.cur_key="ashveil";self.cur_map=self.maps["ashveil"]
+        # Kontrol tanıtımı yalnızca ilk oyunda; tercih ayarlarda saklanıyor.
+        self.state="playing" if CFG.tutorial_seen else "tutorial"
         self._cam_snap()
         SoundManager.play_music(self.MAP_MUSIC.get("ashveil","village"))
 
@@ -4326,7 +4396,7 @@ class Game:
                         if k in(pygame.K_UP,pygame.K_w):
                             self._pause_sel=max(0,self._pause_sel-1); SoundManager.play("menu_sel")
                         elif k in(pygame.K_DOWN,pygame.K_s):
-                            self._pause_sel=min(len(UI.PAUSE_OPTS)-1,self._pause_sel+1); SoundManager.play("menu_sel")
+                            self._pause_sel=min(len(UI.pause_opts())-1,self._pause_sel+1); SoundManager.play("menu_sel")
                         elif k in(pygame.K_RETURN,pygame.K_e,pygame.K_SPACE):
                             if self._pause_sel==0:   # Devam
                                 self.pause_open=False; SoundManager.play("menu_back")
@@ -4335,18 +4405,27 @@ class Game:
                                 self._toast(T_("ui.saved") if ok else T_("ui.save_failed"),UI_GN if ok else UI_RD)
                                 SoundManager.play("chest" if ok else "error")
                                 self.pause_open=False
-                            elif self._pause_sel==2: # Ayarlar
+                            elif self._pause_sel==2: # Kontroller
+                                self.pause_open=False; self.state="tutorial"
+                                SoundManager.play("open_ui")
+                            elif self._pause_sel==3: # Ayarlar
                                 self.settings_open=True; self.settings_sel=0; SoundManager.play("open_ui")
-                            elif self._pause_sel==3: # Ana Menü
+                            elif self._pause_sel==4: # Ana Menü
                                 self._reset(); SoundManager.play("menu_back")
-                            elif self._pause_sel==4: # Çıkış
+                            elif self._pause_sel==5: # Çıkış
                                 running=False
                         elif k==pygame.K_ESCAPE:
                             self.pause_open=False; SoundManager.play("menu_back")
                         continue
 
                     # ── State'e göre input ──
-                    if self.state=="title":
+                    if self.state=="tutorial":
+                        # Herhangi bir tuş kapatır; bir daha açılmaz.
+                        if k not in(pygame.K_F11,pygame.K_F1):
+                            CFG.data["tutorial_seen"]=True; CFG.save()
+                            self.state="playing"; SoundManager.play("menu_sel")
+
+                    elif self.state=="title":
                         if k in(pygame.K_RETURN,pygame.K_e):
                             self.state="story"; SoundManager.play("menu_sel")
                         elif k==pygame.K_c and has_save():
@@ -4561,6 +4640,8 @@ class Game:
                                       self.tick,self.shop_msg)
                 elif self.state=="quest_log":
                     self.ui.draw_quest_log(self.screen,self.flags,self.flags["ch"])
+                elif self.state=="tutorial":
+                    self.ui.draw_tutorial(self.screen,self.tick)
                 elif self.state=="levelup_alloc":
                     self.ui.draw_stat_alloc(self.screen,self.player.stats,self.player.stats.skill_points,self.stat_sel,True,self.tick)
                 elif self.state=="gameover":

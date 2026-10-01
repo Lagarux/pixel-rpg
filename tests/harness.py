@@ -84,6 +84,9 @@ def load_game_module(name="pixel_rpg_under_test"):
         module = importlib.util.module_from_spec(spec)
         sys.modules[name] = module
         spec.loader.exec_module(module)
+        # Testler oynanisi olcuyor: kontrol tanitimi yolu kapatmasin. Tanitimi
+        # inceleyen testler bunu kendileri False'a cekiyor.
+        module.CFG.data["tutorial_seen"] = True
         return module
     finally:
         os.chdir(old_cwd)
