@@ -1968,17 +1968,18 @@ def _trans_strip(m, axis, fixed, start, end, dst, dtx, dty, ground=None, hint=No
     else:
         koridor = [fixed]; kapi = fixed; kenarda = False
 
-    cerceve = _gate_frame(m, axis, kapi, c, half) if kenarda else None
+    # Kenar geçidinde çerçeve haritanın kendi engeli; harita içi girişlerde
+    # (zindan ağzı) kaya: çimenin ortasında duran bir kapı gibi görünmesin.
+    cerceve = _gate_frame(m, axis, kapi, c, half) if kenarda else T.STONE
     satirlar = range(c - half, c + half + 1)
     for r in satirlar:
         for v in koridor:
             if axis == 'x': m.set(v, r, ground)
             else:           m.set(r, v, ground)
-    if cerceve is not None:          # koridorun iki yanı kapalı olsun
-        for r in (c - half - 1, c + half + 1):
-            for v in koridor:
-                if axis == 'x': m.set(v, r, cerceve)
-                else:           m.set(r, v, cerceve)
+    for r in (c - half - 1, c + half + 1):   # koridorun/girişin iki yanı kapalı
+        for v in koridor:
+            if axis == 'x': m.set(v, r, cerceve)
+            else:           m.set(r, v, cerceve)
     for r in satirlar:               # geçişi yalnızca en dıştaki kare tetikler
         pt = (kapi, r) if axis == 'x' else (r, kapi)
         m.set(pt[0], pt[1], T.GATE)
