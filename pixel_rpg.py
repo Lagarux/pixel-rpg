@@ -683,6 +683,87 @@ BEHAVIORS = {
     "malachar":     {"type":"ranged","range":7,"cool":70,"proj":"shadow_bolt","melee_too":True},
 }
 
+# ─── Elementler ──────────────────────────────────────────────────
+# Her düşmanın bir elementi var; her saldırının da. Çarpan tablosu ikisini
+# karşılaştırıyor: doğru elementle vurmak ödüllendiriyor, yanlışıyla vurmak
+# düşmanı belirgin biçimde dayanıklı yapıyor. Zorluk buradan geliyor —
+# düşmanlara sadece HP eklemek dövüşü uzatır, ilginç yapmaz.
+ELEMENTS = ("physical", "fire", "ice", "nature", "shadow", "holy", "earth")
+
+ELEM_NAMES = {"physical":"ui.elem_physical","fire":"ui.elem_fire","ice":"ui.elem_ice",
+              "nature":"ui.elem_nature","shadow":"ui.elem_shadow","holy":"ui.elem_holy",
+              "earth":"ui.elem_earth"}
+ELEM_COL = {"physical":(200,200,205),"fire":(255,110,50),"ice":(120,200,255),
+            "nature":(120,210,110),"shadow":(170,100,220),"holy":(255,225,120),
+            "earth":(190,150,90)}
+
+# saldiri elementi -> hedef elementi -> carpan (yazilmayan = 1.0)
+ELEM_CHART = {
+    # Fiziksel nötr: herkesin elinde olan temel saldırı cezalandırılmıyor.
+    # Savaşçı ve okçu gölge düşmanlara karşı çaresiz kalmasın diye.
+    "physical": {},
+    "fire":     {"nature":1.60, "ice":1.60, "fire":0.40, "earth":0.80},
+    "ice":      {"nature":1.50, "earth":1.25, "fire":0.50, "ice":0.40},
+    "nature":   {"earth":1.60, "shadow":1.30, "nature":0.50, "fire":0.60},
+    "shadow":   {"holy":1.60, "nature":1.30, "physical":1.25, "shadow":0.40},
+    "holy":     {"shadow":1.80, "physical":1.10, "holy":0.50},
+    "earth":    {"fire":1.40, "physical":1.15, "nature":0.60, "earth":0.50},
+}
+
+ENEMY_ELEM = {
+    "slime":"nature", "boar":"nature", "wolf":"physical", "goblin":"physical",
+    "skeleton":"shadow", "golem":"earth", "scorpion":"fire", "ice_wolf":"ice",
+    "shadow_knight":"shadow", "malachar":"shadow",
+}
+
+CLASS_ELEM = {"warrior":"physical", "archer":"physical", "mage":"fire", "healer":"holy"}
+
+ABILITY_ELEM = {
+    "shield_bash":"physical", "whirlwind":"physical", "earthquake":"earth",
+    "freeze":"ice", "meteor":"fire", "arcane_nova":"shadow",
+    "multi_shot":"physical", "trap":"physical", "rain_arrows":"physical",
+    "shadow_step":"shadow", "divine_storm":"holy",
+}
+
+PROJ_ELEM = {"arrow":"physical", "shadow_bolt":"shadow"}
+
+# Silahın elementi temel saldırıya geçiyor: doğru silahı almak işe yarasın.
+WEAPON_ELEM = {
+    "iron_sword":"physical", "steel_sword":"physical",
+    "fine_bow":"physical",   "shadow_bow":"shadow",
+    "arcane_staff":"fire",   "elder_staff":"ice",
+    "holy_scepter":"holy",
+}
+
+# Zırh ve muskalar bir elemente karşı koruma veriyor: hangi bölgeye
+# gittiğine göre ekipman seçmek anlam kazansın.
+EQUIP_RESIST = {
+    "leather_armor":("nature",0.80), "plate_mail":("physical",0.75),
+    "mage_robe":("fire",0.75),       "healer_robe":("shadow",0.75),
+    "scout_coat":("ice",0.80),       "mana_gem":("ice",0.85),
+    "warrior_crest":("physical",0.85), "archer_token":("nature",0.85),
+    "mage_focus":("fire",0.85),      "power_ring":("earth",0.85),
+}
+
+# Düşman dayanıklılığı: bazı türler 2 vuruşta ölüyordu. Çarpanları tek
+# yerde tutuyoruz ki her Enemy(...) satırını elle düzeltmek gerekmesin.
+ENEMY_TUNE = {   # tür -> (HP çarpanı, saldırı çarpanı)
+    "slime":(1.75,1.20), "wolf":(1.40,1.05), "boar":(1.35,1.05),
+    "goblin":(1.45,1.05), "skeleton":(1.30,1.00), "scorpion":(1.30,1.00),
+    "ice_wolf":(1.30,1.00), "golem":(1.25,1.00), "shadow_knight":(1.30,1.05),
+    "malachar":(1.25,1.05),
+}
+
+
+def elem_mult(saldiri, hedef) -> float:
+    """Saldırı elementinin hedef elementine karşı çarpanı."""
+    return ELEM_CHART.get(saldiri, {}).get(hedef, 1.0)
+
+
+def elem_name(key) -> str:
+    return T_(ELEM_NAMES.get(key, "ui.elem_physical"))
+
+
 def behavior(kind)->Dict:
     return BEHAVIORS.get(kind,{"type":"melee"})
 
@@ -763,6 +844,30 @@ SIDE_QUESTS = [
      "unit":"ui.unit_talk","col":(200,180,220),
      "progress":lambda f: (1 if f.get("sq_hermit_done") else 0,1),
      "gold":45,"xp":35},
+    {"id":"slime",   "title":"ui.sq_slime",   "desc":"ui.sq_slime_desc",
+     "unit":"ui.unit_slime","col":(120,200,140),
+     "progress":lambda f: (min(5,f.get("kill_slime",0)),5),
+     "gold":45,"xp":40},
+    {"id":"goblin",  "title":"ui.sq_goblin",  "desc":"ui.sq_goblin_desc",
+     "unit":"ui.unit_goblin","col":(150,190,110),
+     "progress":lambda f: (min(6,f.get("kill_goblin",0)),6),
+     "gold":75,"xp":70},
+    {"id":"chest",   "title":"ui.sq_chest",   "desc":"ui.sq_chest_desc",
+     "unit":"ui.unit_chest","col":UI_GD,
+     "progress":lambda f: (min(8,f.get("chests_opened",0)),8),
+     "gold":100,"xp":80},
+    {"id":"scorpion","title":"ui.sq_scorpion","desc":"ui.sq_scorpion_desc",
+     "unit":"ui.unit_scorpion","col":(210,170,90),
+     "progress":lambda f: (min(3,f.get("kill_scorpion",0)),3),
+     "gold":110,"xp":100},
+    {"id":"icewolf", "title":"ui.sq_icewolf", "desc":"ui.sq_icewolf_desc",
+     "unit":"ui.unit_icewolf","col":(170,220,250),
+     "progress":lambda f: (min(3,f.get("kill_ice_wolf",0)),3),
+     "gold":130,"xp":120},
+    {"id":"knight",  "title":"ui.sq_knight",  "desc":"ui.sq_knight_desc",
+     "unit":"ui.unit_knight","col":(190,120,220),
+     "progress":lambda f: (min(3,f.get("kill_shadow_knight",0)),3),
+     "gold":180,"xp":180},
 ]
 
 # Hangi NPC'nin konusulacak bir isi var? (basinda ! rozeti gosterilir)
@@ -1657,7 +1762,10 @@ class NPC(Entity):
 class Enemy(Entity):
     def __init__(self,tx,ty,kind,hp,atk,xp,agro=5,loot=None,is_boss=False):
         super().__init__(tx,ty)
+        hp_k,atk_k=ENEMY_TUNE.get(kind,(1.0,1.0))
+        hp=int(hp*hp_k);atk=int(round(atk*atk_k))
         self.kind=kind;self.max_hp=hp;self.hp=hp;self.atk=atk;self.xp_r=xp
+        self.elem=ENEMY_ELEM.get(kind,"physical")
         self.agro_range=agro*TILE;self.loot=loot or [];self.is_boss=is_boss
         self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
         self.wind_up=0;self.atk_cd=0   # saldırı telegrafı
@@ -1686,9 +1794,17 @@ class Enemy(Entity):
         pygame.draw.rect(surf,HP_R,(bbx,bby,bw,bh))
         pygame.draw.rect(surf,HP_G,(bbx,bby,int(bw*max(0,self.hp)/self.max_hp),bh))
         pygame.draw.rect(surf,BK,(bbx,bby,bw,bh),1)
+        # Element taşı: oyuncu neyle dövüştüğünü ve hangi saldırıyı seçeceğini
+        # bir bakışta görsün. Renk ELEM_COL ile ortak.
+        ec=ELEM_COL.get(getattr(self,"elem","physical"),(200,200,205))
+        gs=bh+2
+        pygame.draw.rect(surf,ec,(bbx-gs-2,bby-1,gs,gs))
+        pygame.draw.rect(surf,BK,(bbx-gs-2,bby-1,gs,gs),1)
         if self.is_boss:
             tt=_tag_surf(f"{self.kind.upper()} {self.hp}/{self.max_hp}",UI_TX)
             surf.blit(tt,(bbx+bw//2-tt.get_width()//2,bby-12))
+            et=_tag_surf(elem_name(getattr(self,"elem","physical")),ec)
+            surf.blit(et,(bbx+bw//2-et.get_width()//2,bby+bh+3))
 
 # ─── Ortam ışığı ────────────────────────────────────────────────
 # Karanlık haritalar düz bir renk katmanıyla kapatılıyordu; zemin okunmuyordu.
@@ -2188,6 +2304,8 @@ def build_dark_forest():
     m.enemies += [
         Enemy(16,12,"wolf",35,8,20,agro=5,loot=["gold"]),
         Enemy(38,12,"wolf",35,8,20,agro=5),
+        Enemy(28,34,"wolf",38,9,22,agro=5,loot=["hp_pot"]),
+        Enemy(46,30,"wolf",38,9,22,agro=5),
         Enemy(42,18,"goblin",40,9,25,agro=5,loot=["hp_pot"]),
         Enemy(16,32,"skeleton",50,11,32,agro=6,loot=["mp_pot"]),
         Enemy(40,32,"goblin",45,10,28,agro=6,loot=["gold"]),
@@ -2393,6 +2511,8 @@ def build_desert():
     m.enemies += [
         Enemy(10,10,"scorpion",45,10,30,agro=5,loot=["gold"]),
         Enemy(48,10,"scorpion",45,10,30,agro=5),
+        Enemy(30,32,"scorpion",48,11,32,agro=5,loot=["mp_pot"]),
+        Enemy(16,34,"scorpion",48,11,32,agro=5),
         Enemy(10,34,"goblin",  50,11,32,agro=5,loot=["hp_pot"]),
         Enemy(48,34,"goblin",  50,11,32,agro=5,loot=["gold"]),
         Enemy(22,10,"scorpion",50,12,35,agro=6),
@@ -2438,6 +2558,8 @@ def build_ice_cave():
     m.enemies += [
         Enemy(5, 5,"ice_wolf",55,12,35,agro=5,loot=["gold"]),
         Enemy(20, 5,"ice_wolf",55,12,35,agro=5),
+        Enemy(34,22,"ice_wolf",58,13,37,agro=5,loot=["hp_pot"]),
+        Enemy(14,32,"ice_wolf",58,13,37,agro=5),
         Enemy(33, 5,"golem",  75,14,42,agro=4,loot=["hp_pot"]),
         Enemy(8, 19,"ice_wolf",60,13,38,agro=5),
         Enemy(22,22,"golem",  80,15,45,agro=4,loot=["mp_pot"]),
@@ -2543,6 +2665,9 @@ def build_south_meadow():
     m.npcs.append(NPC(50,22,"npc.gezgin",(140,150,180),traveler_d,"traveler"))
     m.enemies += [
         Enemy(36, 4,"boar", 40, 9,25,agro=5,loot=["gold"]),
+        Enemy(20,10,"boar", 40, 9,25,agro=5,loot=["gold"]),
+        Enemy(46,28,"boar", 44,10,27,agro=5),
+        Enemy(14,24,"boar", 44,10,27,agro=5,loot=["hp_pot"]),
         Enemy(42, 6,"boar", 40, 9,25,agro=5),
         Enemy(8,  5,"slime",25, 5,15,agro=4,loot=["gold"]),
         Enemy(12, 5,"slime",25, 5,15,agro=4),
@@ -3264,6 +3389,11 @@ class UI:
         self.txt(surf,"XP",18,58,XP_T,self.fsm)
         self.grad_bar(surf,36,58,226,8,st.xp,st.xp_next,(15,45,35),XP_T)
         self.txt(surf,f"ATK:{st.attack}  DEF:{st.defense}  AGI:{st.agi+st._equip_bonus('agi')}",18,72,LGR,self.fsm)
+        # Saldırı elementi: silah değişince ne olduğunu görmek lazım
+        ael=WEAPON_ELEM.get(st.equipment.get("weapon")) or CLASS_ELEM.get(st.char_class,"physical")
+        ac=ELEM_COL.get(ael,(200,200,205))
+        pygame.draw.rect(surf,ac,(214,73,8,8));pygame.draw.rect(surf,BK,(214,73,8,8),1)
+        self.txt(surf,elem_name(ael),226,72,ac,self.fsm)
         gp=int(abs(math.sin(tick*0.003))*15)
         self.txt(surf,f"{T_('gold')}:{st.gold}",18,86,(230+gp,180,40),self.fsm)
         if st.skill_points>0:
@@ -3689,7 +3819,7 @@ class Game:
                 # Sabit bayrakların yanında dinamik olanlar da geri yüklenmeli:
                 # kill_<tür> sayaçları ve sqpaid_<görev> ödül işaretleri
                 # önceden tanımlı değil, süresince oluşuyorlar.
-                if k in self.flags or k.startswith(("kill_","sqpaid_")): self.flags[k]=v
+                if k in self.flags or k.startswith(("kill_","sqpaid_","chests_")): self.flags[k]=v
             for key,ms in data.get("maps",{}).items():
                 m=self.maps.get(key)
                 if not m: continue
@@ -3744,7 +3874,7 @@ class Game:
                     dot=ox*ex+oy*ey
                     if dot>0 or dist<=1.3:  # Arkaya da kısa mesafede
                         is_crit=random.random()<(st.crit+0.15)
-                        self._hit(e,int(st.attack*1.1),is_crit);hit_any=True
+                        self._hit(e,int(st.attack*1.1),is_crit,self._attack_elem());hit_any=True
             if hit_any: self.ps.emit_magic(cx+ox*TILE,cy+oy*TILE,col=(255,200,80))
 
         elif cls=="mage":
@@ -3780,7 +3910,7 @@ class Game:
             for e in self.cur_map.enemies:
                 if not e.alive: continue
                 if math.hypot(e.tx-p.tx,e.ty-p.ty)<=1.6:
-                    self._hit(e,int(st.magic_atk*0.9));hit_any=True
+                    self._hit(e,int(st.magic_atk*0.9),elem=self._attack_elem());hit_any=True
             if hit_any:
                 heal_amt=max(2,st.wis)
                 st.heal(heal_amt)
@@ -3812,12 +3942,25 @@ class Game:
                 o.alive and o.tx==nx2 and o.ty==ny2 for o in self.cur_map.enemies if o is not e):
             e.start_step(nx2,ny2,frames)
 
-    def _hit(self,e,dmg,crit=False):
+    def _attack_elem(self)->str:
+        """Temel saldırının elementi: takılı silah belirler, yoksa sınıf."""
+        st=self.player.stats
+        w=st.equipment.get("weapon")
+        return WEAPON_ELEM.get(w) or CLASS_ELEM.get(st.char_class,"physical")
+
+    def _hit(self,e,dmg,crit=False,elem="physical"):
         if crit: dmg=int(dmg*1.8)
+        k=elem_mult(elem,getattr(e,"elem","physical"))
+        dmg=max(1,int(dmg*k))
         e.hp-=dmg;e.hp=max(0,e.hp)
         col=UI_GD if crit else HP_R
+        # Oyuncu neden az/çok vurduğunu görsün: element etkisi yazıyla söyleniyor
+        if k>=1.25:   col=ELEM_COL.get(elem,col); etiket=T_("ui.elem_weak")
+        elif k<=0.75: col=(150,150,160);          etiket=T_("ui.elem_resist")
+        else:         etiket=T_("ui.crit") if crit else None
+        if crit and k>=1.25: etiket=T_("ui.crit")+" "+T_("ui.elem_weak")
         self.hit_fx.append({"x":e.px+TILE//2,"y":e.py+TILE//2,"f":0,"mf":20})
-        self.dmg_nums.append({"x":e.px+TILE//2,"y":e.py,"v":dmg,"l":45,"col":col,"txt":T_("ui.crit") if crit else None})
+        self.dmg_nums.append({"x":e.px+TILE//2,"y":e.py,"v":dmg,"l":45,"col":col,"txt":etiket})
         self.ps.emit_hit(e.px+TILE//2,e.py+TILE//2)
         SoundManager.play("hit_heavy" if e.is_boss else "hit")
         # Vuruş hissi: kısa donma + krit/boss'ta sarsıntı, kritte geri itme
@@ -3909,39 +4052,40 @@ class Game:
         cx=p.px+TILE//2;cy=p.py+TILE//2
         d=p.direction;ox,oy={"right":(1,0),"left":(-1,0),"up":(0,-1),"down":(0,1)}.get(d,(0,1))
         aid=ab["id"]
+        ae=ABILITY_ELEM.get(aid,"physical")     # yeteneğin elementi
         if aid=="shield_bash":
             for e in self.cur_map.enemies:
                 if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=1.8:
-                    self._hit(e,int(st.attack*1.5))
+                    self._hit(e,int(st.attack*1.5),elem=ae)
                     nx2=e.tx+ox;ny2=e.ty+oy
                     if self.cur_map.walkable(nx2,ny2): e.start_step(nx2,ny2,5)
             self.ps.emit_magic(cx,cy,col=(220,120,60))
         elif aid=="whirlwind":
             for e in self.cur_map.enemies:
-                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=2.2: self._hit(e,int(st.attack*1.2))
+                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=2.2: self._hit(e,int(st.attack*1.2),elem=ae)
             self.ps.emit(cx,cy,30,(200,150,60),6.0,40)
         elif aid=="war_cry":
             st.buffs["war_cry"]=180;self.ps.emit(cx,cy,25,(220,80,40),5.0,50)
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":80,"col":(220,80,40),"txt":T_("ui.shout_war_cry")})
         elif aid=="earthquake":
             for e in self.cur_map.enemies:
-                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5: self._hit(e,int(st.attack*2.0))
+                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5: self._hit(e,int(st.attack*2.0),elem=ae)
             for _ in range(40): self.ps.emit(cx+random.randint(-96,96),cy+random.randint(-96,96),5,(180,120,40),3.0,30)
         elif aid=="freeze":
             for e in self.cur_map.enemies:
                 if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.0:
-                    e.frozen=max(e.frozen,120);self._hit(e,int(st.magic_atk*0.8))
+                    e.frozen=max(e.frozen,120);self._hit(e,int(st.magic_atk*0.8),elem=ae)
             SoundManager.play("freeze")
             self.ps.emit(cx,cy,25,(80,180,255),5.0,50)
         elif aid=="meteor":
             for _ in range(5):
                 mx=p.tx+random.randint(-3,3);my=p.ty+random.randint(-3,3)
                 for e in self.cur_map.enemies:
-                    if e.alive and abs(e.tx-mx)<=1 and abs(e.ty-my)<=1: self._hit(e,int(st.magic_atk*1.8))
+                    if e.alive and abs(e.tx-mx)<=1 and abs(e.ty-my)<=1: self._hit(e,int(st.magic_atk*1.8),elem=ae)
                 self.ps.emit(mx*TILE+TILE//2,my*TILE+TILE//2,15,(255,80,20),6.0,35)
         elif aid=="arcane_nova":
             for e in self.cur_map.enemies:
-                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=4.0: self._hit(e,int(st.magic_atk*2.2))
+                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=4.0: self._hit(e,int(st.magic_atk*2.2),elem=ae)
             for ang in range(0,360,20):
                 dx2=math.cos(math.radians(ang));dy2=math.sin(math.radians(ang))
                 self._proj(cx,cy,dx2,dy2,4,"shadow_bolt",int(st.magic_atk*0.6))
@@ -3963,7 +4107,7 @@ class Game:
                 if not e.alive: continue
                 nx2=e.tx-ox;ny2=e.ty-oy
                 if self.cur_map.walkable(nx2,ny2):
-                    p.snap(nx2,ny2);self._hit(e,int(st.attack*2.0))
+                    p.snap(nx2,ny2);self._hit(e,int(st.attack*2.0),elem=ae)
                     self.ps.emit(cx,cy,20,(60,40,120),5.0,30);break
         elif aid=="mass_heal":
             amt=int(25+st.wis*2);st.heal(amt)
@@ -3974,7 +4118,7 @@ class Game:
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(255,220,60),"txt":T_("ui.shout_shield")})
         elif aid=="divine_storm":
             for e in self.cur_map.enemies:
-                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5: self._hit(e,int(st.magic_atk*1.8))
+                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5: self._hit(e,int(st.magic_atk*1.8),elem=ae)
             for _ in range(30): self.ps.emit(cx+random.randint(-80,80),cy+random.randint(-80,80),6,(255,240,120),4.0,40)
         elif aid=="resurrection":
             st.heal(st.max_hp//2);st.restore_mp(st.max_mp//2)
@@ -3997,13 +4141,13 @@ class Game:
                 if p and p.invincible<=0:
                     prct=pygame.Rect(p.px+4,p.py+4,TILE-8,TILE-8)
                     if prct.collidepoint(pr.x,pr.y):
-                        self._player_take_hit(pr.dmg);hit=True
+                        self._player_take_hit(pr.dmg,elem=PROJ_ELEM.get(pr.kind,"physical"));hit=True
             else:
                 for e in self.cur_map.enemies:
                     if not e.alive: continue
                     er=pygame.Rect(e.px+2,e.py+2,TILE-4,TILE-4)
                     if er.collidepoint(pr.x,pr.y):
-                        self._hit(e,pr.dmg,random.random()<0.08)
+                        self._hit(e,pr.dmg,random.random()<0.08,PROJ_ELEM.get(pr.kind,"physical"))
                         if pr.kind=="ice_bolt": e.frozen=max(e.frozen,100)
                         if not pr.pierce: hit=True;break
             if hit: continue
@@ -4019,7 +4163,7 @@ class Game:
                 continue
             for e in self.cur_map.enemies:
                 if e.alive and abs(e.tx-tt.tx)<=1 and abs(e.ty-tt.ty)<=1:
-                    self._hit(e,tt.dmg);tt.triggered=True;tt.timer=0
+                    self._hit(e,tt.dmg,elem="physical");tt.triggered=True;tt.timer=0
                     SoundManager.play("trap")
                     self.ps.emit(tt.tx*TILE+TILE//2,tt.ty*TILE+TILE//2,20,(255,180,40),5.0,35);break
         self.cur_map.traps=[tt for tt in self.cur_map.traps if tt.active]
@@ -4197,11 +4341,20 @@ class Game:
     ENEMY_ATK_CD = 14   # iki saldırı arası bekleme
     # 26+14=40 kare: telegraf oncesi ritmin aynisi, ustune kacma penceresi.
 
-    def _player_take_hit(self,raw,shake=3):
+    def _player_resist(self,elem)->float:
+        """Takılı ekipmanın o elemente karşı koruması (çarpan)."""
+        k=1.0
+        for ik in self.player.stats.equipment.values():
+            r=EQUIP_RESIST.get(ik)
+            if r and r[0]==elem: k*=r[1]
+        return k
+
+    def _player_take_hit(self,raw,shake=3,elem="physical"):
         """Oyuncuya hasar — yakın dövüş ve düşman mermisi aynı yolu kullanır."""
         p=self.player
         if not p or p.invincible>0: return 0
         dmg=max(1,raw-p.stats.defense+random.randint(-2,3))
+        dmg=max(1,int(dmg*self._player_resist(elem)))
         if "holy_shield" in p.stats.buffs:
             sh=p.stats.buffs["holy_shield"]
             if isinstance(sh,int): p.stats.buffs["holy_shield"]=max(0,sh-dmg);dmg=0
@@ -4215,7 +4368,8 @@ class Game:
 
     def _enemy_strike(self,e,p,ppx,ppy):
         """Telegraf tamamlandı: yakın dövüş hasarı uygula."""
-        self._player_take_hit(e.atk,shake=5 if e.is_boss else 3)
+        self._player_take_hit(e.atk,shake=5 if e.is_boss else 3,
+                              elem=getattr(e,"elem","physical"))
 
     DLG_SPEED = 2   # daktilo: kare başına harf
 
@@ -4277,6 +4431,7 @@ class Game:
                 else: p.inventory.append(ik)
             self.cur_map.set(itx,ity,T.FLOOR);self.ps.emit_gold(itx*TILE+TILE//2,ity*TILE+TILE//2);SoundManager.play("chest")
             self.dmg_nums.append({"x":itx*TILE+TILE//2,"y":ity*TILE,"v":None,"l":70,"col":UI_GD,"txt":T_("chest_opened")})
+            self.flags["chests_opened"]=self.flags.get("chests_opened",0)+1
 
     def _inv_use_item(self):
         """Envanterde seçili eşyayı kullan / ekipmanı giy."""
