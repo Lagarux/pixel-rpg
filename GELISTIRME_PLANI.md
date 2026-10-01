@@ -567,6 +567,88 @@ ilerlemeye tepki verdiği ve **hiçbir satırın diyalog kutusundan taşmadığ�
 `tests/test_bazaar.py` (14): meydanın yürünerek erişilebildiği, her
 satıcının yanına varılabildiği ve her tezgâhın gerçek bir dükkân olduğu.
 
+### ✅ v6.0 — Zorluk, elementler, kapanış ve yayın (2026-10-01)
+
+#### Yan görevler — bitirilemeyen görev
+
+Kullanıcı çiftçinin domuz görevinin bitirilemediğini bildirdi. Ölçtüm:
+
+| | |
+|---|---|
+| Dünyadaki toplam domuz | 4 (görev 3 istiyor) |
+| **Çayırdaki** (görevin geçtiği harita) | **2** |
+| Diğer ikisi | Sisli Bataklık — çok sonraki bir harita |
+
+"Sayı yeterli" gibi görünüyordu; asıl sorun **nerede** olduklarıydı. Çayıra
+3 domuz eklendi. Kurt görevi de tam sınırdaydı (5 gerek, erken haritalarda
+tam 5) — ormana 2 kurt eklendi. 6 yeni yan görev: 8 → **14**.
+
+`tests/test_quests.py` bu hatayı haritadan haritaya ölçüyor: bir düşman
+türünün çoğu erken haritalardaysa, görev orada bitirilebilmeli.
+
+#### Element sistemi ve zorluk
+
+"Bazı düşmanlar çok çabuk yeniliyor" — ölçtüm, balçık sv1 savaşçının
+**2 vuruşunda** ölüyordu. Sadece HP eklemek dövüşü uzatır, ilginç yapmaz.
+
+Yedi element (fiziksel, ateş, buz, doğa, gölge, kutsal, toprak). Doğru
+element ×1,25-1,8; yanlışı ×0,4-0,6. **Fiziksel bilerek nötr bırakıldı** —
+herkesin elindeki temel saldırı cezalandırılırsa savaşçı ve okçu gölge
+düşmanlara karşı çaresiz kalır (bir testle korunuyor). Silahın elementi
+temel saldırıya geçiyor, zırh ve muskalar bir elemente karşı koruyor.
+
+| Sv1 savaşçı için vuruş sayısı | Önce | Sonra (fiziksel) | Doğru elementle |
+|---|---|---|---|
+| Balçık | 2 | 3 | 2 |
+| Kurt / domuz / goblin | 3 | 4 | 3 |
+| İskelet | 4 | 5 | 3 (kutsal) |
+| Golem | 5 | 7 | 4 (doğa) |
+
+#### Kapanış
+
+Malachar ölünce oyun doğrudan üç satırlık bir zafer ekranına atlıyordu.
+Artık sayfa sayfa bir epilog var ve **oyuncunun ne yaptığına göre
+değişiyor**: bitirilen yan görevler epiloğa kendi sahnesini ekliyor.
+Kapanış kartında unvan (dört kademe) ve yolculuk özeti var.
+
+#### Sesler
+
+"Bazı sesler kulağımı tırmalıyor." Parlaklık ölçüsü
+(ortalama|örnek farkı| / ortalama|örnek|) ile ölçtüm:
+
+| Ses | Önce | Sonra |
+|---|---|---|
+| **walk** (her adımda çalıyordu) | **0,76** | **0,05** |
+| hit_heavy | 0,53 | 0,10 |
+| hit | 0,43 | 0,11 |
+| trap | 0,32 | 0,11 |
+
+Tek kutuplu alçak geçiren süzgeç eklendi; yürüme sesi kısıldı ve iki
+adımda bir çalıyor. `error`/`trap` kare dalgadan üçgene çevrildi.
+
+#### Köz Vadisi
+
+Çölden dallanan, isteğe bağlı ve zor volkanik bölge: yürünebilir kül
+zemini, canlandırılmış lav gölleri, elemental silahlı sandıklar ve element
+sistemini anlatan Köz Bekçisi. Harita sayısı 12 → **13**.
+
+#### Yayın hazırlığı
+
+| Bulgu | Düzeltme |
+|---|---|
+| **Sanal ortamın tamamı (.venv, 1924 dosya) depoya commit edilmişti** | Takipten çıkarıldı; takip edilen dosya 1977 → 59 |
+| `build/`, `dist/` (içinde bir exe), `release/` takip ediliyordu | Takipten çıkarıldı, `.gitignore`'a eklendi |
+| Derleme betikleri hâlâ numpy kuruyordu | Kaldırıldı |
+| `build_windows.bat` yedek yolu `--add-data assets` geçmiyordu | **O yoldan üretilen exe'de dil ve font olmazdı** — düzeltildi |
+| README.md eskiydi, İngilizceydi | Türkçe + İngilizce yeniden yazıldı, ekran görüntüleriyle |
+
+Derleme doğrulandı: exe 14 MB, arşivde 15 varlık (8 font, ikon, 5 dil
+dosyası), başlıksız ortamda 12 saniye sorunsuz çalıştı, kendi klasörüne
+hiçbir şey yazmadı. Testlerin kullanıcının gerçek kayıt dosyasına
+dokunmadığı zaman damgasıyla doğrulandı.
+
+**Yayınlandı:** https://github.com/Lagarux/pixel-rpg/releases/tag/v6.0
+
 ### ⬜ Faz 5 — İçerik derinliği
 - [x] İ5 — görev işaretçileri **ve mini harita yapıldı**
 - [x] İ7 — dükkân ve ekonomi **yapıldı**
@@ -607,6 +689,10 @@ satıcının yanına varılabildiği ve her tezgâhın gerçek bir dükkân oldu
 | 2026-10-01 | — | **Oyun testi geri bildirimi:** harita geçişlerinde sıkışma; geçiş bölgeleri yeniden tasarlandı | 15 yeni test; toplam 167 test |
 | 2026-10-01 | — | Tek seferlik klavye tanıtımı; HUD'daki soluk tuş listesi kalktı | 10 yeni test; toplam 177 test |
 | 2026-10-01 | — | Pazar meydanı (4 tezgâh) ve 23 NPC'nin diyaloglarının yeniden yazımı | 24 yeni test; toplam 201 test |
+| 2026-10-01 | — | Yan görev erişilebilirliği + 6 yeni görev; element sistemi ve düşman dayanıklılığı | 32 yeni test; toplam 233 test |
+| 2026-10-01 | — | Kapanış anlatısı (epilog + özet kartı) ve ses yumuşatması | 14 yeni test; toplam 247 test |
+| 2026-10-01 | — | Köz Vadisi (13. harita) | Mevcut dünya testleri kendiliğinden denetledi |
+| 2026-10-01 | — | **v6.0 yayını:** README, kurulum betikleri, depo temizliği (1977 → 59 dosya), GitHub Release | 247 test |
 
 ---
 
