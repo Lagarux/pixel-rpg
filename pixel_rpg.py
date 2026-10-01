@@ -968,10 +968,11 @@ class T:
     # GATE: harita geçidi. Geçişin kendisi bu kare; kapı/mağara ağzı çiziliyor.
     ROAD=25;GATE=26
     STALL=27        # pazar tezgâhı: tenteli ahşap kepenk, yürünmez
+    ASH=28;LAVA=29  # Köz Vadisi: yürünebilir kül, yürünemez lav
 
 WALKABLE={T.GRASS,T.DIRT,T.SAND,T.SNOW,T.FARMLAND,T.WHEAT,
           T.FLOOR,T.DOOR,T.STAIRS_UP,T.STAIRS_DN,T.PORTAL,T.BRIDGE,T.ICE,
-          T.ROAD,T.GATE}
+          T.ROAD,T.GATE,T.ASH}
 
 # ─── Pixel Art ──────────────────────────────────────────────────
 class PA:
@@ -993,6 +994,23 @@ class PA:
                 for c in range(2):
                     ox=c*16+(r*8%16);oy=r*16
                     pygame.draw.rect(s,ST_L,(ox+1,oy+1,13,13));pygame.draw.rect(s,ST,(ox+1,oy+1,13,13),1)
+        elif k==T.ASH:
+            s.fill((62,54,52))
+            for _ in range(14):
+                bx,by=random.randint(0,Tp-3),random.randint(0,Tp-3)
+                pygame.draw.rect(s,(78,68,64),(bx,by,2,2))
+            for _ in range(4):                 # sönmek üzere közler
+                bx,by=random.randint(1,Tp-3),random.randint(1,Tp-3)
+                pygame.draw.rect(s,(150,70,36),(bx,by,2,2))
+        elif k==T.LAVA:
+            ph=(anim%40)/40.0
+            s.fill((122,32,12))
+            for yy in range(0,Tp,4):
+                g=int(40*math.sin(2*math.pi*(ph+yy/float(Tp))))
+                pygame.draw.rect(s,(min(255,210+g),min(255,96+g),24),(0,yy,Tp,3))
+            for _ in range(5):
+                bx,by=random.randint(0,Tp-3),random.randint(0,Tp-3)
+                pygame.draw.rect(s,(255,220,140),(bx,by,2,2))
         elif k==T.STALL:
             s.fill(DT)
             for i in range(0,Tp,8):        # çizgili tente
@@ -1919,7 +1937,7 @@ class GameMap:
         return T.STONE
     def walkable(self,tx,ty): return self.get(tx,ty) in WALKABLE
     def _ts(self,tile):
-        if tile in(T.WATER,T.RIVER): return PA.tile(tile,self.anim)
+        if tile in(T.WATER,T.RIVER,T.LAVA): return PA.tile(tile,self.anim)
         if tile not in self._sc: self._sc[tile]=PA.tile(tile)
         return self._sc[tile]
     def draw(self,surf,cx,cy,tick=0):
@@ -2552,6 +2570,7 @@ def build_desert():
     _trans_strip(m,'x',2, 26,31, "ruins",    54,21, T.SAND,(-1,0))
     _trans_strip(m,'x',58,26,31, "ice_cave",  3,28, T.SAND,(1,0))
     _trans_strip(m,'y',2, 24,32, "rocky_pass",22,35, T.SAND,(0,-1))
+    _trans_strip(m,'y',42,26,32, "ember_valley",28,6, T.SAND,(0,1))
     m.set(5, 28,T.CHEST); m.chests[(5,28)]  = ["hp_pot","hp_pot","gold"]
     m.set(54,28,T.CHEST); m.chests[(54,28)] = ["shadow_bow","gold"]
     m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot"]
@@ -2618,6 +2637,57 @@ def build_ice_cave():
         Enemy(22,22,"golem",  80,15,45,agro=4,loot=["mp_pot"]),
         Enemy(8, 34,"golem",  85,16,50,agro=4,loot=["hp_pot"]),
         Enemy(40,41,"golem", 180,25,120,agro=7,loot=["water_c"],is_boss=True),
+    ]
+    _snap_all(m); return m
+
+
+def build_ember_valley():
+    """Köz Vadisi — çölden güneye dallanan volkanik yan bölge.
+
+    İsteğe bağlı ve zor: ateş ve toprak düşmanlarının evi. Element sistemi
+    burada iyice anlam kazanıyor, o yüzden sistemi anlatan NPC de burada.
+    """
+    m = GameMap(54, 44, "map.koz_vadisi", ambient=(45,12,0))
+    _rect(m, 0, 0, 54, 44, T.ASH)
+    # Lav gölleri — yürünmez, yolu daraltıyor
+    for lx,ly,ls in [(12,10,4),(40,12,4),(16,34,4),(44,33,3),(28,22,5)]:
+        for ty in range(ly-ls,ly+ls+1):
+            for tx in range(lx-ls,lx+ls+1):
+                if (tx-lx)**2+(ty-ly)**2<=ls*ls and 2<=tx<52 and 2<=ty<42:
+                    m.set(tx,ty,T.LAVA)
+    # Kaya çıkıntıları
+    for rx,ry,rs in [(6,22,3),(48,22,3),(26,6,3),(26,38,3)]:
+        for ty in range(ry-rs,ry+rs+1):
+            for tx in range(rx-rs,rx+rs+1):
+                if (tx-rx)**2+(ty-ry)**2<=rs*rs and 2<=tx<52 and 2<=ty<42:
+                    m.set(tx,ty,T.STONE)
+    # Güvenli patikalar: lavın arasından geçen kül yolları
+    _path(m, 2,22,52,22,T.DIRT,2)
+    _path(m,26, 2,26,42,T.DIRT,2)
+    # Demirhane kalıntısı
+    _room(m,20,5,10,7,T.WALL,T.FLOOR,"south")
+
+    _trans_strip(m,'y',2, 23,29, "desert", 28,38, T.ASH,(0,-1))
+
+    m.set(7, 22,T.CHEST); m.chests[(7,22)]  = ["hp_pot","hp_pot","gold"]
+    m.set(47,22,T.CHEST); m.chests[(47,22)] = ["elder_staff","gold"]
+    m.set(25, 7,T.CHEST); m.chests[(25,7)]  = ["holy_scepter","mp_pot"]
+
+    def warden_d(f):
+        W=lambda a,b:["dlg.koz.%d"%i for i in range(a,b)]
+        return W(7,13) if f.get("malachar_defeated") else W(1,7)
+    m.npcs.append(NPC(24,8,"npc.koz_bekcisi",(220,120,60),warden_d,"smith"))
+
+    m.enemies += [
+        Enemy(10,16,"scorpion",52,12,34,agro=5,loot=["gold"]),
+        Enemy(44,18,"scorpion",52,12,34,agro=5,loot=["hp_pot"]),
+        Enemy(20,28,"scorpion",56,13,36,agro=6),
+        Enemy(34,30,"scorpion",56,13,36,agro=6,loot=["mp_pot"]),
+        Enemy( 8,34,"golem",   95,17,48,agro=5,loot=["gold"]),
+        Enemy(46,34,"golem",   95,17,48,agro=5,loot=["hp_pot"]),
+        Enemy(26,16,"golem",  110,19,55,agro=5,loot=["power_ring"]),
+        Enemy(12,40,"shadow_knight",105,20,60,agro=6,loot=["gold"]),
+        Enemy(42,40,"shadow_knight",105,20,60,agro=6,loot=["mp_pot"]),
     ]
     _snap_all(m); return m
 
@@ -3714,6 +3784,7 @@ class Game:
             "south_meadow":build_south_meadow(),"west_river":build_west_river(),
             "mystic_library":build_mystic_library(),
             "rocky_pass":build_rocky_pass(),"misty_swamp":build_misty_swamp(),
+            "ember_valley":build_ember_valley(),
         }
         for _m in self.maps.values():
             _m.base_chests=set(_m.chests.keys())
@@ -3759,6 +3830,7 @@ class Game:
         "village_dungeon":"dungeon","south_meadow":"village",
         "west_river":"village","mystic_library":"library",
         "rocky_pass":"dungeon","misty_swamp":"forest",
+        "ember_valley":"battle",
     }
 
     def _start_game(self):
