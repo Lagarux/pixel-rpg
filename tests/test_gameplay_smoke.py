@@ -118,6 +118,8 @@ class TestGameplaySmoke(unittest.TestCase):
         script = [
             # ── Menuler ──────────────────────────────────────────
             h.do(_spy_overlays),
+            h.wait(6), h.shot("00_acilis"),
+            h.key(pygame.K_RETURN),            # acilis animasyonu -> baslik
             h.wait(4), h.shot("01_baslik"),
             h.key(pygame.K_RETURN),            # -> hikaye
             h.wait(30),
@@ -125,6 +127,8 @@ class TestGameplaySmoke(unittest.TestCase):
             h.wait(4), h.shot("02_hikaye"),
             h.key(pygame.K_RETURN),            # -> sinif secimi
             h.wait(4), h.shot("03_sinif_secimi"),
+            h.key(pygame.K_RETURN),            # -> zorluk secimi
+            h.wait(4), h.shot("03b_zorluk_secimi"),
             h.key(pygame.K_RETURN),            # -> nitelik dagitimi
             h.wait(4),
         ]
@@ -315,9 +319,11 @@ class TestPerformanceProbe(unittest.TestCase):
         h = Harness(mod, shot_prefix="perf_")
         script = [
             h.wait(2),
+            h.key(pygame.K_RETURN), h.wait(4),    # acilis -> baslik
             h.key(pygame.K_RETURN), h.wait(4),    # baslik -> hikaye
             h.key(pygame.K_RETURN), h.wait(4),    # hikayeyi atla
             h.key(pygame.K_RETURN), h.wait(4),    # -> sinif secimi
+            h.key(pygame.K_RETURN), h.wait(4),    # -> zorluk secimi
             h.key(pygame.K_RETURN), h.wait(4),    # -> nitelik dagitimi
             h.key(pygame.K_RETURN), h.wait(20),   # -> oyun (Ashveil)
             h.do(_assert_playing),

@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════╗
-║        KARANLIK TAÇ'IN LANETİ  v6.0  —  2D Pixel RPG         ║
+║        KARANLIK TAÇ'IN LANETİ  v6.1  —  2D Pixel RPG         ║
 ╚══════════════════════════════════════════════════════════════╝
 
   Yüz yıl önce atalarımız Malachar'ı dört kristalle mühürledi.

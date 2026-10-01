@@ -711,6 +711,68 @@ inatçı kovalayan olmalı.
 en kötü 3 (Karanlık Orman'da kurt sürüsü). Hiçbir harita sürü basmasına
 dönüşmüyor.
 
+### ✅ v6.1 — Zorluk seviyeleri, logo ve açılış animasyonu (2026-10-01)
+
+#### Yazım hatası: "Sır" → "Sör"
+
+Kullanıcı bildirdi. Tam iki yerde: `dlg.aldric.24` ve `dlg.guard.11`.
+NPC adı (`npc.sir_roland`) zaten doğruydu. Diğer "Sır" geçişleri gerçek
+kelimeler (sırtını, sıradaki, sırrı) — değiştirilmedi. Kaynaktaki ASCII
+yedek tablosu da düzeltildi.
+
+#### Zorluk seviyeleri
+
+Beş seviye. **Tasarım kararı:** çarpanlar düşman kurulurken değil, hasar
+hesaplanırken uygulanıyor. Düşmanların can değerlerine dokunsaydık kayıtlı
+bir oyun başka bir zorlukta yüklendiğinde eski değerlerle devam ederdi —
+haritalar `_reset()`'te kuruluyor, kayıt ondan sonra okunuyor. Bir test
+bunu kayda geçiriyor.
+
+| Seviye | Verdiğin | Aldığın | Altın/XP | |
+|---|---|---|---|---|
+| Kolay | +25% | −35% | — | Ödül arttırmıyor |
+| Orta | — | — | — | Tasarlanan denge |
+| Zor | −15% | +35% | +15/20% | |
+| Çok Zor | −28% | +75% | +30/40% | |
+| **Hardcore** | −38% | +110% | +50/60% | **Ölünce kayıt silinir** |
+
+Seçim yeni oyun başlarken (sınıf seçiminden sonra), ayrıca F1'den
+değiştirilebiliyor. Kapanış kartında hangi zorlukta bitirdiğin yazıyor.
+
+**Testin yakaladığı tutarsızlık:** Kolay'a +10% XP vermiştim; bu "zor olan
+çok kazandırır" kuralını bozuyordu (Kolay, Orta'dan fazla XP veriyordu).
+Test kırıldı, Kolay nötre çekildi.
+
+#### İki logo
+
+| | |
+|---|---|
+| **Oyun içi amblem** | `PA.logo()` — çatlak bir taşı olan karanlık taç. Her şey gibi çalışma anında çiziliyor |
+| **Uygulama ikonu** | `assets/icon.ico` — 16'dan 256 piksele **altı boyut**. 32 ve altında sadeleştirilmiş çizim kullanılıyor, yoksa 16 pikselde okunmuyordu |
+
+İkon artık oyunun kendi çiziminden üretiliyor (`tools/make_logo_icon.py`);
+Pillow gerekmiyor, ICO dosyası PNG gömülü olarak elle yazılıyor. Önceki
+ikon `assets/icon_onceki.ico` olarak saklandı.
+
+#### Açılış animasyonu
+
+Uygulama açılırken bir kez: yıldızlar belirir, taç yükselip büyür, başlık
+yazısı belirir, taç çatlar (darbe sesi + sarsıntı). **190 kare = 3,2 saniye**,
+herhangi bir tuşla geçiliyor. Ana menüye dönüşte tekrar oynatılmıyor.
+
+**Yan düzeltme:** ekranda görünen başlık `TITLE` sabitiydi ve ASCII'ydi —
+"Karanlik Tac'in Laneti" diye çıkıyordu. Artık `game_title()` çeviriden
+geliyor: "Karanlık Taç'ın Laneti". `TITLE` pencere başlığı için ASCII kaldı.
+
+#### Testlerin kırılganlığı giderildi
+
+Akışa iki yeni adım girdi (zorluk seçimi, açılış animasyonu) ve Enter sayan
+testler kırıldı. Tek tek düzeltmek yerine koşum takımına `Harness.intro()`
+eklendi: başlıktan oyuna kadarki tuş dizisi artık tek yerde.
+
+`tests/test_difficulty.py` (18) ve `tests/test_logo.py` (15) eklendi.
+Toplam **292 test**.
+
 ### ⬜ Faz 5 — İçerik derinliği
 - [x] İ5 — görev işaretçileri **ve mini harita yapıldı**
 - [x] İ7 — dükkân ve ekonomi **yapıldı**
@@ -756,6 +818,7 @@ dönüşmüyor.
 | 2026-10-01 | — | Köz Vadisi (13. harita) | Mevcut dünya testleri kendiliğinden denetledi |
 | 2026-10-01 | — | **v6.0 yayını:** README, kurulum betikleri, depo temizliği (1977 → 59 dosya), GitHub Release | 247 test |
 | 2026-10-01 | — | **Parşömen görevi bitirilemiyordu:** üç parşömen de dünyada yoktu. Düşman fark etme mesafeleri tür bazına alındı | 12 yeni test; toplam 259 test |
+| 2026-10-01 | — | **v6.1:** "Sör" yazım hatası, beş zorluk seviyesi, oyun içi amblem + uygulama ikonu, açılış animasyonu | 33 yeni test; toplam 292 test |
 
 ---
 

@@ -82,10 +82,7 @@ class TestDismissal(unittest.TestCase):
 
         H = Harness(mod, shot_prefix="_tut_")
         durumlar = []
-        H.run([
-            H.key(pygame.K_RETURN, 4), H.key(pygame.K_RETURN, 4),
-            H.key(pygame.K_RETURN, 4), H.key(pygame.K_RETURN, 4),
-            H.key(pygame.K_RETURN, 6),
+        H.run(H.intro() + [
             H.do(lambda g: durumlar.append(g.state)),
             H.do(casus_kur),
             H.key(pygame.K_i, 6),                  # herhangi bir tus

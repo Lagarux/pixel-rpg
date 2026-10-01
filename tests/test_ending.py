@@ -133,7 +133,7 @@ class TestSummary(unittest.TestCase):
     def test_summary_survives_an_empty_run(self):
         g = _game()
         ozet = g._ending_stats()
-        self.assertEqual(len(ozet), 5)
+        self.assertEqual(len(ozet), 6)      # zorluk + 5 sayac
         for ad, deger in ozet:
             self.assertTrue(str(ad).strip())
 

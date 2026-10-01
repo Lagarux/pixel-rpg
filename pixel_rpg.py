@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KARANLIK TAC'IN LANETI  v6.0  ─  2D Pixel RPG
+KARANLIK TAC'IN LANETI  v6.1  ─  2D Pixel RPG
 pip install pygame  |  python pixel_rpg.py
 
 Kontroller:
@@ -28,8 +28,8 @@ except Exception:
 SW, SH = 960, 640
 TILE    = 32
 FPS     = 60
-VERSION = "6.0"
-TITLE   = "Karanlik Tac'in Laneti"
+VERSION = "6.1"
+TITLE   = "Karanlik Tac'in Laneti"   # ASCII: pencere basligi ve dosya adlari icin
 
 # ─── Dizinler ────────────────────────────────────────────────────
 # Betiğin kendi dizini: SALT-OKUNUR varlıklar (fontlar, ikonlar) için.
@@ -70,7 +70,7 @@ class Settings:
     DEFAULTS = {
         "fullscreen": False, "master_vol": 80, "sfx_vol": 80,
         "music_vol": 60, "language": "TR", "show_fps": False,
-        "minimap": True, "tutorial_seen": False,
+        "minimap": True, "tutorial_seen": False, "difficulty": "normal",
     }
     def __init__(self):
         self.data = dict(self.DEFAULTS)
@@ -674,7 +674,7 @@ ABILITIES = {
 
 QUESTS = {
     1:("Kotulugun Uyanisi","Ashveil'de Yasli Aldric ile konus."),
-    2:("Ormanin Sirri",    "Karanlik Ormanda Sir Roland'i bul."),
+    2:("Ormanin Sirri",    "Karanlik Ormanda Sor Roland'i bul."),
     3:("Toprak Kristali",  "Antik Harabelerde Toprak Kristalini al."),
     4:("Kahin Kehaneti",   "Colde Oracle Nyx'i bul."),
     5:("Buzun Kalbi",      "Buz Magarasinda Su Kristalini al."),
@@ -702,6 +702,48 @@ BEHAVIORS = {
     "shadow_knight":{"type":"melee"},
     "malachar":     {"type":"ranged","range":7,"cool":70,"proj":"shadow_bolt","melee_too":True},
 }
+
+# ─── Zorluk seviyeleri ───────────────────────────────────────────
+# Çarpanlar düşman kurulurken değil, hasar HESAPLANIRKEN uygulanıyor.
+# Böylece zorluk oyunun ortasında değiştirilebiliyor ve kayıtlı bir oyun
+# hangi zorlukta yüklenirse yüklensin tutarlı kalıyor — düşmanların can
+# değerlerine dokunsaydık yüklemede eski değerler kalırdı.
+DIFFICULTIES = [
+    # id,          ad anahtarı,        vurduğun, yediğin, altın, xp,  kalıcı ölüm
+    # Kolay ödülü arttırmıyor, yalnızca dövüşü kolaylaştırıyor: aksi hâlde
+    # "zor olan çok kazandırır" kuralı bozulurdu.
+    ("easy",       "ui.diff_easy",     1.25, 0.65, 1.00, 1.00, False),
+    ("normal",     "ui.diff_normal",   1.00, 1.00, 1.00, 1.00, False),
+    ("hard",       "ui.diff_hard",     0.85, 1.35, 1.15, 1.20, False),
+    ("brutal",     "ui.diff_brutal",   0.72, 1.75, 1.30, 1.40, False),
+    ("hardcore",   "ui.diff_hardcore", 0.62, 2.10, 1.50, 1.60, True),
+]
+DIFF_IDS  = [d[0] for d in DIFFICULTIES]
+DIFF_COL  = {"easy":(120,210,120),"normal":(200,200,210),"hard":(240,195,90),
+             "brutal":(240,125,70),"hardcore":(235,70,70)}
+DIFF_DESC = {d[0]:d[1]+"_desc" for d in DIFFICULTIES}
+
+
+def difficulty(did=None):
+    """Seçili zorluk satırı; tanınmayan değer gelirse Orta."""
+    did = did or CFG.data.get("difficulty","normal")
+    for d in DIFFICULTIES:
+        if d[0]==did: return d
+    return DIFFICULTIES[1]
+
+
+def diff_mult(key)->float:
+    d=difficulty()
+    return {"player_dmg":d[2],"enemy_dmg":d[3],"gold":d[4],"xp":d[5]}[key]
+
+
+def diff_permadeath()->bool:
+    return bool(difficulty()[6])
+
+
+def diff_name(did=None)->str:
+    return T_(difficulty(did)[1])
+
 
 # ─── Elementler ──────────────────────────────────────────────────
 # Her düşmanın bir elementi var; her saldırının da. Çarpan tablosu ikisini
@@ -800,6 +842,12 @@ def elem_mult(saldiri, hedef) -> float:
 
 def elem_name(key) -> str:
     return T_(ELEM_NAMES.get(key, "ui.elem_physical"))
+
+
+def game_title()->str:
+    """Ekranda gösterilen başlık. TITLE sabiti ASCII (pencere başlığı için);
+    oyuncunun gördüğü başlık Türkçe karakterleri ve çeviriyi kullanıyor."""
+    return T_("ui.game_title",default="Karanlık Taç'ın Laneti")
 
 
 def behavior(kind)->Dict:
@@ -1598,6 +1646,53 @@ class PA:
             pygame.draw.polygon(s,(120,190,230),((16,10),(21,20),(16,25),(11,20)))
             pygame.draw.polygon(s,(190,230,255),((16,12),(19,20),(16,22),(14,20)))
         PA._c[key]=s;return s
+
+    # ── Oyun içi logo: Karanlık Taç ──────────────────────────────
+    # Masaüstü/görev çubuğu ikonundan ayrı: bu amblem oyunun içinde, açılış
+    # animasyonunda ve başlık ekranında kullanılıyor. Her şey gibi çalışma
+    # anında çiziliyor, yanında bir görsel dosyası yok.
+    _logo_c:Dict={}
+
+    @staticmethod
+    def logo(catlak=1.0,sade=False):
+        """Taç amblemi. catlak: 0 = sağlam, 1 = tam çatlak (animasyon için).
+        sade=True küçük boyda okunsun diye ayrıntıları atar (ikon)."""
+        ck=(round(catlak,2),sade)
+        if ck in PA._logo_c: return PA._logo_c[ck]
+        W,H=72,52
+        s=pygame.Surface((W,H),pygame.SRCALPHA)
+        koyu=(20,14,28);metal=(66,50,86);isik=(118,96,150);golge=(40,30,54)
+        mor=(182,100,238);mor_i=(226,178,255);altin=(236,198,104);altin_k=(150,116,48)
+        sil=[(6,44),(6,26),(17,8),(26,24),(36,2),(46,24),(55,8),(66,26),(66,44)]
+        pygame.draw.polygon(s,metal,sil)
+        if not sade:
+            pygame.draw.lines(s,isik,False,[(6,26),(17,8),(26,24),(36,2),(46,24),(55,8),(66,26)],1)
+            pygame.draw.polygon(s,golge,[(6,44),(6,38),(66,38),(66,44)])
+        pygame.draw.polygon(s,koyu,sil,2)
+        pygame.draw.rect(s,metal,(5,26,62,18));pygame.draw.rect(s,koyu,(5,26,62,18),2)
+        if not sade:
+            pygame.draw.line(s,isik,(7,28),(65,28),1)
+            pygame.draw.line(s,golge,(7,41),(65,41),1)
+            for x in (14,22,50,58):
+                pygame.draw.rect(s,altin_k,(x-2,32,5,5));pygame.draw.rect(s,altin,(x-1,33,3,3))
+        for x,y in ((17,8),(36,2),(55,8)):
+            r=4 if not sade else 5
+            pygame.draw.circle(s,altin,(x,y+2),r);pygame.draw.circle(s,altin_k,(x,y+2),r,1)
+            if not sade: pygame.draw.circle(s,(255,240,190),(x-1,y+1),1)
+        elmas=[(36,18),(47,34),(36,50),(25,34)]
+        pygame.draw.polygon(s,mor,elmas);pygame.draw.polygon(s,koyu,elmas,2)
+        pygame.draw.polygon(s,mor_i,[(36,23),(42,34),(36,45),(30,34)])
+        if not sade:
+            pygame.draw.polygon(s,(245,220,255),[(36,26),(39,34),(36,40),(33,34)])
+        if catlak>0 and not sade:
+            yol=[(36,34),(33,28),(37,22),(34,15),(37,8),(35,3)]
+            asag=[(36,34),(38,40),(34,46),(37,50)]
+            n=max(2,int(len(yol)*min(1.0,catlak*1.4)))
+            pygame.draw.lines(s,(255,244,210),False,yol[:n],1)
+            if catlak>0.6:
+                m=max(2,int(len(asag)*(catlak-0.6)/0.4))
+                pygame.draw.lines(s,(255,244,210),False,asag[:m],1)
+        PA._logo_c[ck]=s;return s
 
     @staticmethod
     def equip_icon(slot,col):
@@ -2973,6 +3068,38 @@ class UI:
             pygame.draw.rect(gs,(*UI_AC,gv),(0,0,w,h),3)
             surf.blit(gs,(x,y))
 
+    def draw_difficulty(self,surf,sel,tick):
+        """Yeni oyun başlarken zorluk seçimi."""
+        surf.fill(DKG)
+        for i in range(120):
+            random.seed(i*197+7);sx2=random.randint(0,SW);sy2=random.randint(0,SH)
+            br=random.randint(50,150);pygame.draw.circle(surf,(br,br,br),(sx2,sy2),1)
+        random.seed()
+        self.txt_c(surf,T_("ui.diff_title"),SW//2,34,UI_AC,self.fxl)
+        self.txt_c(surf,T_("ui.diff_subtitle"),SW//2,74,LGR,self.fmd)
+        rw,rh=640,66;rx=SW//2-rw//2
+        for i,d in enumerate(DIFFICULTIES):
+            col=DIFF_COL.get(d[0],LGR);ry=112+i*(rh+8);sel_this=(i==sel)
+            rs=pygame.Surface((rw,rh),pygame.SRCALPHA)
+            if sel_this:
+                gv=int(abs(math.sin(tick*0.004))*40)+35
+                rs.fill((*col,24+gv));pygame.draw.rect(rs,col,(0,0,rw,rh),3)
+            else:
+                rs.fill((*UI_BG,190));pygame.draw.rect(rs,(*col,70),(0,0,rw,rh),2)
+            surf.blit(rs,(rx,ry))
+            self.txt(surf,T_(d[1]),rx+18,ry+8,col if sel_this else LGR,self.fmd)
+            self.txt(surf,T_(d[1]+"_desc"),rx+18,ry+34,LGR if sel_this else GR,self.fsm)
+            # Çarpanlar sağda: ne aldığın açıkça görünsün
+            ozet="%s %+d%%   %s %+d%%" % (T_("ui.diff_dealt"),round((d[2]-1)*100),
+                                          T_("ui.diff_taken"),round((d[3]-1)*100))
+            ts=self.fsm.render(ozet,True,col if sel_this else GR)
+            surf.blit(ts,(rx+rw-ts.get_width()-18,ry+10))
+            if d[6]:
+                ws=self.fsm.render(T_("ui.diff_permadeath"),True,(255,120,110))
+                surf.blit(ws,(rx+rw-ws.get_width()-18,ry+36))
+        pv=int(abs(math.sin(tick*0.004))*70)+150
+        self.txt_c(surf,T_("ui.diff_hint"),SW//2,SH-40,(pv,pv,140),self.fmd)
+
     def draw_stat_alloc(self,surf,stats,free,sel,is_lu=False,tick=0):
         self.dim(surf)
         pw,ph=510,430;px=SW//2-pw//2;py=SH//2-ph//2
@@ -3039,7 +3166,7 @@ class UI:
             random.seed(i*251);sx2=random.randint(0,SW);sy2=random.randint(0,SH);br=random.randint(50,160)
             pygame.draw.circle(surf,(br,br,br),(sx2,sy2),1)
         random.seed()
-        self.txt_c(surf,TITLE,SW//2,36,UI_AC,self.fxl)
+        self.txt_c(surf,game_title(),SW//2,36,UI_AC,self.fxl)
         for i,(line,col) in enumerate(STORY_LINES[:lines_shown]):
             line=T_("story.%d"%(i+1),default=line) if line.strip() else line
             y=130+i*30
@@ -3049,6 +3176,58 @@ class UI:
             pv=int(abs(math.sin(tick*0.003))*80)+120
             self.txt_c(surf,T_("ui.story_next"),SW//2,SH-60,(int(pv),120,255),self.flg)
 
+    # Açılış animasyonu zaman çizelgesi (kare cinsinden, 60 fps)
+    SPLASH_IN    = 22    # siyahtan açılma
+    SPLASH_RISE  = 64    # taç yükselip büyür
+    SPLASH_TEXT  = 96    # başlık belirir
+    SPLASH_CRACK = 116   # çatlak koşar
+    SPLASH_END   = 190   # bu kareden sonra başlık ekranına geçer
+
+    def draw_splash(self,surf,t,tick):
+        """Açılış: taç yükselir, başlık belirir, taç çatlar."""
+        surf.fill((8,6,12))
+        # yıldızlar yavaşça belirir
+        yildiz=min(1.0,t/40.0)
+        for i in range(90):
+            random.seed(i*331)
+            sx2=random.randint(0,SW);sy2=random.randint(0,SH)
+            br=int(random.randint(40,150)*yildiz)
+            if br>8: pygame.draw.circle(surf,(br,br,int(br*1.1)),(sx2,sy2),1)
+        random.seed()
+
+        yuks=min(1.0,max(0.0,(t-self.SPLASH_IN)/float(self.SPLASH_RISE-self.SPLASH_IN)))
+        yuks=1-(1-yuks)**3                      # yumuşak yavaşlama
+        catlak=0.0
+        if t>=self.SPLASH_CRACK:
+            catlak=min(1.0,(t-self.SPLASH_CRACK)/16.0)
+
+        olcek=int(3+3*yuks)                     # 3x -> 6x
+        lg=PA.logo(catlak)
+        lw,lh=lg.get_width()*olcek,lg.get_height()*olcek
+        ly=int(SH*0.30-lh//2+(1-yuks)*40)
+        # arkada mor hale
+        hale=int(90*yuks)+int(abs(math.sin(tick*0.004))*30)
+        hs=pygame.Surface((lw*2,lh*2),pygame.SRCALPHA)
+        for r in range(6,0,-1):
+            pygame.draw.ellipse(hs,(120,60,180,max(0,hale//(7-r))),
+                                (lw-r*lw//12,lh-r*lh//12,lw*r//6,lh*r//6))
+        surf.blit(hs,(SW//2-lw,ly+lh//2-lh))
+        big=pygame.transform.scale(lg,(lw,lh))
+        if t<self.SPLASH_IN:
+            big=big.copy();big.set_alpha(int(255*t/float(self.SPLASH_IN)))
+        surf.blit(big,(SW//2-lw//2,ly))
+
+        if t>=self.SPLASH_TEXT:
+            a=min(255,(t-self.SPLASH_TEXT)*9)
+            ts=self.fti.render(game_title(),True,UI_AC);ts.set_alpha(a)
+            surf.blit(ts,(SW//2-ts.get_width()//2,ly+lh+18))
+        if t>=self.SPLASH_CRACK+20:
+            a=min(200,(t-self.SPLASH_CRACK-20)*6)
+            sb=self.fsm.render(T_("ui.splash_by"),True,GR);sb.set_alpha(a)
+            surf.blit(sb,(SW//2-sb.get_width()//2,SH-70))
+            sk=self.fsm.render(T_("ui.splash_skip"),True,(90,90,110));sk.set_alpha(a)
+            surf.blit(sk,(SW//2-sk.get_width()//2,SH-44))
+
     def draw_title(self,surf,tick):
         surf.fill(DKG)
         for i in range(150):
@@ -3056,8 +3235,17 @@ class UI:
             pv=int(abs(math.sin(tick*0.001+i*0.3))*100)+80
             br=(min(255,pv//2),min(255,pv//3),min(255,pv));pygame.draw.circle(surf,br,(sx2,sy2),1)
         random.seed()
-        tt=self.fti.render(TITLE,True,UI_AC)
-        surf.blit(self.fti.render(TITLE,True,(50,30,80)),(SW//2-tt.get_width()//2+3,143));surf.blit(tt,(SW//2-tt.get_width()//2,140))
+        # Oyun içi amblem — açılış animasyonundaki taçla aynı
+        lg=PA.logo(1.0);lw,lh=lg.get_width()*2,lg.get_height()*2
+        hs=pygame.Surface((lw*2,lh*2),pygame.SRCALPHA)
+        hp=int(abs(math.sin(tick*0.002))*26)+34
+        for r in range(5,0,-1):
+            pygame.draw.ellipse(hs,(120,60,180,max(0,hp//(6-r))),
+                                (lw-r*lw//10,lh-r*lh//10,lw*r//5,lh*r//5))
+        surf.blit(hs,(SW//2-lw,24+lh//2-lh))
+        surf.blit(pygame.transform.scale(lg,(lw,lh)),(SW//2-lw//2,24))
+        tt=self.fti.render(game_title(),True,UI_AC)
+        surf.blit(self.fti.render(game_title(),True,(50,30,80)),(SW//2-tt.get_width()//2+3,143));surf.blit(tt,(SW//2-tt.get_width()//2,140))
         self.txt_c(surf,"v%s — %s"%(VERSION,T_("ui.tagline")),SW//2,190,UI_GD,self.fmd)
         for i2,cls in enumerate(CLASS_INFO.keys()):
             sp=PA.player_surf("down",tick//50,cls);surf.blit(pygame.transform.scale(sp,(56,56)),(SW//2-112+i2*56,240))
@@ -3454,6 +3642,7 @@ class UI:
             (T_("set_language"),   Locale.label(Locale.current()),  "language"),
             (T_("set_fps"),        T_("set_on") if CFG.show_fps else T_("set_off"), "show_fps"),
             (T_("set_minimap"),    T_("set_on") if CFG.minimap else T_("set_off"), "minimap"),
+            (T_("ui.diff_title"),  diff_name(), "difficulty"),
         ]
         for i,(label,val,_) in enumerate(opts):
             oy=py+56+i*44
@@ -3746,6 +3935,10 @@ class Game:
         self.ui=UI(); self.ps=PS()
         self.fps_font=pygame.font.SysFont("monospace",12,bold=True)
         self._reset()
+        # Açılış animasyonu yalnızca uygulama başlarken; ana menüye dönüşte
+        # (_reset) doğrudan başlık ekranı geliyor.
+        self.state="splash";self.splash_t=0
+        SoundManager.play_music("victory")
 
     @staticmethod
     def _set_app_id():
@@ -3835,6 +4028,10 @@ class Game:
         self.trans_alpha=0;self.pending_trans=None;self.transitioning=False;self.entering_name=""
         self.inv_sel=0;self.inv_tab=0;self.eq_sel=0  # eq_sel: ekipman sekmesi imleci
         self.epi_pages=[];self.epi_page=0            # kapanış sayfaları
+        self.splash_t=0                              # açılış animasyonu sayacı
+        self.diff_sel=DIFF_IDS.index(CFG.data.get("difficulty","normal")) \
+            if CFG.data.get("difficulty","normal") in DIFF_IDS else 1
+        self.permadeath_hit=False
         self.shop_npc=None;self.shop_tab=0;self.shop_sel=0;self.shop_msg=None
         self.projectiles:List[Projectile]=[]
         self.settings_sel=0  # Ayarlar menüsü seçimi
@@ -3943,8 +4140,21 @@ class Game:
     # Haritalar her açılışta üreticilerden yeniden kuruluyor; kayıtta yalnızca
     # oyuncunun DEĞİŞTİRDİĞİ şeyler tutulur: açılan sandıklar ve ölen düşmanlar.
     # Böylece kayıt dosyası küçük kalıyor ve harita içeriği güncellenebiliyor.
+    def _cycle_difficulty(self,d):
+        i=(DIFF_IDS.index(CFG.data.get("difficulty","normal")) if
+           CFG.data.get("difficulty","normal") in DIFF_IDS else 1)
+        CFG.data["difficulty"]=DIFF_IDS[(i+d)%len(DIFF_IDS)]
+
+    def _wipe_save(self):
+        """Hardcore: ölüm kalıcı. Kayıt siliniyor, dönüş yok."""
+        self.permadeath_hit=True
+        try:
+            if os.path.isfile(SAVE_FILE): os.remove(SAVE_FILE)
+        except Exception: pass
+
     def save_game(self)->bool:
         if not self.player: return False
+        if getattr(self,"permadeath_hit",False): return False   # hardcore: öldü, bitti
         p=self.player;st=p.stats
         maps={}
         for key,m in self.maps.items():
@@ -4131,7 +4341,7 @@ class Game:
     def _hit(self,e,dmg,crit=False,elem="physical"):
         if crit: dmg=int(dmg*1.8)
         k=elem_mult(elem,getattr(e,"elem","physical"))
-        dmg=max(1,int(dmg*k))
+        dmg=max(1,int(dmg*k*diff_mult("player_dmg")))
         e.hp-=dmg;e.hp=max(0,e.hp)
         col=UI_GD if crit else HP_R
         # Oyuncu neden az/çok vurduğunu görsün: element etkisi yazıyla söyleniyor
@@ -4156,7 +4366,8 @@ class Game:
             elif item in("earth_c","water_c"):
                 self.player.quest_items.append(item);self._quest_item(item)
             else: self.player.inventory.append(item)
-        lv=self.player.stats.gain_xp(e.xp_r);self.player.stats.gold+=random.randint(1,4)
+        lv=self.player.stats.gain_xp(int(e.xp_r*diff_mult("xp")))
+        self.player.stats.gold+=int(random.randint(1,4)*diff_mult("gold"))
         self.ps.emit_xp(e.px+TILE//2,e.py+TILE//2);self.ps.emit_gold(e.px+TILE//2,e.py+TILE//2)
         # Yan görev sayacı: her tür için ayrı
         kk="kill_"+e.kind
@@ -4213,7 +4424,8 @@ class Game:
         oldurulen=sum(v for k,v in self.flags.items()
                       if k.startswith("kill_") and isinstance(v,int))
         biten=sum(1 for sq in SIDE_QUESTS if self.flags.get("sqpaid_"+sq["id"]))
-        return [(T_("epi.stat_level"),st.level),
+        return [(T_("ui.diff_title"),diff_name()),
+                (T_("epi.stat_level"),st.level),
                 (T_("epi.stat_quests"),"%d/%d"%(biten,len(SIDE_QUESTS))),
                 (T_("epi.stat_kills"),oldurulen),
                 (T_("epi.stat_chests"),self.flags.get("chests_opened",0)),
@@ -4225,8 +4437,8 @@ class Game:
             paid="sqpaid_"+sq["id"]
             if self.flags.get(paid) or not sq_done(sq,self.flags): continue
             self.flags[paid]=True
-            self.player.stats.gold+=sq["gold"]
-            self.player.stats.gain_xp(sq["xp"])
+            self.player.stats.gold+=int(sq["gold"]*diff_mult("gold"))
+            self.player.stats.gain_xp(int(sq["xp"]*diff_mult("xp")))
             SoundManager.play("chest")
             self._toast("%s — %s  (+%d %s, +%d XP)"%(
                 T_("ui.sq_done"),T_(sq["title"]),sq["gold"],T_("gold"),sq["xp"]),UI_GD)
@@ -4551,7 +4763,7 @@ class Game:
         p=self.player
         if not p or p.invincible>0: return 0
         dmg=max(1,raw-p.stats.defense+random.randint(-2,3))
-        dmg=max(1,int(dmg*self._player_resist(elem)))
+        dmg=max(1,int(dmg*self._player_resist(elem)*diff_mult("enemy_dmg")))
         if "holy_shield" in p.stats.buffs:
             sh=p.stats.buffs["holy_shield"]
             if isinstance(sh,int): p.stats.buffs["holy_shield"]=max(0,sh-dmg);dmg=0
@@ -4560,7 +4772,9 @@ class Game:
         self.ps.emit_hit(ppx,ppy)
         self.dmg_nums.append({"x":ppx,"y":ppy-TILE//2,"v":dmg,"l":40,"col":HP_R})
         if dmg>0: self.add_shake(shake,10)
-        if p.stats.hp<=0: self.state="gameover";SoundManager.play("death")
+        if p.stats.hp<=0:
+            self.state="gameover";SoundManager.play("death")
+            if diff_permadeath(): self._wipe_save()
         return dmg
 
     def _enemy_strike(self,e,p,ppx,ppy):
@@ -4694,6 +4908,12 @@ class Game:
         if self.shake>0:
             self.shake-=1
             if self.shake==0: self.shake_mag=0
+        if self.state=="splash":
+            self.splash_t+=1
+            # Taç çatladığı anda bir darbe sesi ve hafif sarsıntı
+            if self.splash_t==UI.SPLASH_CRACK:
+                SoundManager.play("hit_heavy");self.add_shake(5,12)
+            if self.splash_t>=UI.SPLASH_END: self.state="title"
         if self.state=="story":
             self.story_timer+=1
             if self.story_timer%35==0: self.story_shown=min(self.story_shown+1,len(STORY_LINES))
@@ -4767,7 +4987,7 @@ class Game:
 
                     # ── Settings overlay açıkken ──
                     if self.settings_open:
-                        opts_s=["fullscreen","master_vol","sfx_vol","music_vol","language","show_fps","minimap"]
+                        opts_s=["fullscreen","master_vol","sfx_vol","music_vol","language","show_fps","minimap","difficulty"]
                         if k==pygame.K_ESCAPE or k==pygame.K_F1:
                             self.settings_open=False; CFG.save(); SoundManager.play("menu_back")
                         elif k in(pygame.K_UP,pygame.K_w):
@@ -4783,10 +5003,12 @@ class Game:
                             elif key2=="language":  self._cycle_language(+1)
                             elif key2=="show_fps":  CFG.data["show_fps"]=not CFG.data.get("show_fps",False)
                             elif key2=="minimap":   CFG.data["minimap"]=not CFG.data.get("minimap",True)
+                            elif key2=="difficulty": self._cycle_difficulty(+1)
                             CFG.save(); SoundManager.play("menu_sel")
                         elif k in(pygame.K_LEFT,pygame.K_a):
                             key2=opts_s[self.settings_sel]
                             if key2=="language": self._cycle_language(-1)
+                            elif key2=="difficulty": self._cycle_difficulty(-1)
                             elif key2=="master_vol": CFG.data["master_vol"]=max(0,CFG.data.get("master_vol",80)-10); SoundManager.update_music_volume()
                             elif key2=="sfx_vol":  CFG.data["sfx_vol"]=max(0,CFG.data.get("sfx_vol",80)-10)
                             elif key2=="music_vol":CFG.data["music_vol"]=max(0,CFG.data.get("music_vol",60)-10); SoundManager.update_music_volume()
@@ -4827,6 +5049,20 @@ class Game:
                             CFG.data["tutorial_seen"]=True; CFG.save()
                             self.state="playing"; SoundManager.play("menu_sel")
 
+                    elif self.state=="splash":
+                        self.state="title";SoundManager.play("menu_back")
+
+                    elif self.state=="difficulty_select":
+                        if k in(pygame.K_UP,pygame.K_w):
+                            self.diff_sel=max(0,self.diff_sel-1); SoundManager.play("menu_sel")
+                        elif k in(pygame.K_DOWN,pygame.K_s):
+                            self.diff_sel=min(len(DIFFICULTIES)-1,self.diff_sel+1); SoundManager.play("menu_sel")
+                        elif k in(pygame.K_RETURN,pygame.K_e,pygame.K_SPACE):
+                            CFG.data["difficulty"]=DIFF_IDS[self.diff_sel]; CFG.save()
+                            self.state="stat_alloc"; SoundManager.play("menu_sel")
+                        elif k==pygame.K_ESCAPE:
+                            self.state="class_select"; SoundManager.play("menu_back")
+
                     elif self.state=="title":
                         if k in(pygame.K_RETURN,pygame.K_e):
                             self.state="story"; SoundManager.play("menu_sel")
@@ -4850,7 +5086,8 @@ class Game:
                         if k in(pygame.K_LEFT,pygame.K_a): self.class_sel=max(0,self.class_sel-1); SoundManager.play("menu_sel")
                         elif k in(pygame.K_RIGHT,pygame.K_d): self.class_sel=min(len(ks)-1,self.class_sel+1); SoundManager.play("menu_sel")
                         elif k in(pygame.K_RETURN,pygame.K_e):
-                            self.temp_stats=PlayerStats(ks[self.class_sel]); self.free_pts=10; self.stat_sel=0; self.is_lu=False; self.state="stat_alloc"; SoundManager.play("menu_sel")
+                            self.temp_stats=PlayerStats(ks[self.class_sel]); self.free_pts=10; self.stat_sel=0; self.is_lu=False
+                            self.state="difficulty_select"; SoundManager.play("menu_sel")
                         elif k==pygame.K_ESCAPE:
                             self.state="story"
 
@@ -4966,9 +5203,11 @@ class Game:
 
             # ─── Çizim ───────────────────────────────────────────
             self.screen.fill(DKG)
-            if self.state=="title": self.ui.draw_title(self.screen,self.tick)
+            if self.state=="splash": self.ui.draw_splash(self.screen,self.splash_t,self.tick)
+            elif self.state=="title": self.ui.draw_title(self.screen,self.tick)
             elif self.state=="story": self.ui.draw_story(self.screen,self.story_shown,self.tick)
             elif self.state=="class_select": self.ui.draw_class_select(self.screen,self.class_sel,self.tick)
+            elif self.state=="difficulty_select": self.ui.draw_difficulty(self.screen,self.diff_sel,self.tick)
             elif self.state=="stat_alloc": self.ui.draw_stat_alloc(self.screen,self.temp_stats,self.free_pts,self.stat_sel,False,self.tick)
             else:
                 if self.cur_map:

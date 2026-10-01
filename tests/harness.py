@@ -95,6 +95,26 @@ def load_game_module(name="pixel_rpg_under_test"):
 class Harness:
     """Bir Game ornegini senaryoya gore surer ve olcum toplar."""
 
+    def intro(self, class_sel=0, diff_sel=None, wait=4):
+        """Baslik ekranindan oyunun basladigi ana kadarki tus dizisi.
+
+        Akisa yeni bir adim eklendiginde (ornegin zorluk secimi) her testi
+        tek tek duzeltmek yerine yalnizca burasi guncelleniyor.
+        """
+        cmds = [self.key(pygame.K_RETURN, wait),   # acilis animasyonu -> baslik
+                self.key(pygame.K_RETURN, wait),   # baslik -> hikaye
+                self.key(pygame.K_RETURN, wait),   # hikayenin tamamini goster
+                self.key(pygame.K_RETURN, wait)]   # -> sinif secimi
+        for _ in range(class_sel):
+            cmds.append(self.key(pygame.K_RIGHT, wait))
+        cmds.append(self.key(pygame.K_RETURN, wait))   # -> zorluk secimi
+        if diff_sel is not None:
+            for _ in range(diff_sel):
+                cmds.append(self.key(pygame.K_DOWN, wait))
+        cmds.append(self.key(pygame.K_RETURN, wait))   # -> nitelik dagitimi
+        cmds.append(self.key(pygame.K_RETURN, wait + 2))  # -> oyun basliyor
+        return cmds
+
     def __init__(self, module, shot_dir=SHOT_DIR, shot_prefix=""):
         self.mod = module
         self.shot_dir = shot_dir

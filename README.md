@@ -5,7 +5,7 @@ Beş dilde oynanır, bütün grafikleri ve sesleri çalışma anında üretir �
 
 > *Yüz yıl önce atalarımız Malachar'ı dört kristalle mühürledi. Mühür zayıflıyor.*
 
-![Pazar meydanı](docs/01_pazar.png)
+<p align="center"><img src="docs/08_acilis.png" alt="Açılış" width="620"></p>
 
 | | |
 |---|---|
@@ -13,6 +13,8 @@ Beş dilde oynanır, bütün grafikleri ve sesleri çalışma anında üretir �
 | Doğru element seçmek fark yaratır | Köz Vadisi — volkanik yan bölge |
 | ![Ekipman](docs/05_ekipman.png) | ![Kapanış](docs/06_kapanis.png) |
 | Beş ekipman yuvası | Yaptıklarına göre değişen kapanış |
+| ![Zorluk](docs/07_zorluk.png) | ![Pazar](docs/01_pazar.png) |
+| Beş zorluk seviyesi | Dört tezgâhlı pazar meydanı |
 
 ---
 
@@ -20,7 +22,7 @@ Beş dilde oynanır, bütün grafikleri ve sesleri çalışma anında üretir �
 
 ### Seçenek 1 — Hazır sürümü indir (önerilen)
 
-[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.0-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
+[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.1-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
 
 ### Seçenek 2 — Kaynaktan çalıştır
 
@@ -74,6 +76,7 @@ Oyuna ilk girişte klavye tanıtımı bir kez açılır; sonra duraklatma menüs
 | **24 NPC** | Oyunun gidişatına ve senin yaptıklarına göre konuşurlar |
 | **6 dükkân** | Demirci, han ve dört tezgâhlı pazar meydanı; alış/satış/konaklama |
 | **90 düşman, 10 tür** | Dört davranış: yanaşan, menzilli, kaçan, sürü hâlinde avlanan |
+| **5 zorluk** | Kolay · Orta · Zor · Çok Zor · **Hardcore** (tek can — ölünce kayıt silinir) |
 | **Kapanış** | Bitirdiğin yan görevler epiloğa kendi sahnesini ekler; sonda unvan ve yolculuk özeti |
 
 ### Element tablosu
@@ -91,6 +94,23 @@ Oyuna ilk girişte klavye tanıtımı bir kez açılır; sonra duraklatma menüs
 Fiziksel bilerek nötr bırakıldı: herkesin elindeki temel saldırı cezalandırılırsa savaşçı ve okçu gölge düşmanlara karşı çaresiz kalır. Silahın elementi temel saldırıya geçer; zırh ve muskalar bir elemente karşı koruma verir.
 
 ---
+
+## İki logo
+
+Oyunun iki ayrı logosu var ve ikisi de aynı tasarımı paylaşıyor:
+
+| | |
+|---|---|
+| **Oyun içi amblem** | `PA.logo()` ile çalışma anında çiziliyor. Açılış animasyonunda yükselip çatlıyor, başlık ekranında duruyor |
+| **Uygulama ikonu** | `assets/icon.ico` — masaüstü ve görev çubuğu. 16'dan 256 piksele altı boyut; 32 ve altında okunabilirlik için sadeleştirilmiş çizim kullanılıyor |
+
+İkon oyunun kendi çiziminden üretiliyor, elle çizilmiş bir dosya değil:
+
+```bash
+python tools/make_logo_icon.py
+```
+
+Önceki ikon `assets/icon_onceki.ico` olarak saklandı.
 
 ## Diller
 
@@ -158,7 +178,7 @@ A single-file 2D pixel RPG whose only dependency is pygame. Every graphic is dra
 
 ### Install
 
-Download `KaranlikTacinLaneti-v6.0-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
+Download `KaranlikTacinLaneti-v6.1-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
 
 ```bash
 pip install pygame

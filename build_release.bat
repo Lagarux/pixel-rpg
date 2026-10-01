@@ -1,7 +1,7 @@
 @echo off
 title KTL Release Builder
 echo ============================================================
-echo  KARANLIK TAC'IN LANETI v6.0 - Tam Kurulum Paketi Olusturucu
+echo  KARANLIK TAC'IN LANETI v6.1 - Tam Kurulum Paketi Olusturucu
 echo ============================================================
 echo.
 
@@ -42,9 +42,9 @@ if exist "assets" xcopy /E /I /Y "assets" "dist\game\assets" >nul
 if exist "README.txt" copy /Y "README.txt" "dist\game\" >nul
 
 echo [5/6] Windows ZIP hazirlanıyor...
-powershell -Command "Compress-Archive -Force -Path 'dist\game\*' -DestinationPath 'release\KaranlikTacinLaneti-v6.0-Windows.zip'" 2>nul
-if exist "release\KaranlikTacinLaneti-v6.0-Windows.zip" (
-    echo [OK] ZIP: release\KaranlikTacinLaneti-v6.0-Windows.zip
+powershell -Command "Compress-Archive -Force -Path 'dist\game\*' -DestinationPath 'release\KaranlikTacinLaneti-v6.1-Windows.zip'" 2>nul
+if exist "release\KaranlikTacinLaneti-v6.1-Windows.zip" (
+    echo [OK] ZIP: release\KaranlikTacinLaneti-v6.1-Windows.zip
 ) else (
     echo UYARI: ZIP olusturulamadi, dist\game klasorunu kullanin.
 )
