@@ -3033,7 +3033,13 @@ def _zemin_dokusu(m):
                 hacim = rng.randint(2,9)
                 while sinir and len(kume) < hacim:
                     cx, cy = sinir.pop(rng.randrange(len(sinir)))
-                    for dx, dy in ((1,0),(-1,0),(0,1),(0,-1)):
+                    # Dört komşunun hepsini birden almak 5 karelik lekeyi
+                    # her seferinde ARTI şekline sokuyordu; yönler
+                    # karıştırılıp bir kısmı atlanınca şekil düzensizleşiyor.
+                    yonler = [(1,0),(-1,0),(0,1),(0,-1)]
+                    rng.shuffle(yonler)
+                    for dx, dy in yonler:
+                        if rng.random() < 0.35: continue
                         nx, ny = cx+dx, cy+dy
                         if not (1 <= nx < m.w-1 and 1 <= ny < m.h-1): continue
                         if m.tiles[ny][nx] != taban or (nx,ny) in kume: continue
