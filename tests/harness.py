@@ -86,7 +86,14 @@ def load_game_module(name="pixel_rpg_under_test"):
         spec.loader.exec_module(module)
         # Testler oynanisi olcuyor: kontrol tanitimi yolu kapatmasin. Tanitimi
         # inceleyen testler bunu kendileri False'a cekiyor.
+        # Testler oyuncunun KENDI ayar dosyasini okumamali. CFG acilista
+        # %APPDATA%\KaranlikTacinLaneti\settings.json dosyasini yukluyor;
+        # oyuncu zorlugu "Zor"a aldiginda diff_mult("gold")=1.15 oluyor ve
+        # yan gorev odulunu olcen test kendi makinesinde dusuyordu. Testler
+        # her makinede ayni sonucu vermeli: ayarlar varsayilana sabitlenir.
+        module.CFG.data = dict(module.Settings.DEFAULTS)
         module.CFG.data["tutorial_seen"] = True
+        module.CFG.save = lambda *a, **k: None
         return module
     finally:
         os.chdir(old_cwd)

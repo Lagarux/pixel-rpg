@@ -1035,25 +1035,174 @@ class T:
     ROAD=25;GATE=26
     STALL=27        # pazar tezgâhı: tenteli ahşap kepenk, yürünmez
     ASH=28;LAVA=29  # Köz Vadisi: yürünebilir kül, yürünemez lav
+    # Doğal zemin çeşitleri. Haritaların çoğu tek bir karo tipiyle
+    # kaplıydı (harabeler %100 FLOOR, kayalık geçit %99 DIRT) ve 16 kareye
+    # kadar tek tip blok çıkıyordu: göz hiçbir şeye tutunamıyordu.
+    PATH=30         # patika: sıkışmış toprak, çakıl, kenarda ot
+    MEADOW=31       # yeşillik: çiçekli gür çayır
+    HEDGE=32        # çalı çit — yürünmez, doğal çerçeve
+    MOSS=33         # yosun tutmuş taş zemin
+    RUBBLE=34       # döküntü: kırık taş ve toz
+    GRAVEL=35       # çakıl yatağı
+    PINE=36         # çam — yürünmez
+    SHALLOW=37      # sığ su: geçilir
+    CRACKED=38      # çatlamış kuru zemin
 
 WALKABLE={T.GRASS,T.DIRT,T.SAND,T.SNOW,T.FARMLAND,T.WHEAT,
           T.FLOOR,T.DOOR,T.STAIRS_UP,T.STAIRS_DN,T.PORTAL,T.BRIDGE,T.ICE,
-          T.ROAD,T.GATE,T.ASH}
+          T.ROAD,T.GATE,T.ASH,
+          T.PATH,T.MEADOW,T.MOSS,T.RUBBLE,T.GRAVEL,T.SHALLOW,T.CRACKED}
+
+# ─── Geçit ağzı üslupları ────────────────────────────────────────
+# Geçitlerin hepsi aynı taş çerçeveydi: ormanın kenarında da, buz
+# mağarasının ağzında da, kalenin kapısında da. Artık geçit gittiği yere
+# benziyor; üslup haritada kare başına saklanıyor (m.gate_kind).
+GATE_STYLES = ("cave","ruin","pass","arch","door","ice","ash")
 
 # ─── Pixel Art ──────────────────────────────────────────────────
 class PA:
     _c:Dict={}
     @staticmethod
-    def tile(k,anim=0):
-        ck=(k,anim//8 if k in(T.WATER,T.RIVER) else 0)
+    def tile(k,anim=0,style=None):
+        ck=(k,anim//8 if k in(T.WATER,T.RIVER) else 0,style)
         if ck in PA._c: return PA._c[ck]
         s=pygame.Surface((TILE,TILE));rs=random.getstate();random.seed(hash(k)*997);Tp=TILE
         if k==T.GRASS:
+            # Düz yeşile serpilmiş 10 açık kare yerine kademeli ton + ot
+            # bıçakları: yan yana dizildiğinde ızgara görünmüyor.
             s.fill(G_D)
-            for _ in range(10): bx,by=random.randint(0,Tp-2),random.randint(0,Tp-2); pygame.draw.rect(s,G_L,(bx,by,2,3))
+            for _ in range(7):
+                bx,by=random.randint(0,Tp-5),random.randint(0,Tp-5)
+                pygame.draw.ellipse(s,(40,96,38),(bx,by,random.randint(4,7),random.randint(3,5)))
+            for _ in range(9):
+                bx,by=random.randint(1,Tp-2),random.randint(3,Tp-2)
+                pygame.draw.line(s,G_L,(bx,by),(bx+random.choice((-1,1)),by-random.randint(2,4)),1)
+        elif k==T.MEADOW:
+            # Yeşillik: gür ot + ufak çiçekler. Köyün ve çayırın kenarları.
+            s.fill((42,98,42))
+            for _ in range(8):
+                bx,by=random.randint(0,Tp-5),random.randint(0,Tp-5)
+                pygame.draw.ellipse(s,(50,116,46),(bx,by,random.randint(5,8),random.randint(4,6)))
+            for _ in range(12):
+                bx,by=random.randint(1,Tp-2),random.randint(4,Tp-1)
+                pygame.draw.line(s,(70,142,62),(bx,by),(bx+random.choice((-1,0,1)),by-random.randint(3,6)),1)
+            for _ in range(3):
+                bx,by=random.randint(3,Tp-4),random.randint(4,Tp-5)
+                c=random.choice(((232,224,120),(226,132,186),(176,196,236),(240,240,236)))
+                pygame.draw.circle(s,c,(bx,by),2);pygame.draw.circle(s,(246,242,180),(bx,by),1)
         elif k==T.DIRT:
             s.fill(DT)
-            for _ in range(8): bx,by=random.randint(1,Tp-3),random.randint(1,Tp-3); pygame.draw.rect(s,DT_L,(bx,by,3,2))
+            for _ in range(6):
+                bx,by=random.randint(0,Tp-6),random.randint(0,Tp-6)
+                pygame.draw.ellipse(s,(112,76,38),(bx,by,random.randint(5,8),random.randint(4,6)))
+            for _ in range(7):
+                bx,by=random.randint(1,Tp-3),random.randint(1,Tp-3)
+                pygame.draw.rect(s,DT_L,(bx,by,random.randint(2,3),2))
+            for _ in range(4):
+                bx,by=random.randint(2,Tp-3),random.randint(2,Tp-3)
+                pygame.draw.circle(s,(146,132,110),(bx,by),1)
+        elif k==T.PATH:
+            # Patika: ayak izinin sıkıştırdığı açık toprak, kenarları otlu.
+            s.fill((124,100,66))
+            for _ in range(10):
+                bx,by=random.randint(0,Tp-5),random.randint(0,Tp-5)
+                pygame.draw.ellipse(s,(140,116,78),(bx,by,random.randint(4,8),random.randint(3,5)))
+            for _ in range(7):
+                bx,by=random.randint(2,Tp-3),random.randint(2,Tp-3)
+                pygame.draw.circle(s,(168,152,124),(bx,by),1)
+            for _ in range(2):
+                bx,by=random.randint(3,Tp-4),random.randint(3,Tp-4)
+                pygame.draw.circle(s,(96,78,54),(bx,by),2)
+            for ex in (0,Tp-2):
+                for _ in range(4):
+                    by=random.randint(1,Tp-4)
+                    pygame.draw.line(s,(58,112,50),(ex+1,by+3),(ex+1,by),1)
+        elif k==T.GRAVEL:
+            s.fill((96,90,82))
+            for _ in range(26):
+                bx,by=random.randint(0,Tp-3),random.randint(0,Tp-3)
+                c=random.choice(((120,114,104),(78,74,68),(138,130,118)))
+                pygame.draw.circle(s,c,(bx,by),random.randint(1,2))
+        elif k==T.CRACKED:
+            s.fill((122,104,82))
+            for _ in range(5):
+                bx,by=random.randint(0,Tp-7),random.randint(0,Tp-7)
+                pygame.draw.ellipse(s,(136,118,92),(bx,by,random.randint(6,9),random.randint(5,7)))
+            for _ in range(3):
+                bx,by=random.randint(0,Tp-6),random.randint(0,Tp-6)
+                pygame.draw.ellipse(s,(106,90,70),(bx,by,random.randint(4,7),random.randint(3,5)))
+            for _ in range(4):
+                x1,y1=random.randint(0,Tp-1),random.randint(0,Tp-1);pts=[(x1,y1)]
+                for _ in range(3):
+                    x1=max(0,min(Tp-1,x1+random.randint(-7,7)))
+                    y1=max(0,min(Tp-1,y1+random.randint(-7,7)))
+                    pts.append((x1,y1))
+                pygame.draw.lines(s,(84,68,52),False,pts,1)
+                pygame.draw.line(s,(152,134,106),(pts[0][0],pts[0][1]-1),
+                                 (pts[1][0],pts[1][1]-1),1)
+            for _ in range(5):                     # kuru toz tanecikleri
+                bx,by=random.randint(1,Tp-2),random.randint(1,Tp-2)
+                pygame.draw.circle(s,(168,150,120),(bx,by),1)
+        elif k==T.MOSS:
+            s.fill((62,66,58))
+            for r in range(2):
+                for c in range(2):
+                    pygame.draw.rect(s,(78,82,72),(c*16+1,r*16+1,13,13))
+                    pygame.draw.rect(s,(48,52,44),(c*16+1,r*16+1,13,13),1)
+            for _ in range(9):
+                bx,by=random.randint(0,Tp-5),random.randint(0,Tp-5)
+                pygame.draw.ellipse(s,(66,106,58),(bx,by,random.randint(4,7),random.randint(3,5)))
+            for _ in range(4):
+                bx,by=random.randint(1,Tp-2),random.randint(3,Tp-2)
+                pygame.draw.line(s,(88,140,72),(bx,by),(bx,by-2),1)
+        elif k==T.RUBBLE:
+            s.fill((74,70,66))
+            for _ in range(13):
+                bx,by=random.randint(0,Tp-5),random.randint(0,Tp-5)
+                w2,h2=random.randint(3,6),random.randint(2,4)
+                pygame.draw.rect(s,(100,96,90),(bx,by,w2,h2))
+                pygame.draw.rect(s,(56,52,48),(bx,by,w2,h2),1)
+            for _ in range(6):
+                bx,by=random.randint(1,Tp-2),random.randint(1,Tp-2)
+                pygame.draw.circle(s,(118,112,104),(bx,by),1)
+        elif k==T.SHALLOW:
+            # Sığ su: geçilir. Dibi görünüyor, üstünde kıpırtı var.
+            ph=(anim%48)/48.0
+            s.fill((62,116,146))
+            for _ in range(5):                     # derinleşen yerler
+                bx,by=random.randint(0,Tp-8),random.randint(0,Tp-6)
+                pygame.draw.ellipse(s,(48,98,128),(bx,by,random.randint(6,10),random.randint(4,6)))
+            for _ in range(7):                     # dipteki çakıl
+                bx,by=random.randint(0,Tp-5),random.randint(0,Tp-5)
+                pygame.draw.ellipse(s,(92,86,70),(bx,by,random.randint(4,7),random.randint(3,5)))
+            for _ in range(4):
+                bx,by=random.randint(1,Tp-2),random.randint(1,Tp-2)
+                pygame.draw.circle(s,(126,116,96),(bx,by),1)
+            for yy in range(2,Tp,7):               # yüzeydeki kıpırtı
+                off=int(3*math.sin(2*math.pi*(ph+yy/float(Tp))))
+                pygame.draw.line(s,(150,200,222),(2+off,yy),(Tp-4+off,yy),1)
+                pygame.draw.line(s,(96,160,190),(2+off,yy+1),(Tp-4+off,yy+1),1)
+        elif k==T.HEDGE:
+            # Çalı çit: taş duvar yerine doğal çerçeve.
+            s.fill(G_D)
+            for cxx,cyy,r in ((8,20,9),(22,20,9),(15,13,9),(5,12,6),(26,13,6)):
+                pygame.draw.circle(s,(26,66,30),(cxx,cyy),r)
+            for cxx,cyy,r in ((9,17,6),(21,18,6),(15,11,6),(16,21,5)):
+                pygame.draw.circle(s,(44,100,44),(cxx,cyy),r)
+            for _ in range(7):
+                bx,by=random.randint(3,Tp-4),random.randint(4,Tp-6)
+                pygame.draw.circle(s,(62,128,56),(bx,by),2)
+            for _ in range(3):
+                bx,by=random.randint(4,Tp-5),random.randint(6,Tp-8)
+                pygame.draw.circle(s,(188,66,58),(bx,by),1)
+        elif k==T.PINE:
+            # Çam: dar ve dik; kayalık geçide ve soğuk bölgelere ait.
+            s.fill((46,54,44))
+            pygame.draw.rect(s,(68,48,30),(14,22,4,10))
+            for i,(wd,yy) in enumerate(((13,20),(11,15),(8,10),(5,5))):
+                pygame.draw.polygon(s,(18,56,34) if i%2==0 else (24,70,42),
+                                    [(16,yy-5),(16-wd,yy+4),(16+wd,yy+4)])
+            pygame.draw.polygon(s,(34,88,52),[(16,2),(13,8),(19,8)])
         elif k==T.STONE:
             s.fill(ST)
             for r in range(2):
@@ -1094,19 +1243,7 @@ class PA:
                     pygame.draw.rect(s,(126,122,114),(ox+1,oy+1,6,6))
                     pygame.draw.rect(s,(74,70,66),(ox+1,oy+1,6,6),1)
         elif k==T.GATE:
-            # Taş çerçeveli karanlık açıklık. Dört kenarı da aynı: geçit
-            # ister dikey ister yatay olsun, yan yana gelen kareler tek bir
-            # geçit ağzı gibi okunuyor.
-            s.fill((24,20,19))
-            for i in range(4, Tp, 7):          # derinlik hissi için iç gölgeler
-                pygame.draw.line(s,(34,29,27),(i,3),(i,Tp-4),1)
-            pygame.draw.rect(s,(96,88,78),(0,0,Tp,3));pygame.draw.rect(s,(96,88,78),(0,Tp-3,Tp,3))
-            pygame.draw.rect(s,(96,88,78),(0,0,3,Tp));pygame.draw.rect(s,(96,88,78),(Tp-3,0,3,Tp))
-            for i in range(0,Tp,8):            # çerçeve taşlarının derzleri
-                pygame.draw.line(s,(66,60,53),(i,0),(i,2),1)
-                pygame.draw.line(s,(66,60,53),(i,Tp-3),(i,Tp-1),1)
-                pygame.draw.line(s,(66,60,53),(0,i),(2,i),1)
-                pygame.draw.line(s,(66,60,53),(Tp-3,i),(Tp-1,i),1)
+            PA._gate_tile(s,style or "cave",Tp)
         elif k==T.WATER:
             phase=(anim%60)/60;s.fill(WD_)
             for wx in range(0,Tp,6):
@@ -1121,11 +1258,33 @@ class PA:
             for i in range(0,Tp,4): pygame.draw.line(s,(140,100,50),(i,0),(i,Tp),1)
             pygame.draw.rect(s,(90,60,30),(0,0,Tp,4));pygame.draw.rect(s,(90,60,30),(0,Tp-4,Tp,4))
         elif k==T.SAND:
+            # Kırışıklar kesintili ve kaydırmalı: boydan boya çizgi olursa
+            # kum değil ahşap gibi görünüyor.
             s.fill(SD)
-            for _ in range(6): bx,by=random.randint(1,Tp-3),random.randint(1,Tp-3); pygame.draw.circle(s,(205,185,135),(bx,by),1)
+            for _ in range(9):
+                bx,by=random.randint(0,Tp-9),random.randint(1,Tp-2)
+                w2=random.randint(5,10)
+                pygame.draw.line(s,(202,178,126),(bx,by),(bx+w2,by+random.choice((-1,0,1))),1)
+            for _ in range(5):
+                bx,by=random.randint(0,Tp-7),random.randint(0,Tp-5)
+                pygame.draw.ellipse(s,(196,170,116),(bx,by,random.randint(5,8),random.randint(3,4)))
+            for _ in range(6):
+                bx,by=random.randint(1,Tp-3),random.randint(1,Tp-3)
+                pygame.draw.circle(s,(216,198,152),(bx,by),1)
+            for _ in range(2):
+                bx,by=random.randint(2,Tp-4),random.randint(2,Tp-4)
+                pygame.draw.circle(s,(160,136,86),(bx,by),1)
         elif k==T.SNOW:
             s.fill(SN)
-            for _ in range(8): bx,by=random.randint(2,Tp-3),random.randint(2,Tp-3); pygame.draw.circle(s,WH,(bx,by),1)
+            for _ in range(5):                     # rüzgârın savurduğu yığıntı
+                bx,by=random.randint(0,Tp-8),random.randint(0,Tp-5)
+                pygame.draw.ellipse(s,SN_L,(bx,by,random.randint(6,10),random.randint(3,5)))
+            for _ in range(8):
+                bx,by=random.randint(2,Tp-3),random.randint(2,Tp-3)
+                pygame.draw.circle(s,WH,(bx,by),1)
+            for _ in range(2):
+                bx,by=random.randint(2,Tp-4),random.randint(2,Tp-4)
+                pygame.draw.circle(s,(158,180,202),(bx,by),1)
         elif k==T.ICE:
             s.fill(IC)
             for r in range(2):
@@ -1179,8 +1338,19 @@ class PA:
                     pygame.draw.rect(s,(70,52,38),(c*16+1,r*16+1,13,13))
                     pygame.draw.line(s,(45,33,23),(c*16+1,r*16+14),(c*16+14,r*16+14),1)
         elif k==T.DOOR:
-            s.fill(FL);pygame.draw.rect(s,WOD,(8,0,16,32));pygame.draw.rect(s,(145,95,45),(9,1,14,30))
-            pygame.draw.circle(s,UI_GD,(22,16),2)
+            # Han ve ev kapısı: taş söve, iki kanatlı tahta, demir menteşe.
+            s.fill(FL)
+            pygame.draw.rect(s,(92,86,76),(5,0,22,32))         # söve
+            pygame.draw.rect(s,(120,112,100),(5,0,22,3))
+            pygame.draw.rect(s,(58,40,24),(8,3,16,29))
+            for i in range(9,24,4):                            # tahtalar
+                pygame.draw.rect(s,(142,98,50),(i,4,3,27))
+                pygame.draw.line(s,(104,68,34),(i+2,4),(i+2,30),1)
+            for yy in (9,22):                                  # menteşeler
+                pygame.draw.rect(s,(62,62,68),(8,yy,16,3))
+                pygame.draw.line(s,(112,112,120),(8,yy),(23,yy),1)
+            pygame.draw.circle(s,(198,164,72),(20,17),3,1)      # tokmak
+            pygame.draw.circle(s,(230,200,110),(20,17),1)
         elif k==T.CHEST:
             s.fill(G_D);pygame.draw.rect(s,(95,65,28),(6,14,20,14));pygame.draw.rect(s,(135,95,48),(7,15,18,12))
             pygame.draw.rect(s,(95,65,28),(6,10,20,6));pygame.draw.circle(s,UI_GD,(16,20),3)
@@ -1214,6 +1384,134 @@ class PA:
     ANIM_FRAMES = 8      # animasyon poz sayısı
     ANIM_HOLD   = 4      # her poz kaç oyun karesi sürer (15 FPS his)
     OUTLINE_COL = (14,9,20)
+
+    # ── Geçit ağızları ───────────────────────────────────────────
+    # Her geçit gittiği yere benziyor: ormanın kenarında dal kemeri, dağ
+    # geçidinde kaya yarığı, buz mağarasında buz sütunu, kalede ahşap kapı.
+    # Kare dört kenarından da çerçeveli çiziliyor; böylece geçit ister
+    # dikey ister yatay dizilsin üç kare tek bir ağız gibi okunuyor.
+    @staticmethod
+    def _gate_cerceve(s,Tp,tas,derz,kalin=3):
+        """Dört kenara taş/ahşap çerçeve + derzler."""
+        pygame.draw.rect(s,tas,(0,0,Tp,kalin));pygame.draw.rect(s,tas,(0,Tp-kalin,Tp,kalin))
+        pygame.draw.rect(s,tas,(0,0,kalin,Tp));pygame.draw.rect(s,tas,(Tp-kalin,0,kalin,Tp))
+        for i in range(0,Tp,8):
+            pygame.draw.line(s,derz,(i,0),(i,kalin-1),1)
+            pygame.draw.line(s,derz,(i,Tp-kalin),(i,Tp-1),1)
+            pygame.draw.line(s,derz,(0,i),(kalin-1,i),1)
+            pygame.draw.line(s,derz,(Tp-kalin,i),(Tp-1,i),1)
+
+    @staticmethod
+    def _gate_tile(s,style,Tp):
+        if style=="door":
+            # Han / kale kapısı: iki kanatlı ahşap, demir kuşaklı, taş söveli
+            s.fill((58,42,28))
+            for i in range(4,Tp-3,5):              # tahta damarları
+                pygame.draw.rect(s,(126,86,46),(i,4,4,Tp-8))
+                pygame.draw.line(s,(96,62,32),(i+3,4),(i+3,Tp-5),1)
+            pygame.draw.rect(s,(74,70,66),(0,0,Tp,4))          # taş lento
+            pygame.draw.rect(s,(96,92,86),(0,0,Tp,2))
+            for yy in (9,Tp-12):                   # demir kuşaklar
+                pygame.draw.rect(s,(58,58,64),(1,yy,Tp-2,3))
+                pygame.draw.line(s,(104,104,112),(1,yy),(Tp-2,yy),1)
+                for bx in range(3,Tp-2,7): pygame.draw.circle(s,(142,142,150),(bx,yy+1),1)
+            pygame.draw.line(s,(42,28,16),(Tp//2,4),(Tp//2,Tp-1),2)   # kanat aralığı
+            pygame.draw.circle(s,(190,158,70),(Tp//2-5,Tp//2+2),3,1)  # halka tokmak
+            pygame.draw.circle(s,(190,158,70),(Tp//2+5,Tp//2+2),3,1)
+            PA._gate_cerceve(s,Tp,(74,70,66),(52,48,44),2)
+        elif style=="arch":
+            # Orman/çayır kemeri: eğilmiş dallar, sarmaşık, dipte ot
+            s.fill((22,44,24))
+            for i in range(3,Tp,6):                # ağaç gövdesi arası derinlik
+                pygame.draw.line(s,(16,34,18),(i,5),(i,Tp-6),1)
+            pygame.draw.rect(s,(74,52,30),(0,0,Tp,5))          # üstteki dal
+            pygame.draw.rect(s,(100,72,42),(0,0,Tp,2))
+            pygame.draw.rect(s,(74,52,30),(0,0,4,Tp))          # yan gövdeler
+            pygame.draw.rect(s,(74,52,30),(Tp-4,0,4,Tp))
+            pygame.draw.line(s,(100,72,42),(1,0),(1,Tp-1),1)
+            pygame.draw.line(s,(100,72,42),(Tp-2,0),(Tp-2,Tp-1),1)
+            for lx,ly in ((3,6),(9,3),(16,2),(23,3),(29,6),(2,14),(29,15),(3,24),(28,23)):
+                pygame.draw.ellipse(s,(32,92,38),(lx-3,ly-2,7,5))
+                pygame.draw.ellipse(s,(52,124,50),(lx-2,ly-1,4,3))
+            for gx in range(2,Tp-1,5):             # dipteki ot
+                pygame.draw.line(s,(46,106,44),(gx,Tp-1),(gx-1,Tp-6),1)
+                pygame.draw.line(s,(62,132,58),(gx,Tp-1),(gx+1,Tp-5),1)
+        elif style=="pass":
+            # Dağ geçidi: iki yanda yüksek kaya, ortada aydınlık yarık
+            s.fill((150,154,166))                  # uzaktaki aydınlık yarık
+            for yy in range(0,Tp,4):
+                g=138+(yy*2)//3
+                pygame.draw.rect(s,(min(255,g),min(255,g+5),min(255,g+14)),(3,yy,Tp-6,4))
+            for (x0,yon) in ((0,1),(Tp-4,-1)):     # ince kaya yüzleri
+                for yy in range(0,Tp,5):
+                    w=3+(yy//10)%2
+                    x=x0 if yon>0 else Tp-w
+                    pygame.draw.rect(s,(78,76,84),(x,yy,w,5))
+                    pygame.draw.rect(s,(106,104,114),(x,yy,w,2))
+                    pygame.draw.line(s,(56,54,60),(x,yy+4),(x+w,yy+4),1)
+            for _ in range(5):                     # dipte dökülmüş taşlar
+                bx,by=random.randint(5,Tp-7),random.randint(Tp-8,Tp-3)
+                pygame.draw.circle(s,(104,102,110),(bx,by),2)
+                pygame.draw.circle(s,(140,138,148),(bx-1,by-1),1)
+            pygame.draw.rect(s,(146,150,160),(0,0,Tp,3))       # tepede kar
+            pygame.draw.rect(s,(214,222,234),(0,0,Tp,1))
+            pygame.draw.rect(s,(120,118,128),(0,Tp-2,Tp,2))
+        elif style=="ice":
+            # Buz mağarası ağzı: donmuş sütunlar, sarkıt buzlar
+            s.fill((30,58,82))
+            for i in range(2,Tp,6):
+                pygame.draw.line(s,(42,78,108),(i,4),(i,Tp-4),1)
+            PA._gate_cerceve(s,Tp,(126,176,206),(88,140,178),3)
+            pygame.draw.rect(s,(188,226,244),(0,0,Tp,1))
+            for ix in range(3,Tp-2,6):             # sarkıt
+                h=random.randint(5,11)
+                pygame.draw.polygon(s,(168,214,238),[(ix,3),(ix+3,3),(ix+1,3+h)])
+                pygame.draw.line(s,(226,246,255),(ix+1,3),(ix+1,3+h-2),1)
+            for ix in range(5,Tp-2,7):             # dipte yükselen buz
+                h=random.randint(4,8)
+                pygame.draw.polygon(s,(140,194,224),[(ix,Tp-3),(ix+3,Tp-3),(ix+1,Tp-3-h)])
+        elif style=="ash":
+            # Köz Vadisi ağzı: isli bazalt, dipte sönmeyen köz
+            s.fill((26,20,18))
+            for i in range(3,Tp,6):
+                pygame.draw.line(s,(38,28,24),(i,4),(i,Tp-4),1)
+            PA._gate_cerceve(s,Tp,(56,48,46),(34,28,26),3)
+            for _ in range(7):                     # çerçevede köz damarları
+                bx=random.randint(1,Tp-2)
+                pygame.draw.line(s,(188,76,32),(bx,Tp-3),(bx,Tp-1),1)
+            for _ in range(5):
+                bx,by=random.randint(4,Tp-5),random.randint(Tp-10,Tp-4)
+                pygame.draw.circle(s,(226,110,40),(bx,by),1)
+            for _ in range(3):                     # duman
+                bx,by=random.randint(5,Tp-6),random.randint(5,14)
+                pygame.draw.circle(s,(62,56,54),(bx,by),2)
+        elif style=="ruin":
+            # Yıkık taş kemer: kırık söve, kilit taşı, sarmaşık
+            s.fill((22,19,17))
+            for i in range(4,Tp,7):
+                pygame.draw.line(s,(32,28,25),(i,3),(i,Tp-4),1)
+            PA._gate_cerceve(s,Tp,(88,78,66),(58,50,42),3)
+            pygame.draw.rect(s,(112,100,84),(Tp//2-4,0,8,4))   # kilit taşı
+            pygame.draw.line(s,(62,54,46),(Tp//2,0),(Tp//2,3),1)
+            for _ in range(5):                     # çatlaklar
+                bx=random.randint(2,Tp-3)
+                pygame.draw.line(s,(50,44,38),(bx,0),(bx+random.randint(-2,2),3),1)
+            for vy in (7,15,23):                   # sarmaşık
+                pygame.draw.line(s,(44,86,44),(2,vy),(5,vy+4),1)
+                pygame.draw.ellipse(s,(56,110,52),(4,vy+3,4,3))
+                pygame.draw.line(s,(44,86,44),(Tp-3,vy+3),(Tp-6,vy+7),1)
+                pygame.draw.ellipse(s,(56,110,52),(Tp-8,vy+6,4,3))
+        else:   # "cave" — mağara ağzı: kaba taş, dipsiz karanlık
+            s.fill((20,17,16))
+            for i in range(4,Tp,7):
+                pygame.draw.line(s,(30,26,24),(i,3),(i,Tp-4),1)
+            PA._gate_cerceve(s,Tp,(96,88,78),(66,60,53),3)
+            for ix in range(4,Tp-2,6):             # üstte kaya dişleri
+                h=random.randint(3,7)
+                pygame.draw.polygon(s,(84,76,68),[(ix,3),(ix+4,3),(ix+2,3+h)])
+            for ix in range(6,Tp-2,7):
+                h=random.randint(2,5)
+                pygame.draw.polygon(s,(84,76,68),[(ix,Tp-3),(ix+4,Tp-3),(ix+2,Tp-3-h)])
 
     @staticmethod
     def anim(frame:int)->int:
@@ -1645,6 +1943,70 @@ class PA:
         elif kind=="crystal":
             pygame.draw.polygon(s,(120,190,230),((16,10),(21,20),(16,25),(11,20)))
             pygame.draw.polygon(s,(190,230,255),((16,12),(19,20),(16,22),(14,20)))
+        elif kind=="fern":
+            for ang,ln in ((-0.9,11),(-0.3,13),(0.3,13),(0.9,11)):
+                ex=16+int(math.sin(ang)*ln);ey=24-int(math.cos(ang)*ln)
+                pygame.draw.line(s,(38,96,44),(16,25),(ex,ey),2)
+                for t in (0.45,0.7,0.9):
+                    mx=16+int((ex-16)*t);my=25+int((ey-25)*t)
+                    pygame.draw.circle(s,(58,132,58),(mx,my),2)
+        elif kind=="pebbles":
+            for px,py,r in ((11,22,2),(16,24,1),(20,21,2),(14,19,1),(22,24,1)):
+                pygame.draw.circle(s,(118,112,102),(px,py),r)
+                pygame.draw.circle(s,(152,146,134),(px,py-1),1)
+        elif kind=="ember":
+            pygame.draw.ellipse(s,(52,40,36),(9,20,14,7))
+            for px,py in ((12,23),(16,22),(20,24),(14,21)):
+                pygame.draw.circle(s,(218,96,34),(px,py),2)
+                pygame.draw.circle(s,(255,196,110),(px,py),1)
+            pygame.draw.circle(s,(90,78,74),(17,16),2)
+        elif kind=="obsidian":
+            pygame.draw.polygon(s,(28,22,30),((16,9),(23,22),(16,26),(10,22)))
+            pygame.draw.polygon(s,(62,48,66),((16,12),(20,21),(16,24),(13,21)))
+            pygame.draw.line(s,(140,110,150),(16,13),(16,22),1)
+        elif kind=="icespike":
+            pygame.draw.polygon(s,(150,200,230),((16,6),(21,25),(11,25)))
+            pygame.draw.polygon(s,(210,240,255),((16,9),(18,24),(15,24)))
+            pygame.draw.polygon(s,(130,180,214),((23,16),(26,25),(20,25)))
+        elif kind=="stalagmite":
+            pygame.draw.polygon(s,(92,88,82),((15,8),(21,26),(9,26)))
+            pygame.draw.polygon(s,(124,120,112),((15,12),(18,25),(13,25)))
+        elif kind=="reed":
+            for rx,h in ((11,14),(16,18),(21,13),(25,16)):
+                pygame.draw.line(s,(72,112,58),(rx,26),(rx+1,26-h),1)
+                pygame.draw.ellipse(s,(128,96,52),(rx-1,26-h-4,3,5))
+        elif kind=="lilypad":
+            pygame.draw.circle(s,(44,110,56),(14,20),6)
+            pygame.draw.circle(s,(62,138,70),(14,19),4)
+            pygame.draw.circle(s,(44,110,56),(23,24),4)
+            pygame.draw.circle(s,(232,228,240),(14,19),2)
+        elif kind=="skull":
+            pygame.draw.ellipse(s,(216,210,196),(11,16,11,9))
+            pygame.draw.rect(s,(216,210,196),(14,23,5,3))
+            pygame.draw.circle(s,(40,36,34),(14,20),2);pygame.draw.circle(s,(40,36,34),(19,20),2)
+        elif kind=="barrel":
+            pygame.draw.ellipse(s,(104,70,38),(10,12,13,17))
+            pygame.draw.ellipse(s,(138,96,52),(11,13,11,15))
+            for yy in (16,22): pygame.draw.line(s,(68,64,58),(11,yy),(22,yy),2)
+            pygame.draw.ellipse(s,(150,110,62),(11,11,11,5))
+        elif kind=="crate":
+            pygame.draw.rect(s,(118,82,44),(9,14,16,14))
+            pygame.draw.rect(s,(84,56,28),(9,14,16,14),2)
+            pygame.draw.line(s,(146,106,58),(9,14),(24,27),1)
+            pygame.draw.line(s,(146,106,58),(24,14),(9,27),1)
+        elif kind=="pot":
+            pygame.draw.ellipse(s,(132,86,62),(11,15,12,13))
+            pygame.draw.ellipse(s,(164,112,80),(12,16,9,9))
+            pygame.draw.rect(s,(104,66,46),(13,13,8,3))
+        elif kind=="vine":
+            pygame.draw.lines(s,(48,96,46),False,((8,6),(12,13),(9,20),(13,27)),2)
+            for vy in (11,18,25): pygame.draw.ellipse(s,(66,128,56),(11,vy,5,4))
+        elif kind=="cobweb":
+            for ang in range(0,5):
+                ex=4+ang*3;ey=4+(4-ang)*3
+                pygame.draw.line(s,(188,188,200),(2,2),(ex+8,ey+8),1)
+            pygame.draw.arc(s,(188,188,200),(0,0,22,22),3.5,5.0,1)
+            pygame.draw.arc(s,(188,188,200),(0,0,32,32),3.5,5.0,1)
         PA._c[key]=s;return s
 
     # ── Oyun içi logo: Karanlık Taç ──────────────────────────────
@@ -2047,22 +2409,35 @@ class GameMap:
         self.traps:List[Trap]=[]
         # Geçiş göstergesi: (tx,ty) -> yön (dx,dy,dst_name)
         self.trans_hints:Dict[Tuple,Tuple]={}
+        # Geçit ağzı üslubu: (tx,ty) -> GATE_STYLES icinden biri
+        self.gate_kind:Dict[Tuple,str]={}
+        # Geçidin iki yanını çerçeveleyen engel. Verilmezse kenarda ne
+        # varsa o seçilir; verilince doğal olan tercih edilir (çalı çit,
+        # çam, karanlık ağaç) — her geçit taş duvarla çerçevelenmesin.
+        self.frame_tile=None
+        # Kopuk kalan adacıkları bağlamak için kullanılacak karo
+        # (bataklıkta sığ su). None ise haritaya dokunulmaz.
+        self.bridge_tile=None
     def set(self,tx,ty,tile):
         if 0<=tx<self.w and 0<=ty<self.h: self.tiles[ty][tx]=tile
     def get(self,tx,ty):
         if 0<=tx<self.w and 0<=ty<self.h: return self.tiles[ty][tx]
         return T.STONE
     def walkable(self,tx,ty): return self.get(tx,ty) in WALKABLE
-    def _ts(self,tile):
-        if tile in(T.WATER,T.RIVER,T.LAVA): return PA.tile(tile,self.anim)
-        if tile not in self._sc: self._sc[tile]=PA.tile(tile)
-        return self._sc[tile]
+    def _ts(self,tile,style=None):
+        if tile in(T.WATER,T.RIVER,T.LAVA,T.SHALLOW): return PA.tile(tile,self.anim)
+        ck=(tile,style)
+        if ck not in self._sc: self._sc[ck]=PA.tile(tile,0,style)
+        return self._sc[ck]
     def draw(self,surf,cx,cy,tick=0):
         self.anim+=1
         sx=cx//TILE;sy=cy//TILE;ex=sx+SW//TILE+2;ey=sy+SH//TILE+2
         for ty in range(max(0,sy),min(self.h,ey)):
+            row=self.tiles[ty]
             for tx in range(max(0,sx),min(self.w,ex)):
-                surf.blit(self._ts(self.tiles[ty][tx]),(tx*TILE-cx,ty*TILE-cy))
+                t=row[tx]
+                st=self.gate_kind.get((tx,ty)) if t==T.GATE else None
+                surf.blit(self._ts(t,st),(tx*TILE-cx,ty*TILE-cy))
         if self.ambient!=(0,0,0):
             _draw_ambient(surf,self.ambient,self.light_at)
         # Geçiş göstergeleri (küçük parlayan oklar — bloklama yok)
@@ -2131,14 +2506,91 @@ def _snap(m,tx,ty):
             q.append((nx,ny))
     return (tx,ty)
 
-# Zemin türüne göre hangi dekorlar serpiştirilir
+# Zemin türüne göre hangi dekorlar serpiştirilir.
+# NOT: Eskiden yalnızca beş zemin tipinin kaydı vardı; kül (ASH) ve buz (ICE)
+# listede olmadığı için Köz Vadisi'nde dekor yoğunluğu %0.7'de kalıyordu —
+# volkanik vadi bomboş görünüyordu.
 _PROPS_BY_TILE = {
-    T.GRASS: ("flower","bush","grasstuft","grasstuft","rock","stump"),
-    T.DIRT:  ("rock","grasstuft","stump"),
-    T.SAND:  ("rock","bone","bone"),
-    T.SNOW:  ("rock","crystal"),
-    T.FLOOR: ("rock","mushroom"),        # ev/zindan zemini — kemik coleye ait
+    T.GRASS:   ("flower","bush","grasstuft","grasstuft","rock","stump","fern"),
+    T.MEADOW:  ("flower","flower","bush","grasstuft","mushroom","fern"),
+    T.DIRT:    ("rock","grasstuft","stump","pebbles"),
+    T.PATH:    ("pebbles","pebbles","grasstuft","rock"),
+    T.GRAVEL:  ("rock","pebbles","pebbles","stalagmite"),
+    T.SAND:    ("rock","bone","bone","skull","pebbles"),
+    T.CRACKED: ("pebbles","bone","rock"),
+    T.SNOW:    ("rock","crystal","icespike","pebbles"),
+    T.ICE:     ("icespike","icespike","crystal"),
+    T.ASH:     ("ember","ember","obsidian","skull","pebbles","rock"),
+    T.MOSS:    ("mushroom","vine","pebbles","rock","fern"),
+    T.RUBBLE:  ("rock","pebbles","skull","crate","stalagmite"),
+    T.SHALLOW: ("lilypad","reed","reed"),
+    T.ROAD:    ("crate","barrel","pebbles"),
+    T.FLOOR:   ("rock","mushroom","crate","barrel","pot","cobweb"),
 }
+
+# Hangi haritada hangi zemin hangi çeşitlerle kırılır.
+# (taban karo, [(çeşit, oran), ...]) — oran, taban karelerin ne kadarının
+# o çeşide döneceği. Yalnızca TABAN karelere dokunulduğu ve bütün çeşitler
+# yürünebilir olduğu için yürünebilirlik hiç değişmiyor.
+GROUND_TEXTURE = {
+    "map.ashveil_koyu":      [(T.GRASS,  [(T.MEADOW,0.16),(T.PATH,0.03),(T.DIRT,0.04)])],
+    # Orman ve bataklıkta MOSS kullanılmıyor: o karo yosun tutmuş TAŞ
+    # zemin, çimenin ortasında gri levhalar gibi duruyordu.
+    "map.karanlik_orman":    [(T.GRASS,  [(T.MEADOW,0.12),(T.DIRT,0.06),(T.PATH,0.04)])],
+    "map.guney_cayiri":      [(T.GRASS,  [(T.MEADOW,0.22),(T.PATH,0.04),(T.DIRT,0.03)])],
+    "map.bati_nehri":        [(T.GRASS,  [(T.MEADOW,0.16),(T.PATH,0.04),(T.SHALLOW,0.02)])],
+    "map.sisli_bataklik":    [(T.GRASS,  [(T.MEADOW,0.10),(T.DIRT,0.06)]),
+                              (T.SAND,   [(T.SHALLOW,0.16),(T.GRAVEL,0.04)])],
+    "map.kayalik_gecit":     [(T.GRAVEL, [(T.DIRT,0.10),(T.PATH,0.07),(T.CRACKED,0.07)])],
+    "map.col_yolu":          [(T.SAND,   [(T.CRACKED,0.10),(T.GRAVEL,0.05)])],
+    "map.buz_magara":        [(T.SNOW,   [(T.ICE,0.14),(T.GRAVEL,0.04)])],
+    "map.koz_vadisi":        [(T.ASH,    [(T.CRACKED,0.12),(T.GRAVEL,0.07),(T.RUBBLE,0.06)])],
+    "map.antik_harabeler":   [(T.FLOOR,  [(T.MOSS,0.16),(T.RUBBLE,0.12),(T.CRACKED,0.05)])],
+    "map.koy_alti_zindani":  [(T.FLOOR,  [(T.RUBBLE,0.14),(T.MOSS,0.10)])],
+    "map.golge_kalesi":      [(T.FLOOR,  [(T.RUBBLE,0.09),(T.MOSS,0.05),(T.CRACKED,0.06)])],
+    "map.gizemli_kutuphane": [(T.FLOOR,  [(T.MOSS,0.07),(T.RUBBLE,0.06)])],
+}
+
+
+def _zemin_dokusu(m):
+    """Tek tip geniş zeminleri doğal lekelerle kırar.
+
+    Ölçüm: haritaların yarısında baskın zemin %99-100'dü ve 16 kareye kadar
+    tek tip blok çıkıyordu. Lekeler nokta nokta değil, büyüyen kümeler
+    hâlinde konuyor; serpiştirme ızgara gibi görünmesin.
+
+    Tohum harita adından (crc32) üretiliyor: her açılışta aynı görünüm
+    çıkar, kayıtta tutmaya gerek kalmaz.
+    """
+    kural = GROUND_TEXTURE.get(m.name)
+    if not kural: return
+    rng = random.Random(zlib.crc32((m.name + "|doku").encode("utf-8")))
+    for taban, cesitler in kural:
+        havuz = [(tx,ty) for ty in range(1,m.h-1) for tx in range(1,m.w-1)
+                 if m.tiles[ty][tx] == taban]
+        if not havuz: continue
+        for cesit, oran in cesitler:
+            hedef = int(len(havuz) * oran)
+            konan = 0; deneme = 0
+            while konan < hedef and deneme < hedef * 6 + 40:
+                deneme += 1
+                sx, sy = havuz[rng.randrange(len(havuz))]
+                if m.tiles[sy][sx] != taban: continue
+                # Küme büyüt: 2-9 kare, dört yöne yayılarak
+                kume = [(sx,sy)]; sinir = [(sx,sy)]
+                hacim = rng.randint(2,9)
+                while sinir and len(kume) < hacim:
+                    cx, cy = sinir.pop(rng.randrange(len(sinir)))
+                    for dx, dy in ((1,0),(-1,0),(0,1),(0,-1)):
+                        nx, ny = cx+dx, cy+dy
+                        if not (1 <= nx < m.w-1 and 1 <= ny < m.h-1): continue
+                        if m.tiles[ny][nx] != taban or (nx,ny) in kume: continue
+                        kume.append((nx,ny)); sinir.append((nx,ny))
+                        if len(kume) >= hacim: break
+                for (kx,ky) in kume:
+                    if (kx,ky) in m.transitions or (kx,ky) in m.chests: continue
+                    m.tiles[ky][kx] = cesit; konan += 1
+
 
 def _scatter_props(m,density=0.07):
     """Haritaya dekor serpiştirir.
@@ -2154,7 +2606,7 @@ def _scatter_props(m,density=0.07):
     rng=random.Random(zlib.crc32(m.name.encode("utf-8")))
     busy={(n.tx,n.ty) for n in m.npcs}
     busy|={(e.tx,e.ty) for e in m.enemies}
-    busy|=set(m.chests)|set(m.transitions)|set(m.trans_hints)
+    busy|=set(m.chests)|set(m.transitions)|set(m.trans_hints)|set(m.gate_kind)
     for ty in range(m.h):
         for tx in range(m.w):
             if (tx,ty) in busy: continue
@@ -2162,8 +2614,76 @@ def _scatter_props(m,density=0.07):
             if not kinds or rng.random()>density: continue
             m.props.append((tx,ty,rng.choice(kinds)))
 
+def _kopuk_baglan(m):
+    """Ana bölgeden kopmuş küçük yürünebilir adacıkları bağlar.
+
+    Sisli Bataklık'ta elle konmuş üç kum adacığı (3+2+2 kare) suyun
+    ortasında kalıyordu: oyuncu görüyor, ama asla basamıyordu. Haritanın
+    bildirdiği köprü karosuyla (m.bridge_tile — bataklıkta sığ su) en kısa
+    yol kazılıyor. Köprü karosu verilmemiş haritalara dokunulmaz: zindan
+    odalarının duvarını delmek istemeyiz.
+    """
+    if m.bridge_tile is None: return
+    def bolgeler():
+        gor=set();out=[]
+        for ty in range(m.h):
+            for tx in range(m.w):
+                if not m.walkable(tx,ty) or (tx,ty) in gor: continue
+                q=deque([(tx,ty)]);gor.add((tx,ty));b=[]
+                while q:
+                    cx,cy=q.popleft();b.append((cx,cy))
+                    for dx,dy in((1,0),(-1,0),(0,1),(0,-1)):
+                        n=(cx+dx,cy+dy)
+                        if n in gor or not(0<=n[0]<m.w and 0<=n[1]<m.h): continue
+                        if m.walkable(*n): gor.add(n);q.append(n)
+                out.append(b)
+        return sorted(out,key=len,reverse=True)
+    bs=bolgeler()
+    if len(bs)<2: return
+    ana=set(bs[0])
+    for b in bs[1:]:
+        # Adacıktan ana bölgeye, engellerin içinden en kısa yol
+        gor={p:None for p in b};q=deque(b);varis=None
+        while q:
+            c=q.popleft()
+            if c in ana: varis=c;break
+            for dx,dy in((1,0),(-1,0),(0,1),(0,-1)):
+                n=(c[0]+dx,c[1]+dy)
+                if n in gor or not(1<=n[0]<m.w-1 and 1<=n[1]<m.h-1): continue
+                gor[n]=c;q.append(n)
+        if varis is None: continue
+        p=varis
+        while p is not None:
+            if not m.walkable(*p): m.set(p[0],p[1],m.bridge_tile)
+            p=gor[p]
+        ana|=set(b)
+
+
+def _dagit_dusmanlar(m):
+    """Düşmanların ayna düzenini bozar.
+
+    Ölçüm: Köz Vadisi'nde 9 düşmanın 8'i, kayalık geçitte 6'nın 6'sı
+    haritanın dikey ekseninde birebir aynadaydı — elle yazılmış simetri
+    oynanışta hemen fark ediliyor ve yapay duruyor. Konumlar tohumlu bir
+    sapmayla dağıtılıyor: tasarım niyeti (hangi bölgede hangi tür) korunuyor,
+    dizilim bozuluyor. Boss yerinde kalır; odası ona göre kurulmuş.
+    """
+    rng=random.Random(zlib.crc32((m.name+"|dusman").encode("utf-8")))
+    for e in m.enemies:
+        if e.is_boss: continue
+        for _ in range(12):
+            nx=e.tx+rng.randint(-3,3);ny=e.ty+rng.randint(-3,3)
+            if not(1<=nx<m.w-1 and 1<=ny<m.h-1): continue
+            if not m.walkable(nx,ny) or (nx,ny) in m.transitions: continue
+            if (nx,ny) in m.chests: continue
+            e.snap(nx,ny);break
+
+
 def _snap_all(m):
     _seal_border(m)          # once kenari kapat, sonra varliklari yerlestir
+    _zemin_dokusu(m)         # zemin cesitliligi (yurunebilirligi degistirmez)
+    _kopuk_baglan(m)         # ulasilamayan adaciklari bagla
+    _dagit_dusmanlar(m)
     occ=set()
     for e in m.npcs+m.enemies:
         tx,ty=_snap(m,e.tx,e.ty);att=0
@@ -2184,10 +2704,13 @@ def _add_trans(m,tiles,dst,dtx,dty,ground=T.GRASS,hint_dir=(1,0)):
 
 # ─── Yardımcı: Harita Geçitleri ────────────────────────────────
 def _gate_frame(m, axis, coord, c, half):
-    """Geçidin iki yanına koyulacak engel: kenarda zaten ne varsa o.
+    """Geçidin iki yanına koyulacak engel.
 
-    Ormanda ağaç, mağarada kaya çıkıyor; elle tablo tutmaya gerek kalmıyor.
+    Harita kendi engelini bildiriyorsa (m.frame_tile) o kullanılır; yoksa
+    kenarda zaten ne varsa o seçilir: ormanda ağaç, mağarada kaya.
     """
+    if m.frame_tile is not None:
+        return m.frame_tile
     for off in (half + 1, half + 2):
         for r in (c - off, c + off):
             t = m.get(coord, r) if axis == 'x' else m.get(r, coord)
@@ -2222,7 +2745,19 @@ def _seal_border(m):
         m.set(tx, ty, dolgu)
 
 
-def _trans_strip(m, axis, fixed, start, end, dst, dtx, dty, ground=None, hint=None):
+# Zeminden türetilen varsayılan geçit ağzı üslubu. Haritanın kendi
+# zeminine bakmak çoğu geçidi doğru yapıyor; ayrıksı olanlar (kale kapısı,
+# buz ağzı, yıkık kemer) çağrı yerinde style= ile söylenir.
+_GATE_STYLE_BY_GROUND = {
+    T.GRASS:"arch", T.MEADOW:"arch", T.WHEAT:"arch", T.FARMLAND:"arch",
+    T.DIRT:"pass", T.PATH:"pass", T.GRAVEL:"pass", T.STONE:"cave",
+    T.SAND:"cave", T.SNOW:"ice", T.ICE:"ice", T.ASH:"ash",
+    T.FLOOR:"ruin", T.MOSS:"ruin", T.RUBBLE:"ruin",
+}
+
+
+def _trans_strip(m, axis, fixed, start, end, dst, dtx, dty, ground=None, hint=None,
+                 style=None):
     """Haritaya DAR, çerçeveli bir geçit açar.
 
     Eskiden bu fonksiyon kenar boyunca 6-10 karelik bir şerit açıyordu ve
@@ -2284,11 +2819,17 @@ def _trans_strip(m, axis, fixed, start, end, dst, dtx, dty, ground=None, hint=No
         for v in koridor:
             if axis == 'x': m.set(v, r, cerceve)
             else:           m.set(r, v, cerceve)
+    if style is None:
+        style = _GATE_STYLE_BY_GROUND.get(ground, "cave")
     for r in satirlar:               # geçişi yalnızca en dıştaki kare tetikler
         pt = (kapi, r) if axis == 'x' else (r, kapi)
         m.set(pt[0], pt[1], T.GATE)
         m.transitions[pt] = (dst, dtx, dty)
-        m.trans_hints[pt] = (hint[0], hint[1], dst)
+        m.gate_kind[pt] = style
+        # Parlayan ok yalnızca ağzın ortasında: üç karenin üçünde birden
+        # yanıp sönen ok, kapının kendi çizimini bastırıyordu.
+        if r == c:
+            m.trans_hints[pt] = (hint[0], hint[1], dst)
 
 
 def _arrival_tile(m, tx, ty):
@@ -2321,6 +2862,7 @@ def _arrival_tile(m, tx, ty):
 
 def build_ashveil():
     m = GameMap(62, 52, "map.ashveil_koyu")
+    m.frame_tile = T.HEDGE
     _rect(m, 0, 0, 62, 52, T.GRASS)
     # Göl
     for ty in range(3, 12):
@@ -2347,8 +2889,9 @@ def build_ashveil():
     m.set(36, 10, T.CHEST); m.chests[(36,10)] = ["mp_pot","iron_sword"]
     m.set(18, 32, T.CHEST); m.chests[(18,32)] = ["leather_armor","gold"]
     # Zindan — taş yol üzerinde
-    _path(m, 28, 44, 34, 44, T.DIRT, 2)
-    _trans_strip(m, 'y', 46, 28, 34, "village_dungeon", 19, 3, T.DIRT, (0,1))
+    _path(m, 28, 44, 34, 44, T.PATH, 2)
+    _trans_strip(m, 'y', 46, 28, 34, "village_dungeon", 9, 5, T.DIRT, (0,1),
+                 style="cave")
 
     # ── SAĞDA SABİT ORMAN KORİDORU (y=20..28 geçit) ──
     for ty in range(0, 52):
@@ -2439,6 +2982,7 @@ def build_ashveil():
 def build_dark_forest():
     """Karanlık Orman — sabit tasarım, güney/batı çıkışları var."""
     m = GameMap(58, 48, "map.karanlik_orman", ambient=(0,20,0))
+    m.frame_tile = T.DARK_TREE
     _rect(m, 0, 0, 58, 48, T.GRASS)
     # Kenar 2 tile ağaç
     for ty in range(48):
@@ -2463,19 +3007,19 @@ def build_dark_forest():
     for ty in range(18,28):
         for tx in range(58):
             if m.get(tx,ty)==T.DARK_TREE: m.set(tx,ty,T.GRASS)
-    _path(m,0,22,58,22,T.DIRT,2)
+    _path(m,0,22,58,22,T.PATH,2)
     for ty in range(48):
         for tx in range(25,33):
             if m.get(tx,ty)==T.DARK_TREE: m.set(tx,ty,T.GRASS)
-    _path(m,28,0,28,48,T.DIRT,2)
+    _path(m,28,0,28,48,T.PATH,2)
 
     # ── GEÇİŞLER ──
     # Sol → Ashveil  (y=21..27, x=2)
     _trans_strip(m,'x',2, 21,27, "ashveil",   59,24, T.GRASS,(-1,0))
     # Kuzey → Antik Harabeler  (x=25..31, y=2)
-    _trans_strip(m,'y',2, 25,31, "ruins",      16,46, T.GRASS,(0,-1))
+    _trans_strip(m,'y',2, 25,31, "ruins",      16,46, T.GRASS,(0,-1),style="ruin")
     # Güney → Kayalık Geçit  (x=25..31, y=46)
-    _trans_strip(m,'y',46,25,31, "rocky_pass",  28, 3, T.GRASS,(0,1))
+    _trans_strip(m,'y',46,25,31, "rocky_pass",  28, 3, T.GRASS,(0,1),style="pass")
     # Batı alt → Sisli Bataklık  (y=32..40, x=2)
     _trans_strip(m,'x',2, 32,40, "misty_swamp", 55,20, T.GRASS,(-1,0))
 
@@ -2505,10 +3049,11 @@ def build_dark_forest():
 def build_rocky_pass():
     """Kayalık Geçit — Karanlık Orman'ın güneyinde, çöle bağlı."""
     m = GameMap(48, 38, "map.kayalik_gecit", ambient=(15,10,5))
+    m.frame_tile = T.PINE
     _rect(m, 0, 0, 48, 38, T.STONE)
-    # Yürünebilir zemin (dağ geçidi)
-    # Tüm iç alanı zemin yap, sonra kayalar ekle
-    _rect(m, 2, 2, 44, 34, T.DIRT)
+    # Yürünebilir zemin: dağ geçidinin tabanı toprak değil çakıl. Ekran
+    # görüntüsünde kırmızımsı düz bir toprak ovası gibi duruyordu.
+    _rect(m, 2, 2, 44, 34, T.GRAVEL)
     # Sabit kayalar (bloke etmez, sadece dekor)
     for tx,ty in [(10,5),(11,5),(18,5),(19,5),(28,5),(29,5),(36,5),(37,5),
                   (10,14),(11,14),(18,14),(19,14),(30,14),(31,14),
@@ -2523,16 +3068,22 @@ def build_rocky_pass():
     for ty in range(38):
         for tx in range(48):
             if m.get(tx,ty)==T.STONE:
-                if any(m.get(tx+dx,ty+dy)==T.DIRT for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
+                if any(m.get(tx+dx,ty+dy)==T.GRAVEL for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
                     m.set(tx,ty,T.RUINS_WALL)
 
     # Dış çerçeve
     for tx in range(48): m.set(tx,0,T.RUINS_WALL); m.set(tx,37,T.RUINS_WALL)
     for ty in range(38): m.set(0,ty,T.RUINS_WALL); m.set(47,ty,T.RUINS_WALL)
+    # Kaya duvarının önünde çam kümeleri: geçit çıplak bir taş koridor
+    # gibi değil, dağ yolu gibi görünsün.
+    for tx,ty in [(3,3),(4,6),(3,10),(5,13),(3,17),(4,21),(3,25),(5,29),(3,33),
+                  (44,3),(43,6),(44,10),(42,13),(44,17),(43,21),(44,25),(42,29),(44,33),
+                  (16,2),(24,2),(32,2),(16,35),(24,35),(32,35)]:
+        if m.get(tx,ty)==T.GRAVEL: m.set(tx,ty,T.PINE)
     # GEÇİŞLER
-    _trans_strip(m,'y',1, 20,28, "dark_forest",  27,45, T.DIRT,(0,-1))
-    _trans_strip(m,'y',36,20,28, "desert",        20, 4, T.DIRT,(0,1))
-    _trans_strip(m,'x',46,15,23, "ruins",          2,21, T.DIRT,(1,0))
+    _trans_strip(m,'y',1, 20,28, "dark_forest",  27,45, T.GRAVEL,(0,-1))
+    _trans_strip(m,'y',36,20,28, "desert",        20, 4, T.GRAVEL,(0,1))
+    _trans_strip(m,'x',46,15,23, "ruins",          2,21, T.GRAVEL,(1,0),style="ruin")
 
     m.set(8,  4, T.CHEST); m.chests[(8, 4)]  = ["hp_pot","hp_pot","gold"]
     m.set(36, 4, T.CHEST); m.chests[(36,4)]  = ["mp_pot","power_ring"]
@@ -2555,6 +3106,8 @@ def build_rocky_pass():
 def build_misty_swamp():
     """Sisli Bataklık — Karanlık Orman'ın batısında."""
     m = GameMap(58, 42, "map.sisli_bataklik", ambient=(10,20,10))
+    m.frame_tile = T.HEDGE
+    m.bridge_tile = T.SHALLOW     # adacıklara sığ sudan geçit
     _rect(m, 0, 0, 58, 42, T.GRASS)
     # Bataklık su alanları (sabit)
     swamp_pools = [
@@ -2575,8 +3128,8 @@ def build_misty_swamp():
                   (26,32),(27,32),(40,28),(41,28),(50,32)]:
         m.set(tx,ty,T.SAND)
     # Bataklık yolu (ana geçit)
-    _path(m, 2,20, 56,20, T.DIRT, 2)
-    _path(m,28, 2, 28,40, T.DIRT, 2)
+    _path(m, 2,20, 56,20, T.PATH, 2)
+    _path(m,28, 2, 28,40, T.PATH, 2)
     # Kıyı şeridi
     for ty in range(42):
         for tx in range(58):
@@ -2587,8 +3140,11 @@ def build_misty_swamp():
     # GEÇİŞLER
     # Doğu → Karanlık Orman  (y=19..27, x=56)
     _trans_strip(m,'x',56,19,27, "dark_forest",  3,34, T.GRASS,(1,0))
-    # Kuzey → Ashveil  (x=25..31, y=2) – opsiyonel kısa yol
-    _trans_strip(m,'y',2, 25,31, "ashveil",      3,24, T.GRASS,(0,-1))
+    # Batı → Güney Çayırı. Eskiden burada kuzeye, Ashveil (3,24) karesine
+    # çıkan TEK YÖNLÜ bir kısa yol vardı: dönüşü yoktu ve nehir geçidiyle
+    # tam aynı kareye boşalıyordu. Artık dünya halka oluyor:
+    # Ashveil → Çayır → Bataklık → Orman → Ashveil.
+    _trans_strip(m,'x',2, 18,22, "south_meadow", 52,23, T.DIRT,(-1,0),style="arch")
 
     m.set(26,20, T.CHEST); m.chests[(26,20)] = ["hp_pot","mp_pot","gold"]
     m.set(48,20, T.CHEST); m.chests[(48,20)] = ["hp_pot","power_ring"]
@@ -2636,7 +3192,7 @@ def build_ruins():
 
     # GEÇİŞLER — dış duvarda tek şerit, karşıdaki spawn oda içinde
     # Güney → Karanlık Orman
-    _trans_strip(m,'y',50, 5,14, "dark_forest",  27, 3, T.FLOOR,(0,1))
+    _trans_strip(m,'y',50, 5,14, "dark_forest",  27, 3, T.FLOOR,(0,1),style="arch")
     # Doğu → Çöl
     _trans_strip(m,'x',56,19,26, "desert",        3,27, T.FLOOR,(1,0))
     # Batı → Kayalık Geçit
@@ -2682,12 +3238,12 @@ def build_desert():
             if m.get(tx,ty)==T.SAND and any(m.get(tx+dx,ty+dy)==T.WATER for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
                 m.set(tx,ty,T.GRASS)
     _room(m,27,5,8,6,T.WALL,T.FLOOR,"south")
-    _path(m, 2,28,58,28,T.DIRT,2)
+    _path(m, 2,28,58,28,T.PATH,2)
     # GEÇİŞLER
-    _trans_strip(m,'x',2, 26,31, "ruins",    54,21, T.SAND,(-1,0))
-    _trans_strip(m,'x',58,26,31, "ice_cave",  3,28, T.SAND,(1,0))
-    _trans_strip(m,'y',2, 24,32, "rocky_pass",22,35, T.SAND,(0,-1))
-    _trans_strip(m,'y',42,26,32, "ember_valley",28,6, T.SAND,(0,1))
+    _trans_strip(m,'x',2, 26,31, "ruins",    54,21, T.SAND,(-1,0),style="ruin")
+    _trans_strip(m,'x',58,26,31, "ice_cave",  4,21, T.SAND,(1,0),style="ice")
+    _trans_strip(m,'y',2, 24,32, "rocky_pass",22,35, T.SAND,(0,-1),style="pass")
+    _trans_strip(m,'y',42,26,32, "ember_valley",28,6, T.SAND,(0,1),style="ash")
     m.set(5, 28,T.CHEST); m.chests[(5,28)]  = ["hp_pot","hp_pot","gold"]
     m.set(54,28,T.CHEST); m.chests[(54,28)] = ["shadow_bow","gold"]
     m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot","scroll2"]
@@ -2735,7 +3291,8 @@ def build_ice_cave():
     _rect(m,31,37,18,8,T.ICE)
     # GEÇİŞLER
     _trans_strip(m,'x',2,  17,25, "desert",        57,27, T.SNOW,(-1,0))
-    _trans_strip(m,'y',46,  4,12, "shadow_castle",  22,40, T.SNOW,(0,1))
+    _trans_strip(m,'y',46,  4,12, "shadow_castle",  22,40, T.SNOW,(0,1),
+                 style="door")
     m.set(5, 6,T.CHEST); m.chests[(5,6)]   = ["hp_pot","mp_pot"]
     m.set(19, 6,T.CHEST); m.chests[(19,6)] = ["scout_coat","gold","scroll3"]
     m.set(5, 19,T.CHEST); m.chests[(5,19)] = ["hp_pot","mp_pot"]
@@ -2765,6 +3322,7 @@ def build_ember_valley():
     burada iyice anlam kazanıyor, o yüzden sistemi anlatan NPC de burada.
     """
     m = GameMap(54, 44, "map.koz_vadisi", ambient=(45,12,0))
+    m.frame_tile = T.STONE
     _rect(m, 0, 0, 54, 44, T.ASH)
     # Lav gölleri — yürünmez, yolu daraltıyor
     for lx,ly,ls in [(12,10,4),(40,12,4),(16,34,4),(44,33,3),(28,22,5)]:
@@ -2779,8 +3337,8 @@ def build_ember_valley():
                 if (tx-rx)**2+(ty-ry)**2<=rs*rs and 2<=tx<52 and 2<=ty<42:
                     m.set(tx,ty,T.STONE)
     # Güvenli patikalar: lavın arasından geçen kül yolları
-    _path(m, 2,22,52,22,T.DIRT,2)
-    _path(m,26, 2,26,42,T.DIRT,2)
+    _path(m, 2,22,52,22,T.PATH,2)
+    _path(m,26, 2,26,42,T.PATH,2)
     # Demirhane kalıntısı
     _room(m,20,5,10,7,T.WALL,T.FLOOR,"south")
 
@@ -2827,7 +3385,7 @@ def build_shadow_castle():
     m.set(27,22,T.DOOR); m.set(28,22,T.DOOR)
     m.set(27,30,T.DOOR); m.set(28,30,T.DOOR)
     # GEÇİŞ
-    _trans_strip(m,'x',2, 23,30, "ice_cave",  8,44, T.FLOOR,(-1,0))
+    _trans_strip(m,'x',2, 23,30, "ice_cave",  8,44, T.FLOOR,(-1,0),style="door")
     m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["hp_pot","hp_pot","mp_pot"]
     m.set(48, 5,T.CHEST); m.chests[(48,5)] = ["warrior_crest","hp_pot"]
     m.set(5, 44,T.CHEST); m.chests[(5,44)] = ["hp_pot","hp_pot","steel_sword"]
@@ -2862,7 +3420,7 @@ def build_village_dungeon():
             if m.get(tx,ty)==T.STONE and any(m.get(tx+dx,ty+dy)==T.FLOOR for dx,dy in[(-1,0),(1,0),(0,-1),(0,1)]):
                 m.set(tx,ty,T.RUINS_WALL)
     # GEÇİŞ (oda içinden, kuzey)
-    _trans_strip(m,'y',2,  7,12, "ashveil", 29,45, T.FLOOR,(0,-1))
+    _trans_strip(m,'y',2,  7,12, "ashveil", 29,45, T.FLOOR,(0,-1),style="cave")
     m.set(6, 5,T.CHEST); m.chests[(6,5)]   = ["hp_pot","mp_pot","gold"]
     m.set(30, 5,T.CHEST); m.chests[(30,5)] = ["steel_sword","leather_armor","gold"]
     m.set(6, 26,T.CHEST); m.chests[(6,26)] = ["arcane_staff","mage_robe"]
@@ -2879,6 +3437,7 @@ def build_village_dungeon():
 
 def build_south_meadow():
     m = GameMap(56, 42, "map.guney_cayiri")
+    m.frame_tile = T.HEDGE
     _rect(m,0,0,56,42,T.GRASS)
     _rect(m,5,10,20,14,T.FARMLAND); _rect(m,28,10,18,14,T.WHEAT)
     for tx in range(4,48): m.set(tx,9,T.FENCE); m.set(tx,25,T.FENCE)
@@ -2887,14 +3446,16 @@ def build_south_meadow():
     m.set(20,25,T.GRASS); m.set(21,25,T.GRASS)
     _room(m,5,28,14,10,T.WALL,T.FLOOR,"north")
     _room(m,22,28,10,8,T.WALL,T.FLOOR,"north")
-    _path(m,20,0,20,10,T.DIRT,2); _path(m,5,22,52,22,T.DIRT,2)
+    _path(m,20,0,20,10,T.PATH,2); _path(m,5,22,52,22,T.PATH,2)
     for ty in range(30,40):
         for tx in range(42,54):
             if (tx-48)**2+(ty-35)**2<22: m.set(tx,ty,T.WATER)
     for tx in range(56): m.set(tx,40,T.TREE); m.set(tx,41,T.TREE)
     for ty in range(42): m.set(55,ty,T.TREE)
     # GEÇİŞ
-    _trans_strip(m,'y',2,  16,26, "ashveil",  22,49, T.GRASS,(0,-1))
+    _trans_strip(m,'y',2,  16,26, "ashveil",  22,49, T.GRASS,(0,-1),style="arch")
+    # Doğu → Sisli Bataklık: çayır artık çıkmaz sokak değil
+    _trans_strip(m,'x',54,20,26, "misty_swamp", 8,20, T.DIRT,(1,0),style="arch")
     m.set(8, 30,T.CHEST); m.chests[(8,30)]  = ["farm_tool","hp_pot","gold"]
     m.set(46,22,T.CHEST); m.chests[(46,22)] = ["hp_pot","mana_gem"]
     def farmer_d(f): return ["dlg.farmer.%d"%i for i in range(1,7)]
@@ -2919,14 +3480,15 @@ def build_south_meadow():
 
 def build_west_river():
     m = GameMap(56, 42, "map.bati_nehri", ambient=(0,10,20))
+    m.frame_tile = T.HEDGE
     _rect(m,0,0,56,42,T.GRASS)
     for ty in range(42):
         for tx in range(25,31): m.set(tx,ty,T.RIVER)
     for tx in range(25,31):
         for ty in range(9,13):  m.set(tx,ty,T.BRIDGE)
         for ty in range(27,31): m.set(tx,ty,T.BRIDGE)
-    _path(m,0,10,25,10,T.DIRT,2); _path(m,31,10,56,10,T.DIRT,2)
-    _path(m,0,28,25,28,T.DIRT,2); _path(m,31,28,56,28,T.DIRT,2)
+    _path(m,0,10,25,10,T.PATH,2); _path(m,31,10,56,10,T.PATH,2)
+    _path(m,0,28,25,28,T.PATH,2); _path(m,31,28,56,28,T.PATH,2)
     _room(m,3,14,10,8,T.WALL,T.FLOOR,"east")
     for ty in range(0,8):
         for tx in range(0,10):
@@ -2936,7 +3498,8 @@ def build_west_river():
             if (tx-35)%3<2 and (ty-33)%3<2: m.set(tx,ty,T.TREE)
     # GEÇİŞLER
     _trans_strip(m,'x',54,18,28, "ashveil",  3,24, T.GRASS,(1,0))
-    _trans_strip(m,'y',2, 24,32, "mystic_library",21, 4, T.GRASS,(0,-1))
+    _trans_strip(m,'y',2, 10,16, "mystic_library",21, 4, T.GRASS,(0,-1),
+                 style="door")
     m.set(5, 16,T.CHEST); m.chests[(5,16)]  = ["river_gem","mp_pot","gold"]
     m.set(46,  5,T.CHEST); m.chests[(46,5)] = ["hp_pot","hp_pot","mana_gem"]
     m.set(46, 33,T.CHEST); m.chests[(46,33)]= ["fine_bow","gold"]
@@ -2971,8 +3534,9 @@ def build_mystic_library():
     for tx in range(19,25): m.set(tx,17,T.FLOOR); m.set(tx,20,T.FLOOR)
     for ty in range(17,21): m.set(19,ty,T.FLOOR); m.set(24,ty,T.FLOOR)
     # GEÇİŞLER
-    _trans_strip(m,'y',2, 18,26, "west_river",26, 3, T.FLOOR,(0,-1))
-    _trans_strip(m,'y',36,18,26, "west_river",26, 4, T.FLOOR,(0,1))
+    # Kütüphanenin tek kapısı var. Eskiden iki geçit vardı ve ikisi de
+    # west_river (26,3) / (26,4) karesine, yani nehrin içine çıkıyordu.
+    _trans_strip(m,'y',2, 18,26, "west_river",13, 4, T.FLOOR,(0,-1),style="door")
     m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["arcane_staff","mp_pot","gold"]
     m.set(37, 5,T.CHEST); m.chests[(37,5)] = ["mage_focus","mp_pot"]
     m.set(5, 30,T.CHEST); m.chests[(5,30)] = ["elder_staff","mp_pot","mp_pot"]
