@@ -415,6 +415,14 @@ T = {
 "epi.four.1": ("Dört kristalin dördü de senin elinden geçti — atalarının yapabildiğini sen de yaptın.","All four crystals passed through your hands; you did what your ancestors could.","Alle vier Kristalle gingen durch deine Hände; du tatest, was deine Ahnen vermochten.","Все четыре кристалла прошли через твои руки; ты сделал то, что смогли предки.","مرّت البلورات الأربع كلها بين يديك؛ فعلت ما استطاعه أجدادك."),
 "epi.four.2": ("Bu kez mühür zayıflamayacak. Bu kez eksik örülmedi.","This time the seal will not weaken. This time it was not woven short.","Diesmal wird das Siegel nicht schwächer. Diesmal wurde es nicht unvollständig gewebt.","На этот раз печать не ослабнет. На этот раз её сплели целиком.","هذه المرة لن يضعف الختم. هذه المرة لم يُنسج ناقصًا."),
 "epi.stat_crystals": ("Toplanan kristal","Crystals gathered","Gesammelte Kristalle","Собрано кристаллов","البلورات المجموعة"),
+# ── Iksir ve tonik bildirimleri ──────────────────────────
+"ui.item_full_used": ("Can ve mana tamamen doldu.","Health and mana fully restored.","Leben und Mana voll aufgefüllt.","Здоровье и мана полностью восстановлены.","امتلأت الصحة والمانا بالكامل."),
+"ui.item_tonic_used": ("%s içildi.","Drank %s.","%s getrunken.","Выпито: %s.","شُرب %s."),
+"ui.item_material_hint": ("Malzeme — satılır ya da demircide harcanır","Material - sell it or spend it at the smith","Material - verkaufen oder beim Schmied nutzen","Материал - продайте или потратьте у кузнеца","مادة - تُباع أو تُستخدم عند الحداد"),
+"ui.buff_tonic_str": ("GÜÇ TONİĞİ","STRENGTH TONIC","STÄRKETRANK","ТОНИК СИЛЫ","منشط القوة"),
+"ui.buff_tonic_def": ("TAŞ DERİSİ","STONESKIN","STEINHAUT","КАМЕННАЯ КОЖА","جلد حجري"),
+"ui.buff_tonic_agi": ("RÜZGÂR TONİĞİ","WIND TONIC","WINDTRANK","ТОНИК ВЕТРА","منشط الريح"),
+
 # ── Demirci tezgâhı: yükseltme ───────────────────────────────────
 "ui.shop_upgrade": ("Yükselt","Upgrade","Verbessern","Улучшение","ترقية"),
 "ui.upg_materials": ("Çantandaki malzeme: %d","Materials in bag: %d","Materialien im Beutel: %d","Материалов в сумке: %d","المواد في الحقيبة: %d"),

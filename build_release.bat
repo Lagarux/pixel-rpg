@@ -9,8 +9,8 @@ echo.
 python --version >nul 2>&1
 if errorlevel 1 ( echo HATA: Python bulunamadi! & pause & exit /b 1 )
 
-:: Surum tek kaynaktan: pixel_rpg.py
-for /f "delims=" %%v in ('python -c "import re,io;print(re.search(r'VERSION\s*=\s*\"([^\"]+)\"',io.open('pixel_rpg.py',encoding='utf-8').read()).group(1))"') do set KTLVER=%%v
+:: Surum tek kaynaktan: tools/version.py (pixel_rpg.py'yi okur)
+for /f %%v in ('python tools/version.py') do set KTLVER=%%v
 if "%KTLVER%"=="" ( echo HATA: surum okunamadi! & pause & exit /b 1 )
 echo      Surum: v%KTLVER%
 

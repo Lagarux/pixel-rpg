@@ -1008,6 +1008,11 @@ REST_PRICE = 18     # handa konaklama
 # Altının harcanacak yeri yoktu: ölçümde oyunda toplanabilecek 1730 altına
 # karşılık mağazadaki 22 eşyanın 19'u sandıklardan bedava çıkıyordu.
 # Yükseltme hem altını hem de avlanarak toplanan malzemeyi tüketiyor.
+# Toniklerin etkisi. Süre eşyanın değerinde (kare cinsinden) yazılı.
+TONIC_ATK  = 1.40    # Güç Toniği: vuruş gücü
+TONIC_DEF  = 0.70    # Taş Derisi: gelen hasar
+TONIC_AGI  = 3       # Rüzgâr Toniği: çeviklik gibi davranan ek puan
+
 UPGRADE_MAX = 5
 UPGRADE_COST = [(60,2),(140,3),(280,4),(500,5),(850,6)]   # (altın, malzeme)
 # Tek bir parçayı sonuna kadar yükseltmek: 1830 altın + 20 malzeme.
@@ -2573,6 +2578,7 @@ class PlayerStats:
     def attack(self):
         base=4+self.str*2
         if "war_cry" in self.buffs: base=int(base*1.6)
+        if "tonic_str" in self.buffs: base=int(base*TONIC_ATK)
         base+=self._equip_bonus("str")*2
         return base
     @property
@@ -2580,9 +2586,14 @@ class PlayerStats:
     @property
     def defense(self): return 1+(self.vit+self._equip_bonus("vit"))+(self.str+self._equip_bonus("str"))//3
     @property
-    def crit(self): return min(0.5,0.05+(self.agi+self._equip_bonus("agi"))*0.02)
+    def _agi_eff(self):
+        """Çeviklik + ekipman + Rüzgâr Toniği."""
+        return (self.agi+self._equip_bonus("agi")
+                +(TONIC_AGI if "tonic_agi" in self.buffs else 0))
     @property
-    def move_delay(self): return max(4,11-(self.agi+self._equip_bonus("agi"))//2)
+    def crit(self): return min(0.5,0.05+self._agi_eff*0.02)
+    @property
+    def move_delay(self): return max(4,11-self._agi_eff//2)
     @property
     def atk_max_cd(self):
         base={"warrior":20,"mage":28,"archer":22,"healer":24}.get(self.char_class,22)
@@ -4924,11 +4935,16 @@ class UI:
         by=102
         if "war_cry" in st.buffs:      self.txt(surf,T_("ui.buff_war_cry"),18,by,(255,120,50),self.fsm)
         elif "holy_shield" in st.buffs:self.txt(surf,T_("ui.buff_holy"), 18,by,(255,220,60),self.fsm)
+        elif "tonic_str" in st.buffs:  self.txt(surf,T_("ui.buff_tonic_str"),18,by,(225,110,60),self.fsm)
+        elif "tonic_def" in st.buffs:  self.txt(surf,T_("ui.buff_tonic_def"),18,by,(170,170,185),self.fsm)
+        elif "tonic_agi" in st.buffs:  self.txt(surf,T_("ui.buff_tonic_agi"),18,by,(130,225,170),self.fsm)
         eq_strs=[]
         for slot,ik in st.equipment.items():
             if ik and ik in EQUIP_ITEMS: eq_strs.append(item_name(ik)[:8])
         if eq_strs:
-            eq_y=by if "war_cry" not in st.buffs and "holy_shield" not in st.buffs else by+14
+            eq_y=by if not any(k in st.buffs for k in
+                               ("war_cry","holy_shield","tonic_str",
+                                "tonic_def","tonic_agi")) else by+14
             self.txt(surf,"  ".join(eq_strs[:2]),18,eq_y,(100,120,160),self.fsm)
         # Üst merkez
         mn=self.fmd.render(map_name,True,UI_AC)
@@ -6086,6 +6102,7 @@ class Game:
         if not p or p.invincible>0: return 0
         dmg=max(1,raw-p.stats.defense+random.randint(-2,3))
         dmg=max(1,int(dmg*self._player_resist(elem)*diff_mult("enemy_dmg")))
+        if "tonic_def" in p.stats.buffs: dmg=max(1,int(dmg*TONIC_DEF))
         if "holy_shield" in p.stats.buffs:
             sh=p.stats.buffs["holy_shield"]
             if isinstance(sh,int): p.stats.buffs["holy_shield"]=max(0,sh-dmg);dmg=0
@@ -6175,6 +6192,26 @@ class Game:
         typ=itm[2]
         if typ=="heal": p.stats.heal(itm[3]);p.inventory.remove(ik);self.ps.emit_magic(p.px+TILE//2,p.py);SoundManager.play("heal")
         elif typ=="mana": p.stats.restore_mp(itm[3]);p.inventory.remove(ik)
+        elif typ=="full":
+            # Tam Şifa İksiri: can ve mana dolar
+            p.stats.heal(p.stats.max_hp);p.stats.restore_mp(p.stats.max_mp)
+            p.inventory.remove(ik)
+            self.ps.emit_magic(p.px+TILE//2,p.py,col=(255,225,140))
+            SoundManager.play("heal")
+            self._toast(T_("ui.item_full_used"),UI_GN)
+        elif typ.startswith("buff_"):
+            # Tonikler: süresi eşyanın değerinde yazılı (kare)
+            anahtar="tonic_"+typ.split("_",1)[1]
+            p.stats.buffs[anahtar]=itm[3]
+            p.inventory.remove(ik)
+            self.ps.emit_magic(p.px+TILE//2,p.py,col=itm[1])
+            SoundManager.play("spell")
+            self._toast(T_("ui.item_tonic_used",item_name(ik)),itm[1])
+        elif typ=="material":
+            # Malzeme kullanılmaz; ne işe yaradığını söyle
+            SoundManager.play("error")
+            self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":80,
+                                  "col":UI_CY,"txt":T_("ui.item_material_hint")})
         elif typ=="quest_sq":
             self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-TILE,"v":None,"l":60,"col":UI_PR,"txt":T_("ui.take_librarian")})
         elif typ.startswith("stat_"): p.stats.apply_item(typ,itm[3]);p.inventory.remove(ik)

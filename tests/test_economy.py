@@ -393,6 +393,105 @@ class TestYeniTurler(unittest.TestCase):
                 self.assertLess(abs(v), 15)
 
 
+class TestEsyaKullanimi(unittest.TestCase):
+    """Her esya tipi envanterde gercekten BIR SEY yapmali.
+
+    Kusur: _inv_use_item yalnizca heal/mana/quest_sq/stat_*/equip
+    tiplerini taniyordu. "full" (Tam Sifa Iksiri) ve "buff_*" (ucu de
+    tonik) sessizce dusuyordu - oyuncu iksiri iciyor, hicbir sey
+    olmuyordu. Hicbir test bunu yakalamamisti.
+    """
+
+    def _oyun(self):
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        st = MOD.PlayerStats("warrior")
+        g.player = MOD.Player(5, 5, st)
+        g.dmg_nums = []
+        return g
+
+    def test_her_tip_isleniyor(self):
+        """Taninmayan tip = sessizce dusen esya."""
+        BILINEN = {"heal", "mana", "full", "material", "quest", "quest_sq",
+                   "equip", "gold", "stat_str", "stat_int", "stat_agi",
+                   "stat_vit", "stat_wis", "buff_str", "buff_def", "buff_agi"}
+        for k, satir in MOD.ALL_ITEMS.items():
+            with self.subTest(esya=k):
+                self.assertIn(satir[2], BILINEN, "%s taninmayan tipte: %s" % (k, satir[2]))
+
+    def test_tuketilebilirler_tukeniyor_ve_etki_ediyor(self):
+        for k, satir in MOD.ALL_ITEMS.items():
+            typ = satir[2]
+            if typ not in ("heal", "mana", "full") and not typ.startswith(("buff_", "stat_")):
+                continue
+            g = self._oyun()
+            st = g.player.stats
+            st.hp = 1; st.mp = 0
+            g.player.inventory = [k]
+            g.inv_sel = 0
+            once = (st.hp, st.mp, st.str, st.int_, st.agi, st.vit, st.wis,
+                    dict(st.buffs))
+            g._inv_use_item()
+            sonra = (st.hp, st.mp, st.str, st.int_, st.agi, st.vit, st.wis,
+                     dict(st.buffs))
+            with self.subTest(esya=k):
+                self.assertEqual(g.player.inventory, [],
+                                 "%s kullanildi ama envanterden dusmedi" % k)
+                self.assertNotEqual(once, sonra,
+                                    "%s kullanildi ama HICBIR SEY degismedi" % k)
+
+    def test_tam_sifa_iksiri_ikisini_de_dolduruyor(self):
+        g = self._oyun()
+        st = g.player.stats
+        st.hp = 1; st.mp = 1
+        g.player.inventory = ["elixir"]; g.inv_sel = 0
+        g._inv_use_item()
+        self.assertEqual(st.hp, st.max_hp)
+        self.assertEqual(st.mp, st.max_mp)
+
+    def test_tonikler_dovuse_etki_ediyor(self):
+        st = MOD.PlayerStats("warrior")
+        vurus0, krit0 = st.attack, st.crit
+        st.buffs["tonic_str"] = 900
+        self.assertGreater(st.attack, vurus0, "Guc Tonigi saldiriyi arttirmadi")
+        del st.buffs["tonic_str"]
+        st.buffs["tonic_agi"] = 900
+        self.assertGreater(st.crit, krit0, "Ruzgar Tonigi kritigi arttirmadi")
+
+    def test_tas_derisi_hasari_azaltiyor(self):
+        g = self._oyun()
+        g.cur_map = g.maps["ashveil"]
+        st = g.player.stats
+        st.hp = st.max_hp
+        g.player.invincible = 0
+        import random as _r
+        _r.seed(7)
+        normal = g._player_take_hit(60)
+        g.player.invincible = 0
+        st.buffs["tonic_def"] = 900
+        _r.seed(7)
+        korumali = g._player_take_hit(60)
+        self.assertLess(korumali, normal,
+                        "Tas Derisi hasari azaltmadi: %d -> %d" % (normal, korumali))
+
+    def test_malzeme_tukenmiyor_ama_aciklama_veriyor(self):
+        g = self._oyun()
+        g.player.inventory = ["iron_ore"]; g.inv_sel = 0
+        g._inv_use_item()
+        self.assertEqual(g.player.inventory, ["iron_ore"],
+                         "malzeme bosuna harcandi")
+        self.assertTrue(g.dmg_nums, "malzemeye basinca hicbir sey soylenmiyor")
+
+    def test_tonik_sureleri_makul(self):
+        for k, satir in MOD.ALL_ITEMS.items():
+            if not satir[2].startswith("buff_"):
+                continue
+            sure = satir[3] / float(MOD.FPS)
+            with self.subTest(esya=k):
+                self.assertGreaterEqual(sure, 5, "%s cok kisa: %.0f sn" % (k, sure))
+                self.assertLessEqual(sure, 60, "%s cok uzun: %.0f sn" % (k, sure))
+
+
 class TestDukkanTusAkisi(unittest.TestCase):
     """Gercek tus yolundan: TAB uc sekme arasinda donmeli.
 
