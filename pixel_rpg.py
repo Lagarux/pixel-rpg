@@ -617,6 +617,36 @@ EQUIP_ITEMS = {
     "mana_gem":     ("Mana Tası",    UI_CY,  {"wis":2,"int":1},  "amulet",    None),
     "warrior_crest":("Savasci Nisan",(220,80,40),{"str":2,"vit":2},"amulet",  {"warrior"}),
     "archer_token": ("Nisan Tası",   G_L,    {"agi":2,"str":1},  "amulet",    {"archer"}),
+
+    # ── Ara ve üst kademe ────────────────────────────────────────
+    # Eskiden her sınıfın iki silahı vardı ve ikisi de sandıklardan
+    # çıkıyordu: dükkâna gitmenin bir sebebi yoktu. Üst kademe yalnızca
+    # satın alınır ve demircide yükseltilir.
+    "war_axe":      ("Savaş Baltası",(190,90,60), {"str":5,"vit":1}, "weapon", {"warrior"}),
+    "crown_blade":  ("Taç Kılıcı",   (240,210,120),{"str":9,"vit":2},"weapon", {"warrior"}),
+    "hunter_bow":   ("Avcı Yayı",    (140,180,90),{"agi":4,"vit":1}, "weapon", {"archer"}),
+    "storm_bow":    ("Fırtına Yayı", (120,200,240),{"agi":7,"str":3},"weapon", {"archer"}),
+    "ember_rod":    ("Köz Asası",    (230,120,60),{"int":5},         "weapon", {"mage"}),
+    "void_staff":   ("Boşluk Asası", (120,60,180),{"int":9,"wis":2}, "weapon", {"mage"}),
+    "oak_staff":    ("Meşe Asa",     (150,120,70),{"wis":3,"int":1}, "weapon", {"healer"}),
+    "dawn_scepter": ("Şafak Asası",  (255,230,150),{"wis":6,"int":4},"weapon", {"healer"}),
+
+    "chain_mail":   ("Zincir Zırh",  (150,150,160),{"vit":3},        "armor",  None),
+    "guardian_plate":("Muhafız Plakası",(200,200,215),{"vit":7,"str":2},"armor",{"warrior"}),
+    "arch_robe":    ("Baş Büyücü Cübbesi",(120,90,220),{"int":5,"wis":3},"armor",{"mage"}),
+    "ranger_cloak": ("Korucu Pelerini",(80,140,90),{"agi":5,"vit":2},"armor", {"archer"}),
+    "saint_robe":   ("Aziz Cübbesi", (255,240,200),{"wis":5,"vit":3},"armor", {"healer"}),
+
+    "travel_boots": ("Yolcu Botu",   (140,110,70),{"vit":1,"agi":1}, "boots",  None),
+    "wind_greaves": ("Rüzgâr Dizliği",(150,230,200),{"agi":5,"vit":1},"boots", None),
+
+    "ruby_ring":    ("Yakut Yüzük",  (220,60,60), {"str":3,"int":1}, "ring",   None),
+    "jade_ring":    ("Yeşim Yüzük",  (80,200,120),{"vit":2,"wis":2}, "ring",   None),
+    "obsidian_ring":("Obsidyen Yüzük",(90,70,110),{"str":2,"int":2,"agi":1},"ring",None),
+
+    "moon_pendant": ("Ay Kolyesi",   (200,220,255),{"wis":3,"int":2},"amulet", None),
+    "ember_charm":  ("Köz Tılsımı",  (240,140,60),{"str":3,"vit":1}, "amulet", None),
+    "sage_talisman":("Bilge Tılsımı",(180,160,240),{"wis":4,"int":2},"amulet", None),
 }
 
 # Ekipman yuvalarının sabit sırası — envanter imleci ve çizim bunu paylaşır.
@@ -627,17 +657,60 @@ SLOT_NAMES  = {"weapon":"Silah","armor":"Zirh","boots":"Bot","ring":"Yuzuk","amu
 SLOT_COLORS = {"weapon":UI_RD,"armor":ST_L,"boots":G_L,"ring":UI_GD,"amulet":UI_CY}
 
 ITEMS = {
-    "hp_pot": ("Saglik Iksiri", HP_G,   "heal",   35,  "35 HP iyilestirir."),
-    "mp_pot": ("Mana Iksiri",   MP_B,   "mana",   25,  "25 MP iyilestirir."),
-    "gold":   ("Altin",         UI_GD,  "gold",    5,  "Degerli para."),
+    "hp_pot": ("Sağlık İksiri", HP_G,   "heal",   35,  "35 HP iyileştirir."),
+    "mp_pot": ("Mana İksiri",   MP_B,   "mana",   25,  "25 MP iyileştirir."),
+    "gold":   ("Altın",         UI_GD,  "gold",    5,  "Değerli para."),
     "earth_c":("Toprak Kristali",(120,200,80),"quest",0,"Antik kristal."),
     "water_c":("Su Kristali",  (80,180,220),"quest",0,"Antik kristal."),
-    "farm_tool":("Ciftci Aleti",(140,100,60),"stat_str",1,"STR +1 kalici."),
-    "river_gem":("Nehir Tasi", (60,180,200),"stat_wis",1,"WIS +1 kalici."),
-    "scroll1":  ("Karanlik Parsomen",(180,140,220),"quest_sq",0,"Gizemli parsomen 1/3."),
-    "scroll2":  ("Ates Parsomeni",  (220,140,80), "quest_sq",0,"Gizemli parsomen 2/3."),
-    "scroll3":  ("Buz Parsomeni",   (140,200,220),"quest_sq",0,"Gizemli parsomen 3/3."),
+    "farm_tool":("Çiftçi Aleti",(140,100,60),"stat_str",1,"STR +1 kalıcı."),
+    "river_gem":("Nehir Taşı", (60,180,200),"stat_wis",1,"WIS +1 kalıcı."),
+    "scroll1":  ("Karanlık Parşömen",(180,140,220),"quest_sq",0,"Gizemli parşömen 1/3."),
+    "scroll2":  ("Ateş Parşömeni",  (220,140,80), "quest_sq",0,"Gizemli parşömen 2/3."),
+    "scroll3":  ("Buz Parşömeni",   (140,200,220),"quest_sq",0,"Gizemli parşömen 3/3."),
+
+    # ── Büyük iksirler ve tonikler ───────────────────────────────
+    # Tek bir sağlık iksiri vardı ve 54 tanesi sandıklardan bedava
+    # çıkıyordu. Artık kademeli: küçük iksir ucuz ve bol, büyüğü pahalı.
+    "hp_pot_l":  ("Büyük Sağlık İksiri",(120,230,120),"heal",  90,"90 HP iyileştirir."),
+    "mp_pot_l":  ("Büyük Mana İksiri", (120,170,255),"mana",   70,"70 MP iyileştirir."),
+    "elixir":    ("Tam Şifa İksiri",   (255,225,140),"full",    0,"Canı ve manayı tam doldurur."),
+    "tonic_str": ("Güç Toniği",        (225,110,60), "buff_str",900,"15 saniye saldırı +%40."),
+    "tonic_def": ("Taş Derisi",        (160,160,172),"buff_def",900,"15 saniye gelen hasar -%30."),
+    "tonic_swift":("Rüzgâr Toniği",    (130,225,170),"buff_agi",900,"15 saniye hız ve kritik artar."),
+
+    # ── Kalıcı nitelik taşları (boss ödülü) ──────────────────────
+    "oracle_lens":("Kâhin Merceği",   (150,110,220),"stat_int",1,"INT +1 kalıcı."),
+    "titan_core": ("Titan Çekirdeği", (190,170,140),"stat_vit",1,"VIT +1 kalıcı."),
+    "wind_feather":("Rüzgâr Tüyü",    (180,230,200),"stat_agi",1,"AGI +1 kalıcı."),
 }
+
+# ─── Malzemeler ──────────────────────────────────────────────────
+# Düşmanlardan düşer, satılır ve demircide yükseltmeye harcanır.
+# Oyunun tek altın kaynağı "öldür, 1-4 altın al" idi; artık avlanmanın
+# kendisi bir gelir ve bir üretim zinciri.
+# anahtar -> (ad, renk, satış değeri, hangi türden düşer)
+MATERIALS = {
+    "slime_jelly":  ("Yeşil Öz",        (110,210,110),  8, "slime"),
+    "bat_wing":     ("Yarasa Kanadı",   (120,100,140), 10, "bat"),
+    "beast_pelt":   ("Hayvan Postu",    (160,120,80),  13, "wolf"),
+    "boar_tusk":    ("Domuz Dişi",      (230,225,205), 15, "boar"),
+    "goblin_charm": ("Goblin Muskası",  (150,180,110), 14, "goblin"),
+    "spider_silk":  ("Örümcek İpeği",   (225,225,235), 19, "spider"),
+    "bone_dust":    ("Kemik Tozu",      (220,215,200), 17, "skeleton"),
+    "venom_sac":    ("Zehir Kesesi",    (190,210,70),  21, "scorpion"),
+    "bandit_coin":  ("Haydut Kesesi",  (215,180,90),  24, "bandit"),
+    "iron_ore":     ("Demir Cevheri",   (140,140,150), 26, "golem"),
+    "heart_wood":   ("Kalp Odunu",      (120,160,80),  29, "treant"),
+    "frost_shard":  ("Ayaz Kırığı",     (170,220,250), 31, "ice_wolf"),
+    "ember_core":   ("Köz Çekirdeği",   (240,130,50),  36, "lava_imp"),
+    "ghost_veil":   ("Hayalet Tülü",    (200,200,230), 38, "wraith"),
+    "shadow_shard": ("Gölge Kırığı",    (170,100,220), 44, "shadow_knight"),
+}
+for _k,(_ad,_c,_deger,_tur) in MATERIALS.items():
+    ITEMS[_k]=(_ad,_c,"material",_deger,"Malzeme — satılır ya da yükseltmede kullanılır.")
+
+# Hangi tür hangi malzemeyi düşürür
+DROP_BY_KIND = {tur:k for k,(_a,_c,_d,tur) in MATERIALS.items()}
 # Tüm eşyaları birleştir (envanter ve ekipman)
 ALL_ITEMS = dict(ITEMS)
 for k,(name,col,bonus,slot,cls) in EQUIP_ITEMS.items():
@@ -701,6 +774,20 @@ BEHAVIORS = {
     "scorpion":     {"type":"ranged","range":5,"cool":95,"proj":"shadow_bolt"},
     "shadow_knight":{"type":"melee"},
     "malachar":     {"type":"ranged","range":7,"cool":70,"proj":"shadow_bolt","melee_too":True},
+    # ── Yeni türler ──────────────────────────────────────────────
+    "bat":          {"type":"melee"},                      # hızlı, cılız
+    "spider":       {"type":"ranged","range":4,"cool":110,"proj":"web","melee_too":True},
+    "bandit":       {"type":"skittish","flee_hp":0.18},    # son anda kaçar
+    "wraith":       {"type":"ranged","range":6,"cool":85,"proj":"shadow_bolt"},
+    "treant":       {"type":"melee"},                      # yavaş, çok dayanıklı
+    "lava_imp":     {"type":"skittish","flee_hp":0.35},
+}
+
+# Tür başına hareket hızı düzeltmesi (kare cinsinden bekleme; eksi = hızlı).
+# Eskiden bu, AI döngüsünün içine elle yazılmış iki if idi.
+SPEED_MOD = {
+    "wolf":-4, "ice_wolf":-4, "golem":+8, "treant":+10,
+    "bat":-6, "spider":-2, "bandit":-2, "lava_imp":-3, "wraith":+1,
 }
 
 # ─── Zorluk seviyeleri ───────────────────────────────────────────
@@ -776,6 +863,8 @@ ENEMY_ELEM = {
     "slime":"nature", "boar":"nature", "wolf":"physical", "goblin":"physical",
     "skeleton":"shadow", "golem":"earth", "scorpion":"fire", "ice_wolf":"ice",
     "shadow_knight":"shadow", "malachar":"shadow",
+    "bat":"shadow", "spider":"nature", "bandit":"physical",
+    "wraith":"shadow", "treant":"nature", "lava_imp":"fire",
 }
 
 CLASS_ELEM = {"warrior":"physical", "archer":"physical", "mage":"fire", "healer":"holy"}
@@ -787,7 +876,7 @@ ABILITY_ELEM = {
     "shadow_step":"shadow", "divine_storm":"holy",
 }
 
-PROJ_ELEM = {"arrow":"physical", "shadow_bolt":"shadow"}
+PROJ_ELEM = {"arrow":"physical", "shadow_bolt":"shadow", "web":"nature"}
 
 # Silahın elementi temel saldırıya geçiyor: doğru silahı almak işe yarasın.
 WEAPON_ELEM = {
@@ -795,6 +884,10 @@ WEAPON_ELEM = {
     "fine_bow":"physical",   "shadow_bow":"shadow",
     "arcane_staff":"fire",   "elder_staff":"ice",
     "holy_scepter":"holy",
+    "war_axe":"physical",    "crown_blade":"holy",
+    "hunter_bow":"physical", "storm_bow":"ice",
+    "ember_rod":"fire",      "void_staff":"shadow",
+    "oak_staff":"nature",    "dawn_scepter":"holy",
 }
 
 # Zırh ve muskalar bir elemente karşı koruma veriyor: hangi bölgeye
@@ -805,6 +898,13 @@ EQUIP_RESIST = {
     "scout_coat":("ice",0.80),       "mana_gem":("ice",0.85),
     "warrior_crest":("physical",0.85), "archer_token":("nature",0.85),
     "mage_focus":("fire",0.85),      "power_ring":("earth",0.85),
+    "chain_mail":("physical",0.82),  "guardian_plate":("earth",0.70),
+    "arch_robe":("fire",0.70),       "ranger_cloak":("nature",0.72),
+    "saint_robe":("shadow",0.68),    "travel_boots":("earth",0.90),
+    "wind_greaves":("ice",0.80),     "ruby_ring":("fire",0.80),
+    "jade_ring":("nature",0.80),     "obsidian_ring":("shadow",0.82),
+    "moon_pendant":("holy",0.80),    "ember_charm":("fire",0.78),
+    "sage_talisman":("shadow",0.80),
 }
 
 # Düşman dayanıklılığı: bazı türler 2 vuruşta ölüyordu. Çarpanları tek
@@ -825,6 +925,13 @@ AGGRO = {
     "golem":         (5, 15),   # geç fark eder ama bir kez uyandı mı bırakmaz
     "shadow_knight": (7, 11),
     "malachar":     (12, 99),   # boss: oda sınırları içinde her zaman takip eder
+    "bat":           (7, 11),   # kanat sesini duyar duymaz üstüne gelir
+    "spider":        (6, 10),   # ağına yaklaşılmasını bekler
+    "bandit":        (9, 14),   # yol kesicidir: uzaktan seçer, uzun kovalar
+    "wraith":       (10, 14),   # menzili 6; mevzi alabilsin diye erken fark eder
+    "treant":        (4, 10),   # uyandırana kadar ağaç sanırsın; ok kadar yavaş
+                                # olduğu için uzun kovalamanın anlamı yok
+    "lava_imp":      (7, 10),
 }
 
 ENEMY_TUNE = {   # tür -> (HP çarpanı, saldırı çarpanı)
@@ -832,6 +939,10 @@ ENEMY_TUNE = {   # tür -> (HP çarpanı, saldırı çarpanı)
     "goblin":(1.45,1.05), "skeleton":(1.30,1.00), "scorpion":(1.30,1.00),
     "ice_wolf":(1.30,1.00), "golem":(1.25,1.00), "shadow_knight":(1.30,1.05),
     "malachar":(1.25,1.05),
+    # Yarasanın kimliği "az can" değil "hızlı ve küçük":
+    # 0.70 çarpanıyla 1. seviyede TEK vuruşta ölüyordu.
+    "bat":(1.80,0.80), "spider":(1.15,1.05), "bandit":(1.20,1.20),
+    "wraith":(1.05,1.15), "treant":(2.10,1.25), "lava_imp":(0.95,1.15),
 }
 
 
@@ -857,41 +968,125 @@ def behavior(kind)->Dict:
 # Altın toplanıyordu ama harcanacak yer yoktu. Fiyatlar başlangıç
 # altınına (20) ve yan görev ödüllerine (40-120) göre ayarlandı.
 ITEM_PRICES = {
-    "hp_pot":28,"mp_pot":34,
+    "hp_pot":28,"mp_pot":34,"hp_pot_l":80,"mp_pot_l":95,"elixir":210,
+    "tonic_str":120,"tonic_def":120,"tonic_swift":130,
     "iron_sword":110,"steel_sword":260,"fine_bow":120,"shadow_bow":280,
     "arcane_staff":115,"elder_staff":270,"holy_scepter":130,
     "leather_armor":85,"plate_mail":240,"mage_robe":95,"healer_robe":100,"scout_coat":105,
     "swift_boots":90,"power_ring":95,"mage_focus":110,"mana_gem":100,
     "warrior_crest":115,"archer_token":105,
     "farm_tool":140,"river_gem":150,      # kalıcı nitelik veriyorlar, pahalı
+    # Ara kademe
+    "war_axe":190,"hunter_bow":195,"ember_rod":190,"oak_staff":150,
+    "chain_mail":170,"travel_boots":120,"ruby_ring":180,"jade_ring":180,
+    "moon_pendant":190,"ember_charm":185,
+    # Üst kademe — yalnızca satın alınır, sandıktan çıkmaz
+    "crown_blade":820,"storm_bow":840,"void_staff":860,"dawn_scepter":800,
+    "guardian_plate":720,"arch_robe":700,"ranger_cloak":690,"saint_robe":700,
+    "wind_greaves":560,"obsidian_ring":600,"sage_talisman":620,
 }
 SELL_RATE = 0.4     # satarken alınan oran (dükkân kâr eder)
 REST_PRICE = 18     # handa konaklama
+
+# ─── Ekipman yükseltme ───────────────────────────────────────────
+# Altının harcanacak yeri yoktu: ölçümde oyunda toplanabilecek 1730 altına
+# karşılık mağazadaki 22 eşyanın 19'u sandıklardan bedava çıkıyordu.
+# Yükseltme hem altını hem de avlanarak toplanan malzemeyi tüketiyor.
+UPGRADE_MAX = 5
+UPGRADE_COST = [(60,2),(140,3),(280,4),(500,5),(850,6)]   # (altın, malzeme)
+# Tek bir parçayı sonuna kadar yükseltmek: 1830 altın + 20 malzeme.
+
+# Düşman başına malzeme düşme olasılığı. Boss her zaman düşürür.
+MAT_DROP_CHANCE = 0.45
+
+# Ölen düşman kaç karede geri doğar (60 fps). Oyuncu 14 kareden yakınsa
+# beklemeye devam eder: gözünün önünde belirmesin.
+RESPAWN_FRAMES = 3600
+RESPAWN_MIN_DIST = 14
+
+# Seviye tavanı. Düşmanlar geri doğduğu için XP artık sınırsız; eskiden
+# oyunun tamamı 5368 XP veriyordu ve içerik seviye 10'da bitiyordu.
+MAX_LEVEL = 30
+
+# Deneyim eğrisi. Eşik her seviyede 1.55 ile çarpılıyordu; bu, oyunun
+# tamamı 5368 XP verdiği için sorun değildi ama 30. seviye 29,6 MİLYON XP
+# demek oluyordu — ulaşılamaz bir tavan tavan değildir. İlk yedi seviye
+# aynı hızda kalıyor (hikâyenin temposu bozulmasın), sonrası yumuşuyor.
+XP_EARLY = 1.55
+XP_LATE  = 1.15
+XP_KNEE  = 8
+
+
+def xp_to_next(level)->int:
+    """level seviyesinden bir sonrakine geçmek için gereken XP."""
+    if level < XP_KNEE:
+        return int(50*(XP_EARLY**(level-1)))
+    return int(50*(XP_EARLY**(XP_KNEE-1))*(XP_LATE**(level-XP_KNEE)))
+
+
+def upgrade_bonus(item_k,lvl,stat)->int:
+    """Yükseltmenin bir niteliğe kattığı miktar.
+
+    Parçanın en güçlü niteliği her kademede +1, ikinci niteliği iki
+    kademede +1 alıyor: kılıç yükseltilince kılıç kalıyor.
+    """
+    if lvl<=0 or item_k not in EQUIP_ITEMS: return 0
+    bonus=EQUIP_ITEMS[item_k][2]
+    if not bonus: return 0
+    sirali=sorted(bonus,key=lambda k:(-bonus[k],k))
+    if stat==sirali[0]: return lvl
+    if len(sirali)>1 and stat==sirali[1]: return lvl//2
+    return 0
+
+
+def upgrade_cost(lvl):
+    """lvl kademesinden bir sonrakine geçmenin bedeli, ya da None."""
+    if lvl>=UPGRADE_MAX: return None
+    return UPGRADE_COST[lvl]
 
 def item_price(key)->int:
     return ITEM_PRICES.get(key,20)
 
 def sell_price(key)->int:
+    # Malzemenin satış değeri doğrudan yazılı: alış fiyatı yok, çünkü
+    # satın alınmıyor — avlanarak toplanıyor.
+    if key in MATERIALS: return MATERIALS[key][2]
     return max(1,int(item_price(key)*SELL_RATE))
 
 # Hangi NPC neyi satıyor
 SHOPS = {
+    # Demirci: bütün kademeler + yükseltme tezgâhı. Üst kademe (crown_blade,
+    # storm_bow, void_staff, dawn_scepter ve zırhları) hiçbir sandıktan
+    # çıkmıyor; yalnızca burada satılıyor.
     "npc.demirci_boran":{
-        "stock":["iron_sword","steel_sword","fine_bow","shadow_bow","arcane_staff",
-                 "elder_staff","holy_scepter","leather_armor","plate_mail","mage_robe",
-                 "healer_robe","scout_coat"],
-        "rest":False,
+        "stock":["iron_sword","war_axe","steel_sword","crown_blade",
+                 "fine_bow","hunter_bow","shadow_bow","storm_bow",
+                 "arcane_staff","ember_rod","elder_staff","void_staff",
+                 "oak_staff","holy_scepter","dawn_scepter",
+                 "leather_armor","chain_mail","plate_mail","guardian_plate",
+                 "mage_robe","arch_robe","healer_robe","saint_robe",
+                 "scout_coat","ranger_cloak"],
+        "rest":False,"upgrade":True,
     },
     "npc.hanci_mira":{
-        "stock":["hp_pot","mp_pot","swift_boots","power_ring","mana_gem"],
+        "stock":["hp_pot","hp_pot_l","mp_pot","mp_pot_l","elixir",
+                 "swift_boots","travel_boots","power_ring","mana_gem"],
         "rest":True,
     },
     # ── Pazar tezgâhları ──
-    "npc.otaci_nesrin":{"stock":["hp_pot","mp_pot","river_gem"],"rest":False},
-    "npc.avci_doruk":{"stock":["fine_bow","shadow_bow","scout_coat","archer_token"],"rest":False},
-    "npc.tuccar_salim":{"stock":["swift_boots","power_ring","mana_gem","mage_focus",
-                                 "warrior_crest"],"rest":False},
-    "npc.ciftci_hale":{"stock":["farm_tool","hp_pot"],"rest":False},
+    "npc.otaci_nesrin":{"stock":["hp_pot","hp_pot_l","mp_pot","mp_pot_l","elixir",
+                                 "tonic_str","tonic_def","tonic_swift",
+                                 "river_gem"],"rest":False},
+    "npc.avci_doruk":{"stock":["fine_bow","hunter_bow","shadow_bow","storm_bow",
+                               "scout_coat","ranger_cloak","archer_token",
+                               "wind_greaves"],"rest":False},
+    "npc.tuccar_salim":{"stock":["swift_boots","travel_boots","wind_greaves",
+                                 "power_ring","ruby_ring","jade_ring","obsidian_ring",
+                                 "mana_gem","moon_pendant","ember_charm",
+                                 "sage_talisman","mage_focus","warrior_crest"],
+                        "rest":False},
+    "npc.ciftci_hale":{"stock":["farm_tool","hp_pot","hp_pot_l","tonic_str"],
+                       "rest":False},
 }
 
 # ─── Yan görevler ────────────────────────────────────────────────
@@ -1837,6 +2032,113 @@ class PA:
             pygame.draw.rect(s,(glow2,0,glow2//2),(11,6+bob,10,3))
             pygame.draw.rect(s,(60,35,90),(26,9+bob,3,19))
             pygame.draw.rect(s,(150,70,200),(24,12+bob,7,2))
+        elif kind=="bat":
+            # Yarasa: küçük, hızlı, kanatları kare kare çırpıyor
+            kanat=PA._bob(af,5.0)
+            for yon in (-1,1):
+                pygame.draw.polygon(s,(62,44,78),
+                    [(16,15+bob),(16+yon*15,10+bob-kanat),(16+yon*13,19+bob+kanat//2)])
+                pygame.draw.polygon(s,(92,70,112),
+                    [(16,16+bob),(16+yon*10,13+bob-kanat//2),(16+yon*9,19+bob)])
+            pygame.draw.ellipse(s,(74,54,90),(11,12+bob,10,12))
+            pygame.draw.ellipse(s,(96,74,116),(12,13+bob,7,6))
+            pygame.draw.polygon(s,(74,54,90),[(12,12+bob),(10,5+bob),(15,11+bob)])
+            pygame.draw.polygon(s,(74,54,90),[(20,12+bob),(22,5+bob),(17,11+bob)])
+            pygame.draw.circle(s,(255,120,90),(14,16+bob),2)
+            pygame.draw.circle(s,(255,120,90),(19,16+bob),2)
+            pygame.draw.rect(s,(240,236,230),(15,20+bob,1,2))
+            pygame.draw.rect(s,(240,236,230),(17,20+bob,1,2))
+        elif kind=="spider":
+            # Dev örümcek: sekiz bacak, şiş karın, sekiz göz
+            for i,(lx,ly) in enumerate(((6,19),(4,22),(5,26),(8,28))):
+                bk=step if i%2 else -step
+                pygame.draw.lines(s,(44,34,44),False,
+                                  [(13,21+bob),(lx,ly+bob+bk),(lx-3,ly+5+bob)],2)
+                pygame.draw.lines(s,(44,34,44),False,
+                                  [(19,21+bob),(32-lx,ly+bob-bk),(35-lx,ly+5+bob)],2)
+            pygame.draw.ellipse(s,(58,44,56),(9,18+bob,15,13))     # karın
+            pygame.draw.ellipse(s,(84,64,80),(11,19+bob,10,7))
+            for mx,my in ((13,22),(18,24),(16,28)):
+                pygame.draw.circle(s,(214,200,120),(mx,my+bob),2)
+            pygame.draw.ellipse(s,(48,36,48),(11,10+bob,11,10))    # baş göğüs
+            for ex,ey,r in ((13,13,2),(19,13,2),(14,17,1),(18,17,1)):
+                pygame.draw.circle(s,(230,70,70),(ex,ey+bob),r)
+            pygame.draw.line(s,(40,30,40),(12,19+bob),(9,22+bob),2)
+            pygame.draw.line(s,(40,30,40),(21,19+bob),(24,22+bob),2)
+        elif kind=="bandit":
+            # Haydut: kukuletalı insan, elinde hançer
+            pygame.draw.rect(s,(58,52,46),(11,26+bob,4,5+step//2))
+            pygame.draw.rect(s,(58,52,46),(18,26+bob,4,5-step//2))
+            pygame.draw.polygon(s,(94,74,52),[(9,16+bob),(24,16+bob),(26,28+bob),(7,28+bob)])
+            pygame.draw.rect(s,(126,100,70),(12,18+bob,9,7))
+            pygame.draw.rect(s,(72,56,38),(8,22+bob,18,3))          # kemer
+            pygame.draw.rect(s,(206,170,80),(15,21+bob,4,4))        # toka
+            pygame.draw.polygon(s,(66,58,50),[(10,14+bob),(23,14+bob),(21,4+bob),(12,4+bob)])
+            pygame.draw.ellipse(s,(196,160,122),(12,8+bob,10,9))    # yüz
+            pygame.draw.polygon(s,(52,46,40),[(10,12+bob),(23,12+bob),(21,3+bob),(12,3+bob)])
+            pygame.draw.rect(s,(40,36,34),(12,10+bob,10,3))         # gözleri gölgede
+            pygame.draw.circle(s,(250,230,120),(15,11+bob),1)
+            pygame.draw.circle(s,(250,230,120),(19,11+bob),1)
+            pygame.draw.line(s,(78,62,44),(25,20+bob),(25,24+bob),2) # hançer
+            pygame.draw.polygon(s,(214,218,226),[(24,20+bob),(27,20+bob),(25,11+bob)])
+        elif kind=="wraith":
+            # Hayalet: ayağı yok, paçavra kefen, boşlukta süzülüyor
+            sv=PA._bob(af,3.0)
+            aa=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*55)+30
+            asurf=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
+            pygame.draw.circle(asurf,(150,170,220,aa),(16,16),14);s.blit(asurf,(0,0))
+            etek=[(7,16+sv),(25,16+sv)]
+            for i,ox in enumerate((25,21,17,13,9,5)):
+                etek.append((ox,(30 if i%2 else 26)+sv))
+            pygame.draw.polygon(s,(74,84,112),etek)
+            pygame.draw.polygon(s,(104,116,148),
+                                [(10,16+sv),(22,16+sv),(20,25+sv),(12,25+sv)])
+            pygame.draw.ellipse(s,(88,98,128),(9,4+sv,14,14))        # kukuleta
+            pygame.draw.ellipse(s,(18,20,30),(11,7+sv,10,10))        # içi karanlık
+            gl=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*120)+110
+            pygame.draw.circle(s,(gl,gl//2,255),(13,12+sv),2)
+            pygame.draw.circle(s,(gl,gl//2,255),(19,12+sv),2)
+            pygame.draw.line(s,(104,116,148),(6,14+sv),(2,20+sv),2)  # kol gibi paçavra
+            pygame.draw.line(s,(104,116,148),(26,14+sv),(30,20+sv),2)
+        elif kind=="treant":
+            # Ağaç kök: gövde beden, dal kollar, yapraklı taç
+            pygame.draw.polygon(s,(74,54,34),[(10,27+bob),(6,31+bob),(14,31+bob)])
+            pygame.draw.polygon(s,(74,54,34),[(21,27+bob),(17,31+bob),(26,31+bob)])
+            pygame.draw.rect(s,(96,70,42),(10,14+bob,12,14))
+            pygame.draw.rect(s,(118,88,54),(12,15+bob,5,12))
+            for yy in (17,21,25):
+                pygame.draw.line(s,(68,48,30),(11,yy+bob),(21,yy+bob),1)
+            pygame.draw.lines(s,(86,62,38),False,
+                              [(10,18+bob),(4,14+bob-step),(1,8+bob)],2)
+            pygame.draw.lines(s,(86,62,38),False,
+                              [(22,18+bob),(28,14+bob+step),(31,8+bob)],2)
+            for cxx,cyy,r in ((16,7,8),(8,9,6),(24,9,6),(16,3,5)):
+                pygame.draw.circle(s,(30,80,38),(cxx,cyy+bob),r)
+            for cxx,cyy,r in ((14,6,5),(22,8,4),(9,8,3)):
+                pygame.draw.circle(s,(52,118,54),(cxx,cyy+bob),r)
+            pygame.draw.circle(s,(230,200,70),(13,18+bob),2)         # gözler
+            pygame.draw.circle(s,(230,200,70),(19,18+bob),2)
+            pygame.draw.circle(s,BK,(13,18+bob),1);pygame.draw.circle(s,BK,(19,18+bob),1)
+        elif kind=="lava_imp":
+            # Köz cini: küçük, boynuzlu, içi yanıyor
+            par=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*70)+120
+            asurf=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
+            pygame.draw.circle(asurf,(240,90,20,70),(16,18),12);s.blit(asurf,(0,0))
+            pygame.draw.rect(s,(104,34,24),(11,26+bob,4,5+step//2))
+            pygame.draw.rect(s,(104,34,24),(18,26+bob,4,5-step//2))
+            pygame.draw.ellipse(s,(150,48,28),(9,15+bob,15,13))
+            pygame.draw.ellipse(s,(196,74,36),(11,16+bob,10,7))
+            for fx,fy in ((13,22),(18,20),(16,25)):
+                pygame.draw.circle(s,(par,110,30),(fx,fy+bob),2)
+            pygame.draw.ellipse(s,(166,56,30),(10,5+bob,13,12))      # kafa
+            pygame.draw.polygon(s,(74,26,18),[(10,7+bob),(6,bob),(13,5+bob)])
+            pygame.draw.polygon(s,(74,26,18),[(22,7+bob),(26,bob),(19,5+bob)])
+            pygame.draw.circle(s,(255,230,120),(14,10+bob),2)
+            pygame.draw.circle(s,(255,230,120),(19,10+bob),2)
+            pygame.draw.circle(s,BK,(14,10+bob),1);pygame.draw.circle(s,BK,(19,10+bob),1)
+            pygame.draw.line(s,(255,180,60),(13,14+bob),(20,14+bob),1)
+            pygame.draw.line(s,(150,48,28),(23,20+bob),(29,16+bob-step),2)  # kuyruk
+            pygame.draw.circle(s,(par,120,40),(30,15+bob-step),2)
         elif kind=="malachar":
             sc=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA);b2=PA._bob(af,3.0)
             aa2=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*80)+40
@@ -1864,6 +2166,13 @@ class PA:
             pygame.draw.line(s,(180,140,60),(2,9),(15,9),2)
             pygame.draw.polygon(s,(220,180,80),[(15,6),(15,12),(18,9)])
             pygame.draw.line(s,(200,160,70),(2,8),(5,7),1);pygame.draw.line(s,(200,160,70),(2,10),(5,11),1)
+        elif kind=="web":
+            pygame.draw.circle(s,(226,226,236),(9,9),7,1)
+            pygame.draw.circle(s,(206,206,220),(9,9),4,1)
+            for i in range(6):
+                ang=i*1.05+frame*0.08
+                pygame.draw.line(s,(236,236,246),(9,9),
+                                 (int(9+7*math.cos(ang)),int(9+7*math.sin(ang))),1)
         elif kind=="fireball":
             glow=int(abs(math.sin(frame*0.15))*40)+180
             pygame.draw.circle(s,(glow,80,20),(9,9),7);pygame.draw.circle(s,(255,160,40),(9,9),5)
@@ -2138,6 +2447,8 @@ class PlayerStats:
         # Yuvalar EQUIP_SLOTS'tan türetiliyor: elle yazılınca yuva eklendiğinde
         # burası güncellenmiyor ve bot/muska takmak KeyError veriyordu.
         self.equipment:Dict[str,Optional[str]]={s:None for s in EQUIP_SLOTS}
+        # Demircide yükseltilen parçaların kademesi: anahtar -> 0..UPGRADE_MAX
+        self.upgrades:Dict[str,int]={}
         # Sınıfa özel auto-attack cooldown
         self.atk_cd=0
 
@@ -2170,6 +2481,7 @@ class PlayerStats:
             if item_k and item_k in EQUIP_ITEMS:
                 _,_,bonus,_,_=EQUIP_ITEMS[item_k]
                 total+=bonus.get(stat,0)
+                total+=upgrade_bonus(item_k,self.upgrades.get(item_k,0),stat)
         return total
 
     def equip_reason(self,item_k)->Optional[str]:
@@ -2202,9 +2514,11 @@ class PlayerStats:
     def heal(self,amt): self.hp=min(self.hp+amt,self.max_hp)
     def restore_mp(self,amt): self.mp=min(self.mp+amt,self.max_mp)
     def gain_xp(self,amt)->bool:
+        if self.level>=MAX_LEVEL:
+            self.xp=0;return False
         self.xp+=amt
         if self.xp>=self.xp_next:
-            self.xp-=self.xp_next;self.level+=1;self.xp_next=int(self.xp_next*1.55)
+            self.xp-=self.xp_next;self.level+=1;self.xp_next=xp_to_next(self.level)
             self.skill_points+=3;self.heal(20);self.restore_mp(10);return True
         return False
     def tick_cds(self):
@@ -2318,9 +2632,20 @@ class Enemy(Entity):
         self.agro_range=a_fark*TILE;self.leash_range=a_birak*TILE
         self.loot=loot or [];self.is_boss=is_boss
         self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
+        # Geri doğum: öldüğü yerde değil, doğduğu karede geri gelir.
+        # respawn_at None ise bir daha doğmaz (boss).
+        self.home=(tx,ty);self.respawn_at=None
         self.wind_up=0;self.atk_cd=0   # saldırı telegrafı
         self.wind_kind="melee"        # hazırlanan saldırının türü
         self.shoot_cd=0               # menzilli saldırı beklemesi
+
+    def diril(self):
+        """Düşmanı doğduğu karede, dolu canla geri getirir."""
+        self.hp=self.max_hp;self.alive=True;self.state="idle"
+        self.frozen=0;self.wind_up=0;self.atk_cd=0;self.shoot_cd=0
+        self.respawn_at=None
+        self.snap(*self.home)
+
     def draw(self,surf,cx,cy):
         if not self.alive: return
         bx=int(self.px-cx); by=int(self.py-cy)
@@ -2692,6 +3017,7 @@ def _snap_all(m):
             if(tx2,ty2) not in occ: tx,ty=tx2,ty2;break
             att+=1
         e.snap(tx,ty);occ.add((tx,ty))
+        if isinstance(e,Enemy): e.home=(tx,ty)
 
 def _add_trans(m,tiles,dst,dtx,dty,ground=T.GRASS,hint_dir=(1,0)):
     """Geçiş ekle — tile normal zemin olur, görsel ok gösterilir."""
@@ -2886,8 +3212,8 @@ def build_ashveil():
     _path(m, 38, 30, 38, 24, T.ROAD, 2)
     # Sandıklar
     m.set(18, 10, T.CHEST); m.chests[(18,10)] = ["hp_pot","gold"]
-    m.set(36, 10, T.CHEST); m.chests[(36,10)] = ["mp_pot","iron_sword"]
-    m.set(18, 32, T.CHEST); m.chests[(18,32)] = ["leather_armor","gold"]
+    m.set(36, 10, T.CHEST); m.chests[(36,10)] = ["mp_pot","iron_sword","slime_jelly"]
+    m.set(18, 32, T.CHEST); m.chests[(18,32)] = ["leather_armor","gold","hp_pot"]
     # Zindan — taş yol üzerinde
     _path(m, 28, 44, 34, 44, T.PATH, 2)
     _trans_strip(m, 'y', 46, 28, 34, "village_dungeon", 9, 5, T.DIRT, (0,1),
@@ -2975,6 +3301,8 @@ def build_ashveil():
         Enemy(48,12,"slime",20,4,12,agro=4,loot=["gold"]),
         Enemy(52,8, "slime",20,4,12,agro=4),
         Enemy(56,14,"goblin",35,7,22,agro=5,loot=["hp_pot"]),
+        Enemy(50,16,"bat",18,5,14,agro=4),
+        Enemy(54,6, "bat",18,5,14,agro=4,loot=["gold"]),
     ]
     _snap_all(m); return m
 
@@ -3025,8 +3353,8 @@ def build_dark_forest():
 
     # Sandıklar
     m.set(16,14,T.CHEST); m.chests[(16,14)] = ["hp_pot","fine_bow"]
-    m.set(40,14,T.CHEST); m.chests[(40,14)] = ["mp_pot","power_ring"]
-    m.set(16,30,T.CHEST); m.chests[(16,30)] = ["leather_armor","gold"]
+    m.set(40,14,T.CHEST); m.chests[(40,14)] = ["mp_pot","power_ring","beast_pelt"]
+    m.set(16,30,T.CHEST); m.chests[(16,30)] = ["leather_armor","gold","tonic_str"]
 
     def roland_d(f):
         R=lambda a,b:["dlg.roland.%d"%i for i in range(a,b)]
@@ -3042,6 +3370,9 @@ def build_dark_forest():
         Enemy(16,32,"skeleton",50,11,32,agro=6,loot=["mp_pot"]),
         Enemy(40,32,"goblin",45,10,28,agro=6,loot=["gold"]),
         Enemy(30,28,"wolf",42,9,22,agro=5,loot=["gold"]),
+        Enemy(12,20,"spider",40, 9,28,agro=5,loot=["hp_pot"]),
+        Enemy(44,26,"spider",40, 9,28,agro=5),
+        Enemy(34,38,"treant",70,12,44,agro=4,loot=["gold","gold"]),
     ]
     _snap_all(m); return m
 
@@ -3086,8 +3417,8 @@ def build_rocky_pass():
     _trans_strip(m,'x',46,15,23, "ruins",          2,21, T.GRAVEL,(1,0),style="ruin")
 
     m.set(8,  4, T.CHEST); m.chests[(8, 4)]  = ["hp_pot","hp_pot","gold"]
-    m.set(36, 4, T.CHEST); m.chests[(36,4)]  = ["mp_pot","power_ring"]
-    m.set(24,28, T.CHEST); m.chests[(24,28)] = ["hp_pot","iron_sword","gold"]
+    m.set(36, 4, T.CHEST); m.chests[(36,4)]  = ["mp_pot","mp_pot_l","bone_dust"]
+    m.set(24,28, T.CHEST); m.chests[(24,28)] = ["hp_pot","hp_pot_l","gold","iron_ore"]
 
     def scout_d(f): return ["dlg.scout.%d"%i for i in range(1,8)]
     m.npcs.append(NPC(24,16,"npc.gecit_gozcusu",(160,140,100),scout_d,"guard"))
@@ -3099,6 +3430,9 @@ def build_rocky_pass():
         Enemy(36,18,"wolf",  38,9,22,agro=5),
         Enemy(14,26,"skeleton",52,11,30,agro=5,loot=["mp_pot"]),
         Enemy(32,26,"skeleton",52,11,30,agro=5,loot=["gold"]),
+        Enemy(22,10,"bandit",  54,12,36,agro=6,loot=["hp_pot"]),
+        Enemy(26,32,"bandit",  54,12,36,agro=6,loot=["gold"]),
+        Enemy(40,12,"bat",     22, 7,18,agro=5),
     ]
     _snap_all(m); return m
 
@@ -3147,9 +3481,9 @@ def build_misty_swamp():
     _trans_strip(m,'x',2, 18,22, "south_meadow", 52,23, T.DIRT,(-1,0),style="arch")
 
     m.set(26,20, T.CHEST); m.chests[(26,20)] = ["hp_pot","mp_pot","gold"]
-    m.set(48,20, T.CHEST); m.chests[(48,20)] = ["hp_pot","power_ring"]
+    m.set(48,20, T.CHEST); m.chests[(48,20)] = ["hp_pot","tonic_def","venom_sac"]
     m.set(10,20, T.CHEST); m.chests[(10,20)] = ["hp_pot","gold","gold"]
-    m.set(46,20, T.CHEST); m.chests[(46,20)] = ["mp_pot","fine_bow"]
+    m.set(46,20, T.CHEST); m.chests[(46,20)] = ["mp_pot","hunter_bow","spider_silk"]
 
     def witch_d(f): return ["dlg.witch.%d"%i for i in range(1,8)]
     m.npcs.append(NPC(30,19,"npc.bataklik_cadisi",(100,160,100),witch_d,"oracle"))
@@ -3163,6 +3497,8 @@ def build_misty_swamp():
         Enemy(44,30,"skeleton",52,11,30,agro=5,loot=["gold"]),
         Enemy(26,10,"boar",    45,10,28,agro=5,loot=["gold"]),
         Enemy(32,32,"boar",    45,10,28,agro=5),
+        Enemy(20,12,"spider",  42,10,29,agro=5,loot=["gold"]),
+        Enemy(48,34,"treant",  76,13,47,agro=4,loot=["mp_pot"]),
     ]
     _snap_all(m); return m
 
@@ -3201,8 +3537,8 @@ def build_ruins():
     m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["hp_pot","mp_pot"]
     m.set(20, 5,T.CHEST); m.chests[(20,5)] = ["arcane_staff","gold"]
     m.set(42, 5,T.CHEST); m.chests[(42,5)] = ["mage_robe","gold","scroll1"]
-    m.set(6, 20,T.CHEST); m.chests[(6,20)] = ["hp_pot","power_ring"]
-    m.set(44,44,T.CHEST); m.chests[(44,44)]= ["earth_c","hp_pot","hp_pot"]
+    m.set(6, 20,T.CHEST); m.chests[(6,20)] = ["hp_pot_l","power_ring","iron_ore","bone_dust"]
+    m.set(44,44,T.CHEST); m.chests[(44,44)]= ["earth_c","hp_pot_l","elixir","titan_core"]
 
     def ghost_d(f):
         G=lambda a,b:["dlg.ghost.%d"%i for i in range(a,b)]
@@ -3215,6 +3551,9 @@ def build_ruins():
         Enemy(24,19,"skeleton",60,12,35,agro=5,loot=["hp_pot"]),
         Enemy(8, 33,"golem",  85,16,48,agro=4),
         Enemy(24,33,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
+        Enemy(18,24,"wraith",  62,14,42,agro=6,loot=["mp_pot"]),
+        Enemy(40,10,"spider",  58,12,36,agro=5,loot=["gold"]),
+        Enemy(46,20,"bat",     26, 8,20,agro=5),
         Enemy(46,44,"golem", 130,20,80,agro=6,loot=["earth_c"],is_boss=True),
     ]
     _snap_all(m); return m
@@ -3245,8 +3584,8 @@ def build_desert():
     _trans_strip(m,'y',2, 24,32, "rocky_pass",22,35, T.SAND,(0,-1),style="pass")
     _trans_strip(m,'y',42,26,32, "ember_valley",28,6, T.SAND,(0,1),style="ash")
     m.set(5, 28,T.CHEST); m.chests[(5,28)]  = ["hp_pot","hp_pot","gold"]
-    m.set(54,28,T.CHEST); m.chests[(54,28)] = ["shadow_bow","gold"]
-    m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot","scroll2"]
+    m.set(54,28,T.CHEST); m.chests[(54,28)] = ["hunter_bow","gold","venom_sac","venom_sac"]
+    m.set(30, 7,T.CHEST); m.chests[(30,7)]  = ["mage_focus","hp_pot_l","scroll2","oracle_lens"]
     def oracle_d(f):
         O=lambda a,b:["dlg.oracle.%d"%i for i in range(a,b)]
         if f.get("water_crystal"): return O(1,6)
@@ -3262,6 +3601,8 @@ def build_desert():
         Enemy(48,34,"goblin",  50,11,32,agro=5,loot=["gold"]),
         Enemy(22,10,"scorpion",50,12,35,agro=6),
         Enemy(38,34,"goblin",  55,12,35,agro=5,loot=["mp_pot"]),
+        Enemy(44,24,"bandit",  58,13,40,agro=6,loot=["gold"]),
+        Enemy(14,24,"bandit",  58,13,40,agro=6,loot=["hp_pot"]),
     ]
     _snap_all(m); return m
 
@@ -3295,8 +3636,8 @@ def build_ice_cave():
                  style="door")
     m.set(5, 6,T.CHEST); m.chests[(5,6)]   = ["hp_pot","mp_pot"]
     m.set(19, 6,T.CHEST); m.chests[(19,6)] = ["scout_coat","gold","scroll3"]
-    m.set(5, 19,T.CHEST); m.chests[(5,19)] = ["hp_pot","mp_pot"]
-    m.set(38,42,T.CHEST); m.chests[(38,42)]= ["water_c","hp_pot","mp_pot","hp_pot"]
+    m.set(5, 19,T.CHEST); m.chests[(5,19)] = ["hp_pot_l","mp_pot_l","frost_shard"]
+    m.set(38,42,T.CHEST); m.chests[(38,42)]= ["water_c","elixir","mp_pot_l","wind_feather"]
     def spirit_d(f):
         S=lambda a,b:["dlg.spirit.%d"%i for i in range(a,b)]
         return S(1,6) if f.get("water_crystal") else S(6,11)
@@ -3310,6 +3651,9 @@ def build_ice_cave():
         Enemy(8, 19,"ice_wolf",60,13,38,agro=5),
         Enemy(22,22,"golem",  80,15,45,agro=4,loot=["mp_pot"]),
         Enemy(8, 34,"golem",  85,16,50,agro=4,loot=["hp_pot"]),
+        Enemy(24,10,"bat",    30, 9,24,agro=5),
+        Enemy(42,26,"bat",    30, 9,24,agro=5,loot=["gold"]),
+        Enemy(18,40,"wraith", 70,15,48,agro=6,loot=["mp_pot"]),
         Enemy(40,41,"golem", 180,25,120,agro=7,loot=["water_c"],is_boss=True),
     ]
     _snap_all(m); return m
@@ -3345,8 +3689,8 @@ def build_ember_valley():
     _trans_strip(m,'y',2, 23,29, "desert", 28,38, T.ASH,(0,-1))
 
     m.set(7, 22,T.CHEST); m.chests[(7,22)]  = ["hp_pot","hp_pot","gold"]
-    m.set(47,22,T.CHEST); m.chests[(47,22)] = ["elder_staff","gold"]
-    m.set(25, 7,T.CHEST); m.chests[(25,7)]  = ["holy_scepter","mp_pot"]
+    m.set(47,22,T.CHEST); m.chests[(47,22)] = ["ember_rod","gold","ember_core","ember_core"]
+    m.set(25, 7,T.CHEST); m.chests[(25,7)]  = ["oak_staff","mp_pot_l","ember_core"]
 
     def warden_d(f):
         W=lambda a,b:["dlg.koz.%d"%i for i in range(a,b)]
@@ -3363,6 +3707,10 @@ def build_ember_valley():
         Enemy(26,16,"golem",  110,19,55,agro=5,loot=["power_ring"]),
         Enemy(12,40,"shadow_knight",105,20,60,agro=6,loot=["gold"]),
         Enemy(42,40,"shadow_knight",105,20,60,agro=6,loot=["mp_pot"]),
+        Enemy(16,20,"lava_imp", 54,14,38,agro=5,loot=["gold"]),
+        Enemy(38,24,"lava_imp", 54,14,38,agro=5,loot=["hp_pot"]),
+        Enemy(30,36,"lava_imp", 58,15,41,agro=5),
+        Enemy(20,12,"lava_imp", 58,15,41,agro=5,loot=["mp_pot"]),
     ]
     _snap_all(m); return m
 
@@ -3387,9 +3735,9 @@ def build_shadow_castle():
     # GEÇİŞ
     _trans_strip(m,'x',2, 23,30, "ice_cave",  8,44, T.FLOOR,(-1,0),style="door")
     m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["hp_pot","hp_pot","mp_pot"]
-    m.set(48, 5,T.CHEST); m.chests[(48,5)] = ["warrior_crest","hp_pot"]
-    m.set(5, 44,T.CHEST); m.chests[(5,44)] = ["hp_pot","hp_pot","steel_sword"]
-    m.set(48,44,T.CHEST); m.chests[(48,44)]= ["mage_focus","elder_staff"]
+    m.set(48, 5,T.CHEST); m.chests[(48,5)] = ["warrior_crest","hp_pot_l","shadow_shard"]
+    m.set(5, 44,T.CHEST); m.chests[(5,44)] = ["hp_pot_l","elixir","shadow_shard","ghost_veil"]
+    m.set(48,44,T.CHEST); m.chests[(48,44)]= ["mage_focus","tonic_swift","shadow_shard","ghost_veil"]
     def king_d(f):
         K=lambda a,b:["dlg.king.%d"%i for i in range(a,b)]
         return K(1,7) if f.get("malachar_defeated") else K(7,13)
@@ -3401,6 +3749,9 @@ def build_shadow_castle():
         Enemy(46,44,"shadow_knight",110,22,70,agro=6,loot=["gold"]),
         Enemy(10,26,"shadow_knight",120,24,75,agro=7,loot=["hp_pot","mp_pot"]),
         Enemy(44,26,"shadow_knight",120,24,75,agro=7),
+        Enemy(16,12,"wraith",  95,20,62,agro=7,loot=["mp_pot"]),
+        Enemy(40,38,"wraith",  95,20,62,agro=7,loot=["gold"]),
+        Enemy(27,12,"bat",     34,11,28,agro=6),
         Enemy(27,26,"malachar",500,35,999,agro=10,loot=["gold","gold"],is_boss=True),
     ]
     _snap_all(m); return m
@@ -3422,15 +3773,17 @@ def build_village_dungeon():
     # GEÇİŞ (oda içinden, kuzey)
     _trans_strip(m,'y',2,  7,12, "ashveil", 29,45, T.FLOOR,(0,-1),style="cave")
     m.set(6, 5,T.CHEST); m.chests[(6,5)]   = ["hp_pot","mp_pot","gold"]
-    m.set(30, 5,T.CHEST); m.chests[(30,5)] = ["steel_sword","leather_armor","gold"]
+    m.set(30, 5,T.CHEST); m.chests[(30,5)] = ["war_axe","leather_armor","gold","iron_ore"]
     m.set(6, 26,T.CHEST); m.chests[(6,26)] = ["arcane_staff","mage_robe"]
-    m.set(30,26,T.CHEST); m.chests[(30,26)]= ["hp_pot","hp_pot","mp_pot","swift_boots"]
+    m.set(30,26,T.CHEST); m.chests[(30,26)]= ["hp_pot_l","mp_pot","swift_boots","bone_dust","iron_ore"]
     m.enemies += [
         Enemy(12, 7,"skeleton",70,14,45,agro=5,loot=["gold","gold"]),
         Enemy(28, 6,"golem",  100,18,60,agro=4,loot=["hp_pot","gold"]),
         Enemy(8, 26,"skeleton",80,16,50,agro=5,loot=["mp_pot"]),
         Enemy(30,26,"golem",  110,20,65,agro=4,loot=["gold","gold"]),
         Enemy(20,22,"skeleton",90,17,55,agro=6,loot=["hp_pot","gold"]),
+        Enemy(14,14,"bat",     28, 9,22,agro=5),
+        Enemy(26,16,"spider",  66,14,42,agro=5,loot=["gold"]),
     ]
     _snap_all(m); return m
 
@@ -3457,7 +3810,7 @@ def build_south_meadow():
     # Doğu → Sisli Bataklık: çayır artık çıkmaz sokak değil
     _trans_strip(m,'x',54,20,26, "misty_swamp", 8,20, T.DIRT,(1,0),style="arch")
     m.set(8, 30,T.CHEST); m.chests[(8,30)]  = ["farm_tool","hp_pot","gold"]
-    m.set(46,22,T.CHEST); m.chests[(46,22)] = ["hp_pot","mana_gem"]
+    m.set(46,22,T.CHEST); m.chests[(46,22)] = ["hp_pot","mana_gem","boar_tusk","tonic_swift"]
     def farmer_d(f): return ["dlg.farmer.%d"%i for i in range(1,7)]
     m.npcs.append(NPC(10,30,"npc.ciftci_torben",(160,120,80),farmer_d,"farmer"))
     def kid_d(f): return ["dlg.kid.%d"%i for i in range(1,6)]
@@ -3474,6 +3827,8 @@ def build_south_meadow():
         Enemy(12, 5,"slime",25, 5,15,agro=4),
         Enemy(48,32,"wolf", 45,10,28,agro=5,loot=["hp_pot"]),
         Enemy(50,36,"wolf", 45,10,28,agro=5),
+        Enemy(30,20,"spider",34, 8,24,agro=5,loot=["gold"]),
+        Enemy(44,16,"bandit",48,11,34,agro=5,loot=["hp_pot"]),
     ]
     _snap_all(m); return m
 
@@ -3502,7 +3857,7 @@ def build_west_river():
                  style="door")
     m.set(5, 16,T.CHEST); m.chests[(5,16)]  = ["river_gem","mp_pot","gold"]
     m.set(46,  5,T.CHEST); m.chests[(46,5)] = ["hp_pot","hp_pot","mana_gem"]
-    m.set(46, 33,T.CHEST); m.chests[(46,33)]= ["fine_bow","gold"]
+    m.set(46, 33,T.CHEST); m.chests[(46,33)]= ["fine_bow","gold","spider_silk","tonic_def"]
     def fisher_d(f):
         F=lambda a,b:["dlg.fisher.%d"%i for i in range(a,b)]
         return F(1,7) if f.get("sq_fish_done") else F(7,14)
@@ -3516,6 +3871,8 @@ def build_west_river():
         Enemy(40,34,"goblin",  45,10,28,agro=5,loot=["gold"]),
         Enemy(36,18,"skeleton",50,11,30,agro=5,loot=["mp_pot"]),
         Enemy(40,22,"skeleton",50,11,30,agro=5,loot=["gold"]),
+        Enemy(20,28,"bandit",50,11,33,agro=5,loot=["gold"]),
+        Enemy(46,38,"treant",72,12,45,agro=4,loot=["hp_pot"]),
     ]
     _snap_all(m); return m
 
@@ -3539,8 +3896,8 @@ def build_mystic_library():
     _trans_strip(m,'y',2, 18,26, "west_river",13, 4, T.FLOOR,(0,-1),style="door")
     m.set(5, 5,T.CHEST); m.chests[(5,5)]   = ["arcane_staff","mp_pot","gold"]
     m.set(37, 5,T.CHEST); m.chests[(37,5)] = ["mage_focus","mp_pot"]
-    m.set(5, 30,T.CHEST); m.chests[(5,30)] = ["elder_staff","mp_pot","mp_pot"]
-    m.set(37,30,T.CHEST); m.chests[(37,30)]= ["hp_pot","mp_pot","swift_boots","gold"]
+    m.set(5, 30,T.CHEST); m.chests[(5,30)] = ["ember_rod","mp_pot_l","mp_pot","ghost_veil"]
+    m.set(37,30,T.CHEST); m.chests[(37,30)]= ["hp_pot_l","mp_pot_l","travel_boots","gold","bone_dust"]
     def libr_d(f):
         n=sum(1 for k in["sq_scroll1","sq_scroll2","sq_scroll3"] if f.get(k))
         if n>=3: return ["dlg.libr.%d"%i for i in range(1,7)]
@@ -3553,6 +3910,8 @@ def build_mystic_library():
         Enemy(10,26,"golem",   90,16,52,agro=4,loot=["gold"]),
         Enemy(28,26,"golem",   90,16,52,agro=4,loot=["gold"]),
         Enemy(21,18,"skeleton",75,14,45,agro=6,loot=["mp_pot","gold"]),
+        Enemy(14,30,"wraith",  72,15,48,agro=6,loot=["mp_pot"]),
+        Enemy(32,12,"wraith",  72,15,48,agro=6,loot=["gold"]),
     ]
     _snap_all(m); return m
 
@@ -4363,8 +4722,9 @@ class UI:
         self.txt(surf,gold_s,px+pw-self.fmd.size(gold_s)[0]-16,py+14,UI_GD,self.fmd)
 
         # Sekmeler
-        tw=150
-        for i,label in enumerate((T_("ui.shop_buy"),T_("ui.shop_sell"))):
+        sekmeler=[T_(x) for x in self.shop_tabs(shop)]
+        tw=150 if len(sekmeler)<3 else 128
+        for i,label in enumerate(sekmeler):
             active=(i==tab)
             tx0=px+16+i*(tw+6)
             ts=pygame.Surface((tw,24),pygame.SRCALPHA)
@@ -4377,6 +4737,9 @@ class UI:
                 b=self.fsm.render("[TAB]",True,(pulse,pulse,120))
                 surf.blit(b,(tx0+tw-b.get_width()-6,py+52))
 
+        if tab==2:
+            self._draw_upgrade_tab(surf,player,px,py,pw,ph,sel,msg)
+            return
         rows=self.shop_rows(player,shop,tab)
         top=max(0,min(sel-self.SHOP_ROWS//2,len(rows)-self.SHOP_ROWS))
         y=py+82
@@ -4413,6 +4776,76 @@ class UI:
         if msg:
             self.txt_c(surf,msg[0],px+pw//2,py+ph-62,msg[1],self.fmd)
         self.txt(surf,hint,px+16,py+ph-20,GR,self.fsm)
+
+    def _draw_upgrade_tab(self,surf,player,px,py,pw,ph,sel,msg):
+        """Demirci tezgâhı: giyili parçaların kademesi, bedeli ve kazancı."""
+        st=player.stats
+        elde=sum(1 for k in player.inventory if k in MATERIALS)
+        bilgi=T_("ui.upg_materials",elde)
+        self.txt(surf,bilgi,px+16,py+78,UI_CY,self.fss)
+        rows=self.upgrade_rows(player)
+        if not rows:
+            self.txt(surf,T_("ui.upg_nothing"),px+30,py+110,GR,self.fss)
+            self.txt(surf,T_("ui.shop_keys_upgrade"),px+16,py+ph-20,GR,self.fsm)
+            return
+        y=py+102
+        for i,(k,altin,mal,ok,lvl) in enumerate(rows):
+            sel_this=(i==sel)
+            rs=pygame.Surface((pw-32,46),pygame.SRCALPHA)
+            rs.fill((*UI_AC,55) if sel_this else (*UI_BD,20))
+            if sel_this: pygame.draw.rect(rs,UI_AC,(0,0,pw-32,46),2)
+            surf.blit(rs,(px+16,y))
+            itm=ALL_ITEMS.get(k);col=itm[1] if itm else WH
+            pygame.draw.rect(surf,col,(px+24,y+10,24,24))
+            pygame.draw.rect(surf,WH,(px+24,y+10,24,24),1)
+            surf.blit(PA.equip_icon(EQUIP_ITEMS[k][3],col),(px+22,y+8))
+            ad=item_name(k)+(" +%d"%lvl if lvl else "")
+            self.txt(surf,ad,px+58,y+6,WH if ok or lvl>=UPGRADE_MAX else (150,145,150),self.fss)
+            # Kademenin ne kattigi
+            bonus=EQUIP_ITEMS[k][2]
+            parca=[]
+            for st_k in sorted(bonus,key=lambda x:(-bonus[x],x)):
+                top_=bonus[st_k]+upgrade_bonus(k,lvl,st_k)
+                # En üst kademede artık kazanç yok: "(+1)" yazmak
+                # alınamayacak bir şey vaat ediyordu.
+                art=0 if lvl>=UPGRADE_MAX else                     upgrade_bonus(k,lvl+1,st_k)-upgrade_bonus(k,lvl,st_k)
+                parca.append("%s+%d%s"%(st_k.upper(),top_,(" (+%d)"%art) if art else ""))
+            self.txt(surf," / ".join(parca),px+58,y+24,GR,self.fsm)
+            if lvl>=UPGRADE_MAX:
+                sag=T_("ui.upg_max")
+                self.txt(surf,sag,px+pw-self.fss.size(sag)[0]-26,y+15,UI_GN,self.fss)
+            else:
+                sag="%d %s  +  %d %s"%(altin,T_("gold"),mal,T_("ui.upg_mat_unit"))
+                self.txt(surf,sag,px+pw-self.fss.size(sag)[0]-26,y+15,
+                         UI_GD if ok else (120,90,60),self.fss)
+            y+=50
+        if msg:
+            self.txt_c(surf,msg[0],px+pw//2,py+ph-62,msg[1],self.fmd)
+        self.txt(surf,T_("ui.shop_keys_upgrade"),px+16,py+ph-20,GR,self.fsm)
+
+    @staticmethod
+    def shop_tabs(shop):
+        """Bu dükkânda hangi sekmeler var."""
+        t=["ui.shop_buy","ui.shop_sell"]
+        if shop.get("upgrade"): t.append("ui.shop_upgrade")
+        return t
+
+    @staticmethod
+    def upgrade_rows(player):
+        """Giyili parçalar: (anahtar, altın, malzeme, yapılabilir mi, kademe)."""
+        st=player.stats
+        elde=sum(1 for k in player.inventory if k in MATERIALS)
+        out=[]
+        for slot in EQUIP_SLOTS:
+            k=st.equipment.get(slot)
+            if not k or k not in EQUIP_ITEMS: continue
+            lvl=st.upgrades.get(k,0)
+            bedel=upgrade_cost(lvl)
+            if bedel is None:
+                out.append((k,0,0,False,lvl));continue
+            altin,mal=bedel
+            out.append((k,altin,mal,st.gold>=altin and elde>=mal,lvl))
+        return out
 
     @staticmethod
     def shop_rows(player,shop,tab):
@@ -4734,7 +5167,7 @@ class Game:
                 "hp":st.hp,"mp":st.mp,"xp":st.xp,"xp_next":st.xp_next,
                 "level":st.level,"gold":st.gold,"skill_points":st.skill_points,
                 "inventory":list(p.inventory),"quest_items":list(p.quest_items),
-                "equipment":dict(st.equipment),
+                "equipment":dict(st.equipment),"upgrades":dict(st.upgrades),
             },
             "flags":dict(self.flags),
             "maps":maps,
@@ -4763,6 +5196,8 @@ class Game:
             st.level=pd.get("level",1);st.gold=pd.get("gold",0)
             st.skill_points=pd.get("skill_points",0)
             st.equipment={k:pd.get("equipment",{}).get(k) for k in EQUIP_SLOTS}
+            st.upgrades={k:int(v) for k,v in pd.get("upgrades",{}).items()
+                         if k in EQUIP_ITEMS and 0<int(v)<=UPGRADE_MAX}
             st.hp=min(pd.get("hp",st.max_hp),st.max_hp)
             st.mp=min(pd.get("mp",st.max_mp),st.max_mp)
             self.player=Player(pd.get("tx",1),pd.get("ty",1),st)
@@ -4785,6 +5220,11 @@ class Game:
                     if 0<=i<len(m.enemies): m.enemies[i].alive=False
             self.cur_key=data.get("cur_map","ashveil")
             self.cur_map=self.maps.get(self.cur_key,self.maps["ashveil"])
+            # Kayıttan gelen ölüler de zamanla geri doğsun
+            for m in self.maps.values():
+                for e in m.enemies:
+                    if not e.alive and not e.is_boss:
+                        e.respawn_at=RESPAWN_FRAMES
             self.state="playing";self._cam_snap()
             SoundManager.play_music(self.MAP_MUSIC.get(self.cur_key,"village"))
             return True
@@ -4925,11 +5365,17 @@ class Game:
 
     def _kill(self,e):
         e.alive=False
+        # Boss bir daha doğmaz; ötekiler bir süre sonra kendi karesinde.
+        e.respawn_at=None if e.is_boss else getattr(self,"tick",0)+RESPAWN_FRAMES
         for item in e.loot:
             if item=="gold": self.player.stats.gold+=5
             elif item in("earth_c","water_c"):
                 self.player.quest_items.append(item);self._quest_item(item)
             else: self.player.inventory.append(item)
+        # Türün malzemesi: avlanmanın asıl geliri ve yükseltmenin yakıtı
+        mat=DROP_BY_KIND.get(e.kind)
+        if mat and (e.is_boss or random.random()<MAT_DROP_CHANCE):
+            self.player.inventory.append(mat)
         lv=self.player.stats.gain_xp(int(e.xp_r*diff_mult("xp")))
         self.player.stats.gold+=int(random.randint(1,4)*diff_mult("gold"))
         self.ps.emit_xp(e.px+TILE//2,e.py+TILE//2);self.ps.emit_gold(e.px+TILE//2,e.py+TILE//2)
@@ -4947,7 +5393,30 @@ class Game:
         self.state="shop";SoundManager.play("open_ui")
 
     def _shop_rows(self):
+        if self.shop_tab==2: return UI.upgrade_rows(self.player)
         return UI.shop_rows(self.player,SHOPS[self.shop_npc],self.shop_tab)
+
+    def _shop_upgrade(self):
+        """Seçili parçayı bir kademe yükseltir: altın + malzeme harcar."""
+        p=self.player;st=p.stats
+        rows=UI.upgrade_rows(p)
+        if not(0<=self.shop_sel<len(rows)):
+            SoundManager.play("error");return
+        k,altin,mal,ok,lvl=rows[self.shop_sel]
+        if lvl>=UPGRADE_MAX:
+            self.shop_msg=(T_("ui.upg_already_max"),UI_GN);SoundManager.play("error");return
+        if not ok:
+            eksik="ui.shop_no_gold" if st.gold<altin else "ui.upg_no_material"
+            self.shop_msg=(T_(eksik),UI_RD);SoundManager.play("error");return
+        # En ucuz malzemeleri harca: değerli olanlar satılığa kalsın
+        elde=sorted((x for x in p.inventory if x in MATERIALS),
+                    key=lambda x:MATERIALS[x][2])
+        for x in elde[:mal]: p.inventory.remove(x)
+        st.gold-=altin
+        st.upgrades[k]=lvl+1
+        self.shop_msg=(T_("ui.upg_done",item_name(k),lvl+1),UI_GN)
+        SoundManager.play("level_up")
+        self.ps.emit_gold(p.px+TILE//2,p.py)
 
     def _shop_confirm(self):
         """Seçili satırı al ya da sat."""
@@ -5211,8 +5680,24 @@ class Game:
                    if o.alive and o is not e and o.kind==e.kind
                    and abs(o.tx-e.tx)<=rng and abs(o.ty-e.ty)<=rng)
 
+    def _respawn_tick(self,m):
+        """Süresi dolan düşmanları geri getirir.
+
+        Zaman mutlak kare sayısıyla tutuluyor (self.tick): başka haritadayken
+        sayaç işlemese de, haritaya dönünce süresi dolmuş olanlar geri gelir.
+        Oyuncu yakındaysa beklenir — gözünün önünde belirmesin.
+        """
+        if not self.player: return
+        p=self.player
+        for e in m.enemies:
+            if e.alive or e.respawn_at is None: continue
+            if self.tick < e.respawn_at: continue
+            if max(abs(e.home[0]-p.tx),abs(e.home[1]-p.ty)) < RESPAWN_MIN_DIST: continue
+            e.diril()
+
     def _update_enemies(self):
         p=self.player;ppx=p.px+TILE//2;ppy=p.py+TILE//2
+        self._respawn_tick(self.cur_map)
         for e in self.cur_map.enemies:
             if not e.alive: continue
             e.advance_step()   # başlamış adımı tamamla (donsa bile kareye otursun)
@@ -5240,8 +5725,7 @@ class Game:
                 continue   # hazırlanırken yerinden kıpırdamaz
 
             spd=max(6,20-p.stats.level*2)
-            if e.kind in("wolf","ice_wolf"): spd=max(4,spd-4)
-            if e.kind=="golem": spd+=8
+            spd=max(3,spd+SPEED_MOD.get(e.kind,0))
 
             # ── Menzilli: uzaktan atış, yaklaşınca geri çekilme ──
             if btype=="ranged":
@@ -5704,13 +6188,17 @@ class Game:
                     elif self.state=="shop":
                         rows=self._shop_rows()
                         if k==pygame.K_TAB:
-                            self.shop_tab=1-self.shop_tab;self.shop_sel=0;self.shop_msg=None
+                            n_tab=len(UI.shop_tabs(SHOPS[self.shop_npc]))
+                            self.shop_tab=(self.shop_tab+1)%n_tab
+                            self.shop_sel=0;self.shop_msg=None
                             SoundManager.play("menu_sel")
                         elif k in(pygame.K_UP,pygame.K_w):
                             self.shop_sel=max(0,self.shop_sel-1);SoundManager.play("menu_sel")
                         elif k in(pygame.K_DOWN,pygame.K_s):
                             self.shop_sel=min(max(0,len(rows)-1),self.shop_sel+1);SoundManager.play("menu_sel")
-                        elif k in(pygame.K_e,pygame.K_RETURN): self._shop_confirm()
+                        elif k in(pygame.K_e,pygame.K_RETURN):
+                            if self.shop_tab==2: self._shop_upgrade()
+                            else: self._shop_confirm()
                         elif k==pygame.K_r: self._shop_rest()
                         elif k==pygame.K_ESCAPE:
                             self.state="playing";self.shop_msg=None;SoundManager.play("menu_back")
