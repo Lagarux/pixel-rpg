@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KARANLIK TAC'IN LANETI  v6.1  ─  2D Pixel RPG
+KARANLIK TAC'IN LANETI  v6.2  ─  2D Pixel RPG
 pip install pygame  |  python pixel_rpg.py
 
 Kontroller:
@@ -28,7 +28,7 @@ except Exception:
 SW, SH = 960, 640
 TILE    = 32
 FPS     = 60
-VERSION = "6.1"
+VERSION = "6.2"
 TITLE   = "Karanlik Tac'in Laneti"   # ASCII: pencere basligi ve dosya adlari icin
 
 # ─── Dizinler ────────────────────────────────────────────────────

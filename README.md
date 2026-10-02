@@ -9,12 +9,14 @@ Beş dilde oynanır, bütün grafikleri ve sesleri çalışma anında üretir �
 
 | | |
 |---|---|
-| ![Element sistemi](docs/03_dovus_element.png) | ![Köz Vadisi](docs/04_koz_vadisi.png) |
-| Doğru element seçmek fark yaratır | Köz Vadisi — volkanik yan bölge |
-| ![Ekipman](docs/05_ekipman.png) | ![Kapanış](docs/06_kapanis.png) |
-| Beş ekipman yuvası | Yaptıklarına göre değişen kapanış |
-| ![Zorluk](docs/07_zorluk.png) | ![Pazar](docs/01_pazar.png) |
-| Beş zorluk seviyesi | Dört tezgâhlı pazar meydanı |
+| ![Boss sahnesi](docs/15_boss_kristal.png) | ![Boss çatlak](docs/14_boss_catlak.png) |
+| Her ana boss düştüğünde mühürden bir parça geri alınır | Silüet çatlar, karanlık zerrelere dağılır |
+| ![Yükseltme](docs/13_yukseltme.png) | ![Pazar](docs/01_pazar.png) |
+| Demirci ekipmanı +5'e kadar yükseltir | Dört tezgâhlı pazar meydanı |
+| ![Köz Vadisi](docs/04_koz_vadisi.png) | ![Kayalık Geçit](docs/10_kayalik_gecit.png) |
+| Köz Vadisi — volkanik yan bölge | Kayalık Geçit — çakıl, çam ve dağ yolu |
+| ![Element sistemi](docs/03_dovus_element.png) | ![Zorluk](docs/07_zorluk.png) |
+| Doğru element seçmek fark yaratır | Beş zorluk seviyesi |
 
 ---
 
@@ -22,7 +24,7 @@ Beş dilde oynanır, bütün grafikleri ve sesleri çalışma anında üretir �
 
 ### Seçenek 1 — Hazır sürümü indir (önerilen)
 
-[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.1-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
+[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.2-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
 
 ### Seçenek 2 — Kaynaktan çalıştır
 
@@ -43,7 +45,7 @@ python make_icon.py                       # ikonu üret
 pyinstaller --clean KaranlikTacinLaneti.spec
 ```
 
-Windows'ta `build_release.bat`, Linux'ta `build_linux_release.sh` bütün adımları tek seferde yapar ve `release/` klasörüne ZIP çıkarır.
+Windows'ta `build_release.bat`, Linux'ta `build_linux_release.sh` bütün adımları tek seferde yapar ve `release/` klasörüne ZIP çıkarır. İkisi de sürümü `pixel_rpg.py`'den okur; elle yazılmaz.
 
 ---
 
@@ -63,6 +65,8 @@ Oyuna ilk girişte klavye tanıtımı bir kez açılır; sonra duraklatma menüs
 | `U` | Nitelik dağıtımı |
 | `F1` | Ayarlar · `F11` Tam ekran · `ESC` Duraklat |
 
+Dükkânda `TAB` sekmeleri dolaşır: **Satın Al · Sat · Yükselt** (yükseltme yalnızca demircide).
+
 ---
 
 ## Oyunda neler var
@@ -74,10 +78,12 @@ Oyuna ilk girişte klavye tanıtımı bir kez açılır; sonra duraklatma menüs
 | **7 element** | Fiziksel, ateş, buz, doğa, gölge, kutsal, toprak. Her düşmanın ve her saldırının bir elementi var |
 | **6 ana bölüm + 14 yan görev** | Ödüller altın ve XP; ilerleme sağ panelde takip edilir |
 | **24 NPC** | Oyunun gidişatına ve senin yaptıklarına göre konuşurlar |
-| **6 dükkân** | Demirci, han ve dört tezgâhlı pazar meydanı; alış/satış/konaklama |
-| **90 düşman, 10 tür** | Dört davranış: yanaşan, menzilli, kaçan, sürü hâlinde avlanan |
+| **6 dükkân** | Demirci, han ve dört tezgâhlı pazar meydanı; alış/satış/konaklama/yükseltme |
+| **123 düşman, 16 tür** | Beş davranış: yanaşan, menzilli, kaçan, sürü hâlinde avlanan, ağ atan |
+| **5 ana boss** | Dördü birer kristal muhafızı, beşincisi Malachar. Her biri düştüğünde araya sahne girer |
+| **39 ekipman + 34 eşya** | Beş yuva, üç kademe, 15 malzeme, iksirler ve tonikler |
 | **5 zorluk** | Kolay · Orta · Zor · Çok Zor · **Hardcore** (tek can — ölünce kayıt silinir) |
-| **Kapanış** | Bitirdiğin yan görevler epiloğa kendi sahnesini ekler; sonda unvan ve yolculuk özeti |
+| **Kapanış** | Bitirdiğin yan görevler ve topladığın kristaller epiloğa kendi sahnesini ekler |
 
 ### Element tablosu
 
@@ -92,6 +98,45 @@ Oyuna ilk girişte klavye tanıtımı bir kez açılır; sonra duraklatma menüs
 | Fiziksel | — (nötr) | — |
 
 Fiziksel bilerek nötr bırakıldı: herkesin elindeki temel saldırı cezalandırılırsa savaşçı ve okçu gölge düşmanlara karşı çaresiz kalır. Silahın elementi temel saldırıya geçer; zırh ve muskalar bir elemente karşı koruma verir.
+
+---
+
+## Avlanma, malzeme ve yükseltme
+
+Oyunun ekonomisi ölçülerek yeniden kuruldu. Önceki hâlinde toplanabilecek **toplam altın 1730**'du ve mağazadaki 22 eşyanın **19'u sandıklardan bedava** çıkıyordu — en pahalı iki silah dahil. Altının harcanacak yeri yoktu; 90 düşmanın her biri bir kez öldüğü için de oyun seviye 10'da bitiyordu.
+
+| | |
+|---|---|
+| **Geri doğum** | Boss dışındaki düşmanlar 60 saniye sonra kendi karelerinde geri doğar. Oyuncu 14 kareden yakınsa bekler: gözünün önünde belirmez |
+| **Malzemeler** | Her türün kendi malzemesi var (15 adet, 8–44 altın). %45 ihtimalle düşer; avlanmanın asıl geliri budur |
+| **Yükseltme** | Demirci giyili her parçayı **+5**'e kadar yükseltir. Altın + malzeme harcar; en güçlü niteliği her kademede +1, ikincisini iki kademede +1 alır |
+| **Üst kademe** | 690–860 altınlık parçalar hiçbir sandıktan çıkmaz, yalnızca satın alınır |
+| **Seviye** | Tavan 30. Eğri ilk yedi seviyede eskisi gibi hızlı, sonrasında yumuşuyor |
+
+Sayılarla: sandıktan çıkan en pahalı ekipman 280 → **195 altın**; yalnızca satın alınabilen ekipman 3 → **23 parça**; bir temizlikte toplanan altın 1730 → **3083**; harcanacak hedef (üst kademe takım + yükseltmeler) **12.470 altın + 100 malzeme**.
+
+---
+
+## Boss sahneleri
+
+Malachar dışındaki boss'lar sessizce ölüyordu. Artık her ana boss düştüğünde araya bir sahne giriyor: silüet titrer, üzerinde çatlaklar koşar, dağılıp karanlık zerrelere dönüşür, yerinde bir kristal belirir ve ne olduğu sayfa sayfa anlatılır. 2,6 saniye sürer, herhangi bir tuşla geçilir.
+
+Hikâyede **dört kristalden** söz ediliyordu ama oyunda ikisi vardı. Köz Vadisi'ne **Köz Devi**, Gizemli Kütüphane'ye **Sayfa Muhafızı** kondu; ikisi de isteğe bağlı, ana zinciri kilitlemiyor, ama kapanışa kendi sayfasını ekliyor ve unvanı yükseltiyor.
+
+---
+
+## Haritalar ve karolar
+
+| | |
+|---|---|
+| ![Geçitler](docs/12_gecitler.png) | ![Bataklık](docs/11_bataklik.png) |
+| Yedi geçit ağzı üslubu | Sisli Bataklık — sığ su, saz, nilüfer |
+
+Geçitlerin hepsi aynı taş çerçeveydi: ormanın kenarında da, buz mağarasının ağzında da, kalenin kapısında da. Artık **her geçit gittiği yere benziyor** — mağara ağzı, yıkık kemer, dağ geçidi, dal kemeri, ahşap kapı, buz ağzı, kül ağzı.
+
+Dokuz yeni zemin karosu eklendi (patika, yeşillik, çalı çit, yosunlu taş, döküntü, çakıl, çam, sığ su, çatlak zemin). Ölçüm: baskın zemin oranı harabelerde %100 → %66, kayalık geçitte %99 → %65; en büyük tek tip blok 16 kare → 12; harita başına zemin türü 2–3 → 4–9. Köz Vadisi'nin dekor yoğunluğu %0,7 → %6,1 (kül ve buz karolarının dekor kaydı eksikti).
+
+Dünya artık halka: Ashveil → Çayır → Bataklık → Orman → Ashveil. Eskiden bataklığın Ashveil'e tek yönlü bir kısa yolu vardı ve dönüşü yoktu.
 
 ---
 
@@ -116,7 +161,7 @@ python tools/make_logo_icon.py
 
 Türkçe, İngilizce, Almanca, Rusça, Arapça. `F1` → Dil ile değiştirilir, tercih kaydedilir.
 
-Çeviriler `assets/locales/*.json` dosyalarında (591 anahtar). Bunlar elle düzenlenmez — tek kaynak `tools/locales_data.py`'dir:
+Çeviriler `assets/locales/*.json` dosyalarında (724 anahtar). Bunlar elle düzenlenmez — tek kaynak `tools/locales_data.py`'dir:
 
 ```bash
 python tools/locales_data.py     # bes JSON dosyasini yeniden uretir
@@ -134,13 +179,16 @@ Yazı tipi dile göre seçilir: oyun her yazı tipini gerçekten deneyip gerekli
 python -m unittest discover -s tests
 ```
 
-**247 test**, 19 dosya. Pencere açmadan gerçek kare çizerek çalışırlar (`SDL_VIDEODRIVER=dummy`), ek bağımlılık istemezler — `unittest` yeterlidir.
+**368 test**, 23 dosya. Pencere açmadan gerçek kare çizerek çalışırlar (`SDL_VIDEODRIVER=dummy`), ek bağımlılık istemezler — `unittest` yeterlidir.
 
 Testler yalnızca "çağrı patlamadı" demiyor, davranışı ölçüyor:
 
 | Dosya | Ne koruyor |
 |---|---|
 | `test_world.py` | Harita geçişleri, oyuncunun iki harita arasında sıkışmaması, kenarların kapalı olması |
+| `test_tiles.py` | Hiçbir haritanın tek karoyla kaplanmaması, her geçidin üslubunun olması, ulaşılamayan adacık kalmaması, her geçişin dönüşünün olması |
+| `test_economy.py` | Sandıktan üst kademe çıkmaması, her türün malzemesi olması, geri doğumun çalışması, seviye tavanının ulaşılabilir olması |
+| `test_boss.py` | Her boss'un sahnesinin açılması, kristallerin kapanışa işlemesi, anlatının kutuya sığması |
 | `test_quests.py` | Her yan görevin gerçekten bitirilebilmesi — hedef düşmanların oyuncunun gidebildiği haritalarda olması |
 | `test_elements.py` | Denge: hiçbir düşmanın 3 vuruştan çabuk ölmemesi, hiçbir sınıfın bir türe karşı çaresiz kalmaması |
 | `test_sound.py` | Seslerin üretilmesi, dolu olması ve sert olmaması (ölçülen parlaklık değeriyle) |
@@ -153,11 +201,11 @@ Geliştirme süreci ve her kararın gerekçesi [`GELISTIRME_PLANI.md`](GELISTIRM
 ### Dizin yapısı
 
 ```
-pixel_rpg.py            oyunun tamami (~5000 satir)
+pixel_rpg.py            oyunun tamami (~6700 satir)
 assets/locales/*.json   bes dil (tools/locales_data.py uretir)
 assets/fonts/           ortacag yazi tipleri
-tests/                  247 test + kosum takimi (harness.py)
-tools/                  ceviri ureteci, sprite tablosu
+tests/                  368 test + kosum takimi (harness.py)
+tools/                  ceviri ureteci, ikon ureteci
 docs/                   README gorselleri
 ```
 
@@ -178,7 +226,7 @@ A single-file 2D pixel RPG whose only dependency is pygame. Every graphic is dra
 
 ### Install
 
-Download `KaranlikTacinLaneti-v6.1-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
+Download `KaranlikTacinLaneti-v6.2-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
 
 ```bash
 pip install pygame
@@ -189,11 +237,15 @@ Python 3.8+. pygame is the only requirement.
 
 ### Controls
 
-`WASD`/arrows move · `Space` attack · `1-4` abilities · `E` interact · `I` inventory · `Q` quests · `M` minimap · `U` stats · `F1` settings · `F11` fullscreen · `ESC` pause. A one-time keyboard tutorial opens on first launch.
+`WASD`/arrows move · `Space` attack · `1-4` abilities · `E` interact · `I` inventory · `Q` quests · `M` minimap · `U` stats · `F1` settings · `F11` fullscreen · `ESC` pause. In shops `TAB` cycles Buy · Sell · Upgrade. A one-time keyboard tutorial opens on first launch.
 
 ### What's in it
 
-13 maps, 4 classes with 16 abilities, 7 elements, 6 story chapters, 14 side quests, 24 NPCs, 6 shops including a four-stall bazaar, 90 enemies across 10 kinds with four behaviours (melee, ranged, skittish, pack), and an epilogue that changes with what you completed.
+13 maps, 4 classes with 16 abilities, 7 elements, 6 story chapters, 14 side quests, 24 NPCs, 6 shops including a four-stall bazaar, 123 enemies across 16 kinds with five behaviours, 39 equipment pieces across three tiers, 15 crafting materials, and an epilogue that changes with what you completed.
+
+**Hunting loop.** Non-boss enemies respawn after 60 seconds at their own tile (and wait while you are within 14 tiles). Each kind drops its own material, which you sell or spend at the blacksmith to upgrade equipment up to +5. Top-tier gear is purchase-only. The level cap is 30.
+
+**Boss scenes.** Every main boss now gets a cutscene: the silhouette cracks, scatters into dark motes, and leaves a crystal behind while the story explains what was reclaimed. The lore spoke of four crystals but the game only had two; the Ember Titan and the Page Warden were added for the other two.
 
 Five languages: Turkish, English, German, Russian, Arabic. Switch with `F1`. Translations live in `assets/locales/*.json`, generated from `tools/locales_data.py`.
 
@@ -203,7 +255,7 @@ Five languages: Turkish, English, German, Russian, Arabic. Switch with `F1`. Tra
 python -m unittest discover -s tests
 ```
 
-247 tests across 19 files, using only `unittest`. They render real frames headlessly (`SDL_VIDEODRIVER=dummy`) and measure behaviour rather than just checking that calls succeed: that no side quest is impossible to finish, that no enemy dies in two hits, that the player can never get stuck between two maps, that every dialogue line fits the box in all five languages.
+368 tests across 23 files, using only `unittest`. They render real frames headlessly (`SDL_VIDEODRIVER=dummy`) and measure behaviour rather than just checking that calls succeed: that no side quest is impossible to finish, that no enemy dies in two hits, that the player can never get stuck between two maps, that no map is covered by a single tile type, that nothing above 210 gold comes free from a chest, and that every dialogue line fits the box in all five languages.
 
 </details>
 

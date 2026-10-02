@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════╗
-║        KARANLIK TAÇ'IN LANETİ  v6.1  —  2D Pixel RPG         ║
+║        KARANLIK TAÇ'IN LANETİ  v6.2  —  2D Pixel RPG         ║
 ╚══════════════════════════════════════════════════════════════╝
 
   Yüz yıl önce atalarımız Malachar'ı dört kristalle mühürledi.
@@ -21,6 +21,7 @@ KONTROLLER
   1 2 3 4            Yetenekler
   E                  Konuş / Eşya al / Dükkân aç
   I                  Envanter ve Ekipman   (TAB: sekme değiştir)
+                     Dükkânda TAB: Satın Al / Sat / Yükselt
   Q                  Görev günlüğü
   M                  Mini harita aç / kapat
   U                  Nitelik dağıtımı
@@ -47,6 +48,38 @@ ELEMENTLER
   elementini belirler, zırh ve muskalar bir elemente karşı korur.
 
 
+AVLANMA, MALZEME VE YÜKSELTME
+─────────────────────────────────────────────────────────────
+  Boss dışındaki düşmanlar bir dakika sonra kendi yerlerinde geri
+  doğar. Yakınındaysan beklerler; gözünün önünde belirmezler.
+
+  Her düşman türünün kendi malzemesi var (yeşil öz, demir cevheri,
+  gölge kırığı...). Bunları satabilir ya da demircide harcayabilirsin.
+
+  Demirci giydiğin her parçayı +5'e kadar yükseltir: altın ve malzeme
+  ister. Her kademe parçanın en güçlü niteliğini bir arttırır.
+
+  En iyi ekipman hiçbir sandıktan çıkmaz; yalnızca satın alınır.
+  Yani avlanmanın bir karşılığı var.
+
+  Seviye tavanı 30.
+
+
+ANA BOSS'LAR
+─────────────────────────────────────────────────────────────
+  Beş ana boss var. Dördü birer kristal muhafızı:
+
+    Taş Muhafız      Antik Harabeler    Toprak Kristali
+    Buzul Devi       Buz Mağarası       Su Kristali
+    Köz Devi         Köz Vadisi         Ateş Kristali    (isteğe bağlı)
+    Sayfa Muhafızı   Gizemli Kütüphane  Işık Kristali    (isteğe bağlı)
+    MALACHAR         Gölge Kalesi       son savaş
+
+  Her biri düştüğünde araya bir sahne girer ve mühürden hangi parçanın
+  geri alındığı anlatılır. Son iki kristal zorunlu değil ama kapanışı
+  ve unvanını değiştirir.
+
+
 İPUÇLARI
 ─────────────────────────────────────────────────────────────
   • Düşman saldırmadan önce kırmızı bir halka daralır — kaçın.
@@ -56,6 +89,10 @@ ELEMENTLER
   • Pazar meydanı köyün güneybatısındadır; dört tezgâh farklı şeyler satar.
   • Handa konaklamak (18 altın) can ve manayı tam doldurur.
   • Oyun harita geçişlerinde kendiliğinden kaydeder.
+  • Ağaç kök çok dayanıklı ama çok yavaş: kaçarak yıpratabilirsin.
+  • Haydutlar canları azalınca kaçar; yolu kesmeden önce köşeye sıkıştır.
+  • Dev örümcek ağ atar, yaklaşınca da vurur.
+  • Malzemeleri hepsini satma: yükseltme için de gerekiyorlar.
 
 
 DİL

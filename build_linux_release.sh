@@ -6,7 +6,9 @@
 set -e
 
 APP="karanlik-tacin-laneti"
-VERSION="5.0"
+# Surum tek kaynaktan: pixel_rpg.py. Elle yazilinca kayiyordu
+# (oyun 6.1'deyken bu betik hala 5.0 uretiyordu).
+VERSION="$(python3 -c "import re,io;print(re.search(r'VERSION\s*=\s*\"([^\"]+)\"',io.open('pixel_rpg.py',encoding='utf-8').read()).group(1))")"
 ARCH="amd64"
 PUBLISHER="KTL Studio"
 EXE_NAME="KaranlikTacinLaneti"

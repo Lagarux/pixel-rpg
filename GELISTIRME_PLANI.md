@@ -819,6 +819,147 @@ Toplam **292 test**.
 | 2026-10-01 | — | **v6.0 yayını:** README, kurulum betikleri, depo temizliği (1977 → 59 dosya), GitHub Release | 247 test |
 | 2026-10-01 | — | **Parşömen görevi bitirilemiyordu:** üç parşömen de dünyada yoktu. Düşman fark etme mesafeleri tür bazına alındı | 12 yeni test; toplam 259 test |
 | 2026-10-01 | — | **v6.1:** "Sör" yazım hatası, beş zorluk seviyesi, oyun içi amblem + uygulama ikonu, açılış animasyonu | 33 yeni test; toplam 292 test |
+| 2026-10-02 | — | **v6.2:** dokuz yeni karo + yedi geçit üslubu, harita denetimi (4 bulgu → 0), farming döngüsü (geri doğum, 15 malzeme, +5 yükseltme), 6 yeni düşman türü, 5 boss kapanış sahnesi, dört kristal | 76 yeni test; toplam 368 test |
+
+
+### ✅ v6.2 — Haritalar, ekonomi, farming ve boss sahneleri (2026-10-02)
+
+Kullanıcının yedi başlıklı geri bildirimi: geçiş yerlerine uygun kareler,
+daha çok eşya/iksir, "çok altın birikiyor ve gelişme çabuk bitiyor —
+farming mantığı", açılış sonrası elips parlamanın kaldırılması, her ana
+boss için animasyon + senaryo, daha çok mob/düşman çeşidi, bütün
+haritaların mantık ve düzen gözden geçirmesi.
+
+#### Önce ölçüm
+
+| Ölçüm | Değer |
+|---|---|
+| Oyunda toplanabilecek toplam altın | **1730** |
+| Mağazadaki eşyaların kaçı sandıktan bedava | **19/22** (en pahalı iki silah dahil) |
+| Toplam düşman / toplam XP / ulaşılan seviye | 90 / 5368 / **10** |
+| Baskın zemin oranı (harabeler, zindan) | **%100** |
+| En büyük tek tip zemin bloğu | **16×16 kare** |
+| Köz Vadisi dekor yoğunluğu | **%0,7** (diğerleri ~%6) |
+| Harita denetimi bulguları | 4 (3 kopuk adacık + 1 tek yönlü geçiş) |
+
+Teşhis: altın birikmesinin sebebi altının çok kazanılması değil,
+**harcanacak yerinin olmaması**. Oyuncu bütün ekipmanı sandıklardan
+bedava buluyordu; dükkân ona zaten elindekini satıyordu. İlerlemenin
+çabuk bitmesinin sebebi de düşmanların bir kez ölmesiydi — farming
+oynanış tercihi değil, yapısal olarak imkânsızdı.
+
+#### Haritalar ve karolar
+
+Dokuz yeni zemin karosu: patika, yeşillik, çalı çit, yosunlu taş,
+döküntü, çakıl, çam, sığ su, çatlak zemin. Tek tip geniş alanlar
+`_zemin_dokusu` ile tohumlu kümeler hâlinde kırılıyor — nokta nokta
+serpiştirme ızgara gibi görünüyordu.
+
+Yedi geçit ağzı üslubu (mağara, yıkık kemer, dağ geçidi, dal kemeri,
+ahşap kapı, buz, kül). Üslup harita başına saklanıyor (`m.gate_kind`);
+çoğu geçit zeminden türetiliyor, ayrıksı olanlar çağrı yerinde
+`style=` ile söyleniyor.
+
+| Ölçüm | Önce | Sonra |
+|---|---|---|
+| Baskın zemin — harabeler | %100 | %66 |
+| Baskın zemin — köy altı zindanı | %100 | %76 |
+| Baskın zemin — kayalık geçit | %99 | %65 |
+| En büyük tek tip blok | 16 kare | ≤12 kare |
+| Harita başına zemin türü | 2–3 | 4–9 |
+| Köz Vadisi dekor yoğunluğu | %0,7 | %6,1 |
+| Harita denetimi bulguları | 4 | **0** |
+
+Denetimin bulduğu ve düzeltilen mantık hataları:
+
+* **misty_swamp → ashveil tek yönlüydü.** Dönüşü yoktu ve varış karesi
+  nehir geçidiyle birebir aynıydı (3,24): iki ayrı bölge tek noktaya
+  boşalıyor, birinden geri dönülemiyordu. Kaldırıldı; yerine çift yönlü
+  **misty_swamp ↔ south_meadow** kondu. Dünya artık halka:
+  Ashveil → Çayır → Bataklık → Orman → Ashveil.
+* **Kütüphanenin iki geçidi de aynı yere çıkıyordu** — west_river (26,3)
+  ve (26,4), yani nehrin içine. Üstelik geçit koridoru kuzey kenardan
+  köprülere kadar nehri bölen bir çim şerit kazıyordu. Tek kapıya
+  indirildi ve batı kıyısına taşındı.
+* **Üç varış karesi yürünmezdi** (RUINS_WALL, STONE, RIVER); oyuncu
+  kaydırılıyordu. Otuz geçidin otuzu artık sapma 0.
+* **Bataklıkta üç kum adacığı** (3+2+2 kare) suyun ortasında
+  ulaşılamaz kalıyordu: görünüyor ama basılamıyordu. Sığ su köprüsüyle
+  bağlandı; bölge sayısı 5 → 1.
+* **Kayalık Geçit'in tabanı toprak**tı, kırmızımsı düz bir ova gibi
+  duruyordu; çakıl yapıldı, kenarlara çam kümeleri kondu.
+* **Köz Vadisi ve Buz Mağarası çıplaktı**: `_PROPS_BY_TILE`'da kül ve
+  buz karolarının kaydı yoktu. On beş yeni dekor eklendi.
+
+Ekran görüntüsünden çıkan iki düzeltme: yosunlu TAŞ karosu açık arazide
+gri levhalar gibi duruyordu (orman ve bataklıktan çıkarıldı); üç karelik
+geçit ağzının üçünde birden yanıp sönen ok kapının çizimini bastırıyordu
+(ok yalnızca ağzın ortasında).
+
+#### Ekonomi ve farming
+
+| | |
+|---|---|
+| Geri doğum | Boss dışı düşmanlar 60 sn sonra kendi karelerinde. Oyuncu 14 kareden yakınsa bekler. Sayaç mutlak kare sayısıyla tutuluyor, başka haritadayken de işliyor |
+| Malzeme | 15 adet, 8–44 altın, %45 ihtimalle düşüyor. Avlanmanın asıl geliri |
+| Yükseltme | Demircide +5'e kadar; altın + malzeme. Tek parça sonuna kadar 1830 altın + 20 malzeme |
+| Üst kademe | 690–860 altınlık 11 parça yalnızca satın alınır |
+
+| Ölçüm | Önce | Sonra |
+|---|---|---|
+| Sandıktan çıkan en pahalı ekipman | 280 altın | **195 altın** |
+| Yalnızca satın alınabilen ekipman | 3 | **23** |
+| Bir temizlikte toplanan altın | 1730 | **3083** |
+| Harcanacak hedef | — | **12.470 altın + 100 malzeme** |
+| Eşya / ekipman / düşman türü / düşman | 10 / 18 / 10 / 90 | **34 / 39 / 16 / 123** |
+
+**Seviye eğrisi:** tavan 30 kondu ama eşik her seviyede 1,55 ile
+çarpıldığı için 30. seviye **29.581.821 XP** istiyordu — ulaşılamaz bir
+tavan tavan değildir. İlk yedi seviye aynı hızda bırakıldı (hikâyenin
+temposu bozulmasın), sonrası 1,15'e yumuşatıldı: **149.762 XP**.
+
+Altı yeni düşman türü: yarasa (hızlı), dev örümcek (ağ atar), haydut
+(yol keser), hayalet (menzilli gölge), ağaç kök (çok dayanıklı, çok
+yavaş), köz cini (ateş, ürkek). Düşman hızı artık `SPEED_MOD`
+tablosunda, AI döngüsüne elle yazılmış iki `if` değil.
+
+#### Boss sahneleri
+
+Her ana boss düştüğünde: silüet titrer (26. kare), üzerinde çatlaklar
+koşar, dağılıp karanlık zerrelere dönüşür (72), yerinde kristal belirir
+(118), anlatı gelir (154 — 2,6 saniye). Herhangi bir tuşla geçilir.
+
+Hikâyede dört kristalden söz ediliyordu, oyunda ikisi vardı. **Köz Devi**
+(Köz Vadisi, Ateş Kristali) ve **Sayfa Muhafızı** (Gizemli Kütüphane,
+Işık Kristali) eklendi. İkisi de isteğe bağlı: ana zinciri kilitlemiyor,
+eski kayıtları bozmuyor, ama kapanışa sayfa ekliyor ve unvanı yükseltiyor.
+
+#### Testlerin yakaladıkları
+
+| Kusur | Nasıl bulundu |
+|---|---|
+| Testler oyuncunun kendi `settings.json`'ını okuyordu | Zorluk "Zor" seçiliyken ödül ×1,15 oluyor; yan görev ödülünü ölçen test yalnızca bu makinede düşüyordu |
+| Yarasa 1. seviyede **tek vuruşta** ölüyordu | `test_nothing_dies_in_two_hits` (can çarpanı 0,70 → 1,80) |
+| Ağaç kök golemden inatçı kovalıyordu ama on kat yavaş | `test_the_golem_gives_up_last` |
+| En üst kademedeki parça hâlâ "(+1)" kazanç vaat ediyordu | Ekran görüntüsü |
+| `BLEND_RGBA_ADD` alfayı yok sayıp RGB ekliyor | Kristalin halesi masif bir diske dönüşmüştü |
+
+Yeni test dosyaları: `test_tiles.py` (19), `test_economy.py` (35),
+`test_boss.py` (22). Regresyon bekçilerinin **bozuk hâle karşı ateş
+ettiği tek tek doğrulandı** — zemin dokusu kapatılınca, ASH dekor kaydı
+silinince, köprü kaldırılınca, tek yönlü kısayol geri konunca, eski XP
+eğrisi geri gelince ve 280 altınlık silah sandığa konunca.
+
+**368 test geçiyor.** Kare maliyeti 1,44 ms (~697 FPS tavan) — düşman
+sayısı %37 arttığı hâlde pay bol.
+
+#### Yan düzeltmeler
+
+* `build_linux_release.sh` hâlâ **5.0** üretiyordu; iki derleme betiği de
+  sürümü artık `pixel_rpg.py`'den okuyor, elle yazılmıyor.
+* Açılış animasyonundan sonra başlık ekranındaki elips hale kaldırıldı,
+  yerine hafif bir süzülme kondu (kullanıcı isteği).
+
 
 ---
 
@@ -835,3 +976,10 @@ Toplam **292 test**.
 | Yuva/eşya listeleri tek kaynaktan türetiliyor | `EQUIP_SLOTS` elle kopyalandığı için yuva eklenince `PlayerStats` güncellenmeden kalmıştı |
 | Mini harita renkleri doku ortalamasından | Elle tutulan bir renk tablosu, doku değiştiğinde sessizce yanlış kalır. Ortalama almak tabloyu gereksiz kılıyor; okunabilirlik için yalnız parlaklık ayarı uygulanıyor |
 | `symtable` ile tanımsız isim taraması | `fT_` gibi yazım hataları sözdizimi denetiminden geçiyor; ancak o satır çalışınca patlıyor. Tarama, oynamadan yakalıyor |
+| Zorluk ve element çarpanları hasar HESAPLANIRKEN uygulanıyor | Düşman canlarına dokunulsaydı kayıtlı oyun başka zorlukta yüklendiğinde eski değerlerle devam ederdi |
+| Geri doğum sayacı mutlak kare sayısı (`self.tick`) | Her haritanın düşmanını her karede dolaşmak israf; mutlak zaman sayesinde başka haritadayken de süre işliyor |
+| Yükseltme "herhangi bir malzeme" istiyor | Belirli malzeme istemek oyuncuyu tek bir düşmanı çiftlemeye zorlardı; değerli malzeme satılığa, ucuzu yükseltmeye kalıyor |
+| Üst kademe ekipman sandıktan çıkmıyor | Ölçüm: mağazadaki 22 eşyanın 19'u bedava bulunuyordu, dükkân anlamsızdı |
+| Yeni kristaller isteğe bağlı | Ana zinciri kilitlemek eski kayıtları ve kristali almayan oyuncuyu takardı |
+| Derleme betikleri sürümü kaynaktan okuyor | Elle yazılınca kayıyordu: oyun 6.1'deyken Linux betiği hâlâ 5.0 üretiyordu |
+| Testler ayarları varsayılana sabitliyor | Testler oyuncunun `settings.json`'ını okuyordu; zorluk "Zor" seçiliyken ödül testi yalnızca o makinede düşüyordu |

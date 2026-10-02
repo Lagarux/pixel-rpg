@@ -1,13 +1,18 @@
 @echo off
 title KTL Release Builder
 echo ============================================================
-echo  KARANLIK TAC'IN LANETI v6.1 - Tam Kurulum Paketi Olusturucu
+echo  KARANLIK TAC'IN LANETI - Tam Kurulum Paketi Olusturucu
 echo ============================================================
 echo.
 
 :: Python kontrolu
 python --version >nul 2>&1
 if errorlevel 1 ( echo HATA: Python bulunamadi! & pause & exit /b 1 )
+
+:: Surum tek kaynaktan: pixel_rpg.py
+for /f "delims=" %%v in ('python -c "import re,io;print(re.search(r'VERSION\s*=\s*\"([^\"]+)\"',io.open('pixel_rpg.py',encoding='utf-8').read()).group(1))"') do set KTLVER=%%v
+if "%KTLVER%"=="" ( echo HATA: surum okunamadi! & pause & exit /b 1 )
+echo      Surum: v%KTLVER%
 
 :: release klasoru
 if not exist "release" mkdir "release"
@@ -42,9 +47,9 @@ if exist "assets" xcopy /E /I /Y "assets" "dist\game\assets" >nul
 if exist "README.txt" copy /Y "README.txt" "dist\game\" >nul
 
 echo [5/6] Windows ZIP hazirlanıyor...
-powershell -Command "Compress-Archive -Force -Path 'dist\game\*' -DestinationPath 'release\KaranlikTacinLaneti-v6.1-Windows.zip'" 2>nul
-if exist "release\KaranlikTacinLaneti-v6.1-Windows.zip" (
-    echo [OK] ZIP: release\KaranlikTacinLaneti-v6.1-Windows.zip
+powershell -Command "Compress-Archive -Force -Path 'dist\game\*' -DestinationPath 'release\KaranlikTacinLaneti-v%KTLVER%-Windows.zip'" 2>nul
+if exist "release\KaranlikTacinLaneti-v%KTLVER%-Windows.zip" (
+    echo [OK] ZIP: release\KaranlikTacinLaneti-v%KTLVER%-Windows.zip
 ) else (
     echo UYARI: ZIP olusturulamadi, dist\game klasorunu kullanin.
 )

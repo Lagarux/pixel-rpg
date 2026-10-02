@@ -393,6 +393,67 @@ class TestYeniTurler(unittest.TestCase):
                 self.assertLess(abs(v), 15)
 
 
+class TestDukkanTusAkisi(unittest.TestCase):
+    """Gercek tus yolundan: TAB uc sekme arasinda donmeli.
+
+    Birim testler _shop_upgrade()'i dogrudan cagiriyor; bu test oyunu
+    gercekten surerek sekme dolasimini ve E tusunu deniyor.
+    """
+
+    def test_tab_uc_sekme_arasinda_donuyor(self):
+        from harness import Harness
+        h = Harness(MOD, shot_prefix="ekonomi_")
+        goruldu = []
+
+        def dukkani_ac(g):
+            g.player.stats.gold = 900
+            g.player.stats.equipment["weapon"] = "iron_sword"
+            g.player.inventory = ["iron_ore"] * 4
+            g._open_shop(type("N", (), {"name": "npc.demirci_boran"})())
+
+        def kaydet(g):
+            goruldu.append(g.shop_tab)
+
+        script = h.intro() + [
+            h.do(dukkani_ac), h.wait(3), h.do(kaydet),
+            h.key(pygame.K_TAB, 3), h.do(kaydet),
+            h.key(pygame.K_TAB, 3), h.do(kaydet),
+            h.key(pygame.K_TAB, 3), h.do(kaydet),
+            h.wait(2),
+        ]
+        h.run(script)
+        self.assertEqual(goruldu, [0, 1, 2, 0],
+                         "TAB sekmeleri dolasmiyor: %s" % goruldu)
+        self.assertEqual(h.errors, [], "hata: %s" % h.errors)
+
+    def test_e_tusu_yukseltiyor(self):
+        from harness import Harness
+        h = Harness(MOD, shot_prefix="ekonomi2_")
+        sonuc = {}
+
+        def hazirla(g):
+            g.player.stats.gold = 900
+            g.player.stats.equipment["weapon"] = "iron_sword"
+            g.player.inventory = ["iron_ore"] * 4
+            g._open_shop(type("N", (), {"name": "npc.demirci_boran"})())
+            g.shop_tab = 2
+            g.shop_sel = 0
+
+        def oku(g):
+            sonuc["kademe"] = g.player.stats.upgrades.get("iron_sword", 0)
+            sonuc["altin"] = g.player.stats.gold
+
+        script = h.intro() + [
+            h.do(hazirla), h.wait(3),
+            h.key(pygame.K_e, 4),
+            h.do(oku), h.wait(2),
+        ]
+        h.run(script)
+        self.assertEqual(sonuc.get("kademe"), 1, "E tusu yukseltmedi")
+        self.assertEqual(sonuc.get("altin"), 900 - MOD.UPGRADE_COST[0][0])
+        self.assertEqual(h.errors, [], "hata: %s" % h.errors)
+
+
 class TestYeniEsyaCevirileri(unittest.TestCase):
     def test_her_esyanin_adi_bes_dilde_var(self):
         eski = MOD.CFG.data.get("language", "TR")
