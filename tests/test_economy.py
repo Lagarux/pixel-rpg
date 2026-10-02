@@ -94,11 +94,21 @@ class TestSandikDengesi(unittest.TestCase):
 
 
 class TestMalzeme(unittest.TestCase):
-    def test_her_dusman_turunun_malzemesi_var(self):
-        turler = {e.kind for e in tum_dusmanlar()} - {"malachar"}
+    def test_her_avlanabilir_turun_malzemesi_var(self):
+        """Boss'lar kristal dusuruyor; avlanabilir her tur malzeme vermeli."""
+        boss_turleri = {e.kind for e in tum_dusmanlar() if e.is_boss}
+        turler = {e.kind for e in tum_dusmanlar() if not e.is_boss} - boss_turleri
+        self.assertGreaterEqual(len(turler), 12, "avlanabilir tur sayisi dustu")
         for k in turler:
             with self.subTest(tur=k):
                 self.assertIn(k, MOD.DROP_BY_KIND, "%s hicbir malzeme dusurmuyor" % k)
+
+    def test_her_bossun_dusurdugu_bir_sey_var(self):
+        for ad, m in MAPS.items():
+            for e in m.enemies:
+                if not e.is_boss: continue
+                with self.subTest(harita=ad, tur=e.kind):
+                    self.assertTrue(e.loot, "%s bossu bos dusuyor" % e.kind)
 
     def test_malzeme_satilabiliyor(self):
         for k, (_ad, _c, deger, _tur) in MOD.MATERIALS.items():

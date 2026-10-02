@@ -662,6 +662,8 @@ ITEMS = {
     "gold":   ("Altın",         UI_GD,  "gold",    5,  "Değerli para."),
     "earth_c":("Toprak Kristali",(120,200,80),"quest",0,"Antik kristal."),
     "water_c":("Su Kristali",  (80,180,220),"quest",0,"Antik kristal."),
+    "fire_c": ("Ateş Kristali",(250,130,50), "quest",0,"Antik kristal."),
+    "light_c":("Işık Kristali",(250,230,150),"quest",0,"Antik kristal."),
     "farm_tool":("Çiftçi Aleti",(140,100,60),"stat_str",1,"STR +1 kalıcı."),
     "river_gem":("Nehir Taşı", (60,180,200),"stat_wis",1,"WIS +1 kalıcı."),
     "scroll1":  ("Karanlık Parşömen",(180,140,220),"quest_sq",0,"Gizemli parşömen 1/3."),
@@ -781,6 +783,11 @@ BEHAVIORS = {
     "wraith":       {"type":"ranged","range":6,"cool":85,"proj":"shadow_bolt"},
     "treant":       {"type":"melee"},                      # yavaş, çok dayanıklı
     "lava_imp":     {"type":"skittish","flee_hp":0.35},
+    # ── Kristal muhafızları ─────────────────────────────────────
+    "ember_titan":  {"type":"ranged","range":5,"cool":80,"proj":"fireball",
+                     "melee_too":True},
+    "page_warden":  {"type":"ranged","range":7,"cool":75,"proj":"web",
+                     "melee_too":True},
 }
 
 # Tür başına hareket hızı düzeltmesi (kare cinsinden bekleme; eksi = hızlı).
@@ -788,6 +795,7 @@ BEHAVIORS = {
 SPEED_MOD = {
     "wolf":-4, "ice_wolf":-4, "golem":+8, "treant":+10,
     "bat":-6, "spider":-2, "bandit":-2, "lava_imp":-3, "wraith":+1,
+    "ember_titan":+4, "page_warden":+2,
 }
 
 # ─── Zorluk seviyeleri ───────────────────────────────────────────
@@ -859,12 +867,16 @@ ELEM_CHART = {
     "earth":    {"fire":1.40, "physical":1.15, "nature":0.60, "earth":0.50},
 }
 
+# İki kareye sığmayan, 2x2 çizilen dev boss'lar
+BIG_SPRITES = ("malachar","ember_titan","page_warden")
+
 ENEMY_ELEM = {
     "slime":"nature", "boar":"nature", "wolf":"physical", "goblin":"physical",
     "skeleton":"shadow", "golem":"earth", "scorpion":"fire", "ice_wolf":"ice",
     "shadow_knight":"shadow", "malachar":"shadow",
     "bat":"shadow", "spider":"nature", "bandit":"physical",
     "wraith":"shadow", "treant":"nature", "lava_imp":"fire",
+    "ember_titan":"fire", "page_warden":"holy",
 }
 
 CLASS_ELEM = {"warrior":"physical", "archer":"physical", "mage":"fire", "healer":"holy"}
@@ -876,7 +888,8 @@ ABILITY_ELEM = {
     "shadow_step":"shadow", "divine_storm":"holy",
 }
 
-PROJ_ELEM = {"arrow":"physical", "shadow_bolt":"shadow", "web":"nature"}
+PROJ_ELEM = {"arrow":"physical", "shadow_bolt":"shadow", "web":"nature",
+             "fireball":"fire"}
 
 # Silahın elementi temel saldırıya geçiyor: doğru silahı almak işe yarasın.
 WEAPON_ELEM = {
@@ -932,6 +945,8 @@ AGGRO = {
     "treant":        (4, 10),   # uyandırana kadar ağaç sanırsın; ok kadar yavaş
                                 # olduğu için uzun kovalamanın anlamı yok
     "lava_imp":      (7, 10),
+    "ember_titan":  (10, 40),   # boss: vadinin ortasinda, odasini birakmaz
+    "page_warden":  (10, 40),
 }
 
 ENEMY_TUNE = {   # tür -> (HP çarpanı, saldırı çarpanı)
@@ -943,6 +958,7 @@ ENEMY_TUNE = {   # tür -> (HP çarpanı, saldırı çarpanı)
     # 0.70 çarpanıyla 1. seviyede TEK vuruşta ölüyordu.
     "bat":(1.80,0.80), "spider":(1.15,1.05), "bandit":(1.20,1.20),
     "wraith":(1.05,1.15), "treant":(2.10,1.25), "lava_imp":(0.95,1.15),
+    "ember_titan":(1.30,1.10), "page_warden":(1.25,1.10),
 }
 
 
@@ -1185,6 +1201,45 @@ STORY_LINES=[
     ("Kader bir kez daha bir kahraman istiyor.",UI_GD),
 ]
 
+# ─── Ana bossler ve kapanış sahneleri ────────────────────────────
+# Malachar dışındaki boss'lar sessizce ölüyordu: dev bir yaratığı
+# devirmek, bir sıçanı devirmekle aynı hissi veriyordu. Artık her ana
+# boss düştüğünde araya bir sahne giriyor — mührün bir parçası
+# kırılıyor, karanlıktan bir pay geri alınıyor.
+#
+# Hikâyede dört kristalden söz ediliyordu ama oyunda yalnızca ikisi
+# vardı (toprak ve su). Köz Vadisi ile Gizemli Kütüphane'ye birer
+# muhafız kondu: ateş ve ışık kristalleri. İkisi de isteğe bağlı —
+# ana zinciri kilitlemiyor, eski kayıtları bozmuyor — ama kapanışa
+# kendi sahnesini ekliyor ve unvanı yükseltiyor.
+BOSSES = {
+    "earth": {"kind":"golem", "map":"ruins", "crystal":"earth_c",
+              "name":"boss.earth.name", "col":(150,200,90),
+              "lines":["boss.earth.1","boss.earth.2","boss.earth.3","boss.earth.4"]},
+    "water": {"kind":"golem", "map":"ice_cave", "crystal":"water_c",
+              "name":"boss.water.name", "col":(120,200,245),
+              "lines":["boss.water.1","boss.water.2","boss.water.3","boss.water.4"]},
+    "fire":  {"kind":"ember_titan", "map":"ember_valley", "crystal":"fire_c",
+              "name":"boss.fire.name", "col":(250,130,50),
+              "lines":["boss.fire.1","boss.fire.2","boss.fire.3","boss.fire.4"]},
+    "light": {"kind":"page_warden", "map":"mystic_library", "crystal":"light_c",
+              "name":"boss.light.name", "col":(250,230,150),
+              "lines":["boss.light.1","boss.light.2","boss.light.3","boss.light.4"]},
+    "malachar":{"kind":"malachar", "map":"shadow_castle", "crystal":None,
+                "name":"boss.malachar.name", "col":(190,110,245),
+                "lines":["boss.malachar.1","boss.malachar.2",
+                         "boss.malachar.3","boss.malachar.4"]},
+}
+
+# Kristal -> (bayrak, hangi nitelikleri kalıcı arttırır)
+CRYSTAL_FLAG = {
+    "earth_c":("earth_crystal",{}),
+    "water_c":("water_crystal",{}),
+    "fire_c": ("fire_crystal", {"str":1,"vit":1}),
+    "light_c":("light_crystal",{"wis":1,"int":1}),
+}
+
+
 # ─── Kapanış ─────────────────────────────────────────────────────
 # Malachar düşünce oyun doğrudan zafer ekranına atlıyordu. Kapanış bir
 # oyunun en çok hatırlanan yeri; burada sayfa sayfa anlatılıyor ve oyuncunun
@@ -1198,6 +1253,10 @@ EPILOGUE = [
     (lambda f: f.get("sqpaid_boar"),      ["epi.boar.1","epi.boar.2"]),
     (lambda f: f.get("sqpaid_witch") or f.get("sqpaid_hermit"),
                                           ["epi.quiet.1","epi.quiet.2"]),
+    (lambda f: f.get("fire_crystal"),     ["epi.fire.1","epi.fire.2"]),
+    (lambda f: f.get("light_crystal"),    ["epi.light.1","epi.light.2"]),
+    (lambda f: f.get("fire_crystal") and f.get("light_crystal"),
+                                          ["epi.four.1","epi.four.2"]),
     (None,                                ["epi.3.1","epi.3.2","epi.3.3","epi.3.4"]),
 ]
 
@@ -1213,6 +1272,8 @@ def epilogue_pages(flags):
 
 def ending_rank(flags)->str:
     n=sum(1 for sq in SIDE_QUESTS if flags.get("sqpaid_"+sq["id"]))
+    # İsteğe bağlı kristaller de sayılır: dördünü de toplamak unvanı yükseltir
+    n+=2*sum(1 for b in ("fire_crystal","light_crystal") if flags.get(b))
     for esik,anahtar in ENDING_RANKS:
         if n>=esik: return anahtar
     return ENDING_RANKS[-1][1]
@@ -1915,7 +1976,7 @@ class PA:
         af=PA.anim(frame)
         key=("en",kind,af)
         if key in PA._c: return PA._c[key]
-        s=PA._finish(PA._enemy_raw(kind,af),shadow=(kind!="malachar"))
+        s=PA._finish(PA._enemy_raw(kind,af),shadow=(kind not in BIG_SPRITES))
         PA._c[key]=s;return s
 
     @staticmethod
@@ -2139,6 +2200,58 @@ class PA:
             pygame.draw.line(s,(255,180,60),(13,14+bob),(20,14+bob),1)
             pygame.draw.line(s,(150,48,28),(23,20+bob),(29,16+bob-step),2)  # kuyruk
             pygame.draw.circle(s,(par,120,40),(30,15+bob-step),2)
+        elif kind=="ember_titan":
+            # Köz Devi: erimiş kayadan bir dev. Malachar gibi 2x2 çiziliyor.
+            sc=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA);b2=PA._bob(af,2.5)
+            par=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*90)+120
+            hs=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA)
+            pygame.draw.circle(hs,(250,110,30,60),(32,34),28);sc.blit(hs,(0,0))
+            pygame.draw.rect(sc,(54,38,34),(10,46+b2,14,16))     # bacaklar
+            pygame.draw.rect(sc,(54,38,34),(40,46+b2,14,16))
+            pygame.draw.rect(sc,(68,48,42),(4,22+b2,12,26))      # kollar
+            pygame.draw.rect(sc,(68,48,42),(48,22+b2,12,26))
+            pygame.draw.rect(sc,(72,52,46),(12,18+b2,40,32))     # gövde
+            pygame.draw.rect(sc,(94,66,56),(16,22+b2,32,20))
+            for ly in range(24,46,6):                            # lav damarları
+                pygame.draw.line(sc,(par,70,24),(14,ly+b2),(50,ly+b2+2),2)
+                pygame.draw.line(sc,(255,190,90),(14,ly+b2),(28,ly+b2+1),1)
+            pygame.draw.rect(sc,(62,44,38),(18,4+b2,28,16))      # kafa
+            pygame.draw.polygon(sc,(84,58,48),[(18,6+b2),(10,b2-4),(22,4+b2)])
+            pygame.draw.polygon(sc,(84,58,48),[(46,6+b2),(54,b2-4),(42,4+b2)])
+            pygame.draw.circle(sc,(par,90,20),(26,12+b2),5)
+            pygame.draw.circle(sc,(par,90,20),(38,12+b2),5)
+            pygame.draw.circle(sc,(255,230,150),(26,12+b2),2)
+            pygame.draw.circle(sc,(255,230,150),(38,12+b2),2)
+            for mx in range(20,46,5):                            # ağızdaki köz
+                pygame.draw.rect(sc,(240,140,50),(mx,18+b2,3,2))
+            return sc
+        elif kind=="page_warden":
+            # Sayfa Muhafızı: kitaplardan ve mürekkepten örülmüş bir bekçi
+            sc=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA);b3=PA._bob(af,3.0)
+            par=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*80)+130
+            hs=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA)
+            pygame.draw.circle(hs,(250,230,150,55),(32,30),28);sc.blit(hs,(0,0))
+            # Etrafında dönen sayfalar
+            for i in range(6):
+                ang=af/PA.ANIM_FRAMES*math.tau+i*1.047
+                sx2=int(32+26*math.cos(ang));sy2=int(32+14*math.sin(ang))
+                pygame.draw.rect(sc,(238,232,214),(sx2-3,sy2-4,7,8))
+                pygame.draw.rect(sc,(188,176,150),(sx2-3,sy2-4,7,8),1)
+            pygame.draw.polygon(sc,(44,36,66),                   # cüppe
+                                [(14,24+b3),(50,24+b3),(56,60+b3),(8,60+b3)])
+            pygame.draw.polygon(sc,(68,56,100),[(20,28+b3),(44,28+b3),(48,56+b3),(16,56+b3)])
+            for ly in range(32,56,7):                            # satır satır yazı
+                pygame.draw.line(sc,(206,196,170),(20,ly+b3),(44,ly+b3),1)
+            pygame.draw.rect(sc,(120,96,54),(4,30+b3,12,16))     # koltuk altında kitap
+            pygame.draw.rect(sc,(226,220,200),(6,32+b3,8,12))
+            pygame.draw.ellipse(sc,(52,44,78),(18,4+b3,28,24))   # kukuleta
+            pygame.draw.ellipse(sc,(16,14,24),(22,8+b3,20,18))
+            pygame.draw.circle(sc,(par,par-30,110),(28,18+b3),4)
+            pygame.draw.circle(sc,(par,par-30,110),(38,18+b3),4)
+            pygame.draw.circle(sc,(255,250,220),(28,18+b3),2)
+            pygame.draw.circle(sc,(255,250,220),(38,18+b3),2)
+            pygame.draw.rect(sc,(188,160,80),(20,2+b3,24,5))     # altın bant
+            return sc
         elif kind=="malachar":
             sc=pygame.Surface((TILE*2,TILE*2),pygame.SRCALPHA);b2=PA._bob(af,3.0)
             aa2=int(abs(math.sin(af/PA.ANIM_FRAMES*math.tau))*80)+40
@@ -2620,7 +2733,8 @@ class NPC(Entity):
             bg.fill((0,0,0,160));surf.blit(bg,(tx2-2,ty2-1));surf.blit(tag,(tx2,ty2))
 
 class Enemy(Entity):
-    def __init__(self,tx,ty,kind,hp,atk,xp,agro=5,loot=None,is_boss=False):
+    def __init__(self,tx,ty,kind,hp,atk,xp,agro=5,loot=None,is_boss=False,
+                 boss_id=None):
         super().__init__(tx,ty)
         hp_k,atk_k=ENEMY_TUNE.get(kind,(1.0,1.0))
         hp=int(hp*hp_k);atk=int(round(atk*atk_k))
@@ -2631,6 +2745,7 @@ class Enemy(Entity):
         a_fark,a_birak=AGGRO.get(kind,(agro,int(agro*1.6)))
         self.agro_range=a_fark*TILE;self.leash_range=a_birak*TILE
         self.loot=loot or [];self.is_boss=is_boss
+        self.boss_id=boss_id          # BOSSES tablosundaki anahtar
         self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
         # Geri doğum: öldüğü yerde değil, doğduğu karede geri gelir.
         # respawn_at None ise bir daha doğmaz (boss).
@@ -2651,7 +2766,8 @@ class Enemy(Entity):
         bx=int(self.px-cx); by=int(self.py-cy)
         if not(-TILE*2<=bx<SW+TILE*2 and -TILE*2<=by<SH+TILE*2): return
         sp=PA.enemy_surf(self.kind,self.frame)
-        if self.kind=="malachar": surf.blit(sp,(bx-TILE//2,by-TILE//2))
+        # 2x2 çizilen dev boss'lar kareye ortalanır
+        if self.kind in BIG_SPRITES: surf.blit(sp,(bx-TILE//2,by-TILE//2))
         else: surf.blit(sp,(bx,by))
         if self.frozen>0:
             fs=pygame.Surface((TILE,TILE),pygame.SRCALPHA);fs.fill((100,180,255,80));surf.blit(fs,(bx,by))
@@ -3554,7 +3670,8 @@ def build_ruins():
         Enemy(18,24,"wraith",  62,14,42,agro=6,loot=["mp_pot"]),
         Enemy(40,10,"spider",  58,12,36,agro=5,loot=["gold"]),
         Enemy(46,20,"bat",     26, 8,20,agro=5),
-        Enemy(46,44,"golem", 130,20,80,agro=6,loot=["earth_c"],is_boss=True),
+        Enemy(46,44,"golem", 130,20,80,agro=6,loot=["earth_c"],is_boss=True,
+              boss_id="earth"),
     ]
     _snap_all(m); return m
 
@@ -3654,7 +3771,8 @@ def build_ice_cave():
         Enemy(24,10,"bat",    30, 9,24,agro=5),
         Enemy(42,26,"bat",    30, 9,24,agro=5,loot=["gold"]),
         Enemy(18,40,"wraith", 70,15,48,agro=6,loot=["mp_pot"]),
-        Enemy(40,41,"golem", 180,25,120,agro=7,loot=["water_c"],is_boss=True),
+        Enemy(40,41,"golem", 180,25,120,agro=7,loot=["water_c"],is_boss=True,
+              boss_id="water"),
     ]
     _snap_all(m); return m
 
@@ -3711,6 +3829,9 @@ def build_ember_valley():
         Enemy(38,24,"lava_imp", 54,14,38,agro=5,loot=["hp_pot"]),
         Enemy(30,36,"lava_imp", 58,15,41,agro=5),
         Enemy(20,12,"lava_imp", 58,15,41,agro=5,loot=["mp_pot"]),
+        # Köz Devi — ateş kristalinin muhafızı
+        Enemy(26,22,"ember_titan",320,28,220,agro=8,loot=["fire_c","ember_core"],
+              is_boss=True,boss_id="fire"),
     ]
     _snap_all(m); return m
 
@@ -3752,7 +3873,8 @@ def build_shadow_castle():
         Enemy(16,12,"wraith",  95,20,62,agro=7,loot=["mp_pot"]),
         Enemy(40,38,"wraith",  95,20,62,agro=7,loot=["gold"]),
         Enemy(27,12,"bat",     34,11,28,agro=6),
-        Enemy(27,26,"malachar",500,35,999,agro=10,loot=["gold","gold"],is_boss=True),
+        Enemy(27,26,"malachar",500,35,999,agro=10,loot=["gold","gold"],is_boss=True,
+              boss_id="malachar"),
     ]
     _snap_all(m); return m
 
@@ -3912,6 +4034,9 @@ def build_mystic_library():
         Enemy(21,18,"skeleton",75,14,45,agro=6,loot=["mp_pot","gold"]),
         Enemy(14,30,"wraith",  72,15,48,agro=6,loot=["mp_pot"]),
         Enemy(32,12,"wraith",  72,15,48,agro=6,loot=["gold"]),
+        # Sayfa Muhafızı — ışık kristalinin bekçisi
+        Enemy(21,30,"page_warden",290,26,200,agro=8,loot=["light_c","ghost_veil"],
+              is_boss=True,boss_id="light"),
     ]
     _snap_all(m); return m
 
@@ -4158,15 +4283,12 @@ class UI:
             pv=int(abs(math.sin(tick*0.001+i*0.3))*100)+80
             br=(min(255,pv//2),min(255,pv//3),min(255,pv));pygame.draw.circle(surf,br,(sx2,sy2),1)
         random.seed()
-        # Oyun içi amblem — açılış animasyonundaki taçla aynı
+        # Oyun içi amblem — açılış animasyonundaki taçla aynı.
+        # Arkasındaki elips hale kaldırıldı: açılış bittikten sonra taç
+        # kendi başına dursun, yalnızca hafif bir süzülme kalsın.
         lg=PA.logo(1.0);lw,lh=lg.get_width()*2,lg.get_height()*2
-        hs=pygame.Surface((lw*2,lh*2),pygame.SRCALPHA)
-        hp=int(abs(math.sin(tick*0.002))*26)+34
-        for r in range(5,0,-1):
-            pygame.draw.ellipse(hs,(120,60,180,max(0,hp//(6-r))),
-                                (lw-r*lw//10,lh-r*lh//10,lw*r//5,lh*r//5))
-        surf.blit(hs,(SW//2-lw,24+lh//2-lh))
-        surf.blit(pygame.transform.scale(lg,(lw,lh)),(SW//2-lw//2,24))
+        suzul=int(math.sin(tick*0.0016)*3)          # yavaş yukarı-aşağı
+        surf.blit(pygame.transform.scale(lg,(lw,lh)),(SW//2-lw//2,24+suzul))
         tt=self.fti.render(game_title(),True,UI_AC)
         surf.blit(self.fti.render(game_title(),True,(50,30,80)),(SW//2-tt.get_width()//2+3,143));surf.blit(tt,(SW//2-tt.get_width()//2,140))
         self.txt_c(surf,"v%s — %s"%(VERSION,T_("ui.tagline")),SW//2,190,UI_GD,self.fmd)
@@ -4206,6 +4328,119 @@ class UI:
             col=(pv,int(pv*0.85),60) if warm else (int(pv*0.8),int(pv*0.9),pv)
             pygame.draw.circle(surf,col,(sx2,sy2),1)
         random.seed()
+
+    # ── Boss kapanış sahnesi ─────────────────────────────────────
+    # Malachar dışındaki boss'lar sessizce ölüyordu. Artık her ana boss
+    # düştüğünde mühürden bir parça kırılıyor: silüet çatlıyor, karanlık
+    # zerrelere dağılıyor, yerinde bir kristal kalıyor.
+    BS_CRACK   = 26    # çatlaklar koşmaya başlar
+    BS_SHATTER = 72    # silüet dağılır
+    BS_CRYSTAL = 118   # kristal belirir
+    BS_TEXT    = 154   # anlatı gelir
+
+    def draw_boss_scene(self,surf,sahne,tick):
+        t=sahne["t"];col=sahne["col"]
+        surf.fill((6,5,10))
+        # Dağılan karanlığın arkasındaki yıldızlar
+        self._night_sky(surf,tick,90,warm=False)
+        cx,cy=SW//2,int(SH*0.38)
+
+        # ── Silüet ──
+        if t<self.BS_SHATTER+46:
+            sp=PA.enemy_surf(sahne["kind"],tick//3)
+            olcek=7 if sahne["kind"] in BIG_SPRITES else 10
+            w,h=sp.get_width()*olcek//2,sp.get_height()*olcek//2
+            big=pygame.transform.scale(sp,(w,h)).copy()
+            if t>=self.BS_SHATTER:
+                sol=max(0,255-int((t-self.BS_SHATTER)*6))
+                big.set_alpha(sol)
+            titre=0
+            if self.BS_CRACK<=t<self.BS_SHATTER:
+                titre=int(math.sin(t*1.7)*3)
+            surf.blit(big,(cx-w//2+titre,cy-h//2))
+            # Çatlaklar
+            if t>=self.BS_CRACK:
+                ilerle=min(1.0,(t-self.BS_CRACK)/float(self.BS_SHATTER-self.BS_CRACK))
+                random.seed(sahne["tohum"])
+                for _ in range(7):
+                    # Çatlaklar gövdenin ortasından başlasın; kenardan
+                    # başlayınca silüetin yanından akıp gidiyordu.
+                    x1=cx+random.randint(-w//3,w//3);y1=cy-h//3
+                    pts=[(x1,y1)]
+                    for _k in range(5):
+                        x1=max(cx-w//2,min(cx+w//2,x1+random.randint(-9,9)))
+                        y1+=int(h/7)
+                        pts.append((x1,y1))
+                    n=max(2,int(len(pts)*ilerle))
+                    pygame.draw.lines(surf,(255,246,220),False,pts[:n],2)
+                random.seed()
+
+        # ── Dağılan zerreler ──
+        if t>=self.BS_SHATTER:
+            random.seed(sahne["tohum"]+7)
+            ilerle=(t-self.BS_SHATTER)/46.0
+            for _ in range(46):
+                ang=random.random()*math.tau;hiz=random.randint(40,170)
+                px=int(cx+math.cos(ang)*hiz*ilerle)
+                py=int(cy+math.sin(ang)*hiz*ilerle-ilerle*ilerle*40)
+                a=max(0,int(210*(1-ilerle)))
+                if a<=0: continue
+                zs=pygame.Surface((6,6),pygame.SRCALPHA)
+                pygame.draw.circle(zs,(60,30,80,a),(3,3),3)
+                pygame.draw.circle(zs,(150,90,200,a),(3,3),1)
+                surf.blit(zs,(px,py))
+            random.seed()
+
+        # ── Kristal ──
+        if t>=self.BS_CRYSTAL:
+            k=min(1.0,(t-self.BS_CRYSTAL)/30.0)
+            r=int(10+34*k)
+            nb=int(abs(math.sin(tick*0.004))*22)
+            # Yumuşak hale: beş kalın halka yerine ince kademeler.
+            # Az sayıda büyük daire gözle görülür bantlar bırakıyordu.
+            # NOT: BLEND_RGBA_ADD alfayı dikkate almadan RGB ekliyor, bu
+            # yüzden hale masif bir diske dönüşüyordu — normal harmanlama.
+            hs=pygame.Surface((r*6,r*6),pygame.SRCALPHA)
+            dis=r*3
+            for i in range(dis,0,-2):
+                a=int((70+nb)*(1.0-i/float(dis))**2.4)
+                if a<=0: continue
+                pygame.draw.circle(hs,(col[0],col[1],col[2],a),(dis,dis),i)
+            surf.blit(hs,(cx-dis,cy-dis))
+            pts=[(cx,cy-r),(cx+int(r*0.62),cy),(cx,cy+r),(cx-int(r*0.62),cy)]
+            pygame.draw.polygon(surf,col,pts)
+            pygame.draw.polygon(surf,(16,12,20),pts,2)
+            ic=[(cx,cy-r//2),(cx+r//4,cy),(cx,cy+r//2),(cx-r//4,cy)]
+            pygame.draw.polygon(surf,(min(255,col[0]+60),min(255,col[1]+60),
+                                      min(255,col[2]+60)),ic)
+
+        # ── Anlatı ──
+        if t>=self.BS_TEXT:
+            a=min(255,(t-self.BS_TEXT)*8)
+            ad=self.fxl.render(T_(sahne["name"]),True,col);ad.set_alpha(a)
+            surf.blit(ad,(SW//2-ad.get_width()//2,SH-220))
+            satir=T_(sahne["lines"][sahne["page"]])
+            for i,par in enumerate(self._wrap(satir,self.fmd,SW-200)):
+                ts=self.fmd.render(par,True,UI_TX);ts.set_alpha(a)
+                surf.blit(ts,(SW//2-ts.get_width()//2,SH-162+i*34))
+            self.txt_c(surf,"%d/%d"%(sahne["page"]+1,len(sahne["lines"])),
+                       SW//2,SH-66,GR,self.fsm)
+            pv=int(abs(math.sin(tick*0.003))*80)+120
+            self.txt_c(surf,T_("ui.story_next"),SW//2,SH-40,(pv,120,255),self.fmd)
+        elif t>self.BS_CRACK:
+            self.txt_c(surf,T_("ui.splash_skip"),SW//2,SH-40,(80,80,100),self.fsm)
+
+    def _wrap(self,metin,font,genislik):
+        """Uzun cümleyi kutuya sığacak satırlara böler."""
+        kelimeler=metin.split();satirlar=[];cur=""
+        for k in kelimeler:
+            dene=(cur+" "+k).strip()
+            if font.size(dene)[0]<=genislik: cur=dene
+            else:
+                if cur: satirlar.append(cur)
+                cur=k
+        if cur: satirlar.append(cur)
+        return satirlar or [""]
 
     def draw_epilogue(self,surf,satirlar,sayfa,toplam,tick):
         """Kapanış anlatısı — hikâye ekranıyla aynı dilde, sayfa sayfa."""
@@ -5009,6 +5244,8 @@ class Game:
         self.flags={
             "ch":1,"speak_aldric":False,"earth_crystal":False,
             "speak_oracle":False,"water_crystal":False,"malachar_defeated":False,
+            # İsteğe bağlı kristaller: ana zinciri kilitlemiyor
+            "fire_crystal":False,"light_crystal":False,
             # Mini görevler
             "sq_scroll1":False,"sq_scroll2":False,"sq_scroll3":False,  # Gizemli Kütüphane
             "sq_fish_done":False,    # Nehir görevi: balıkçıya yardım
@@ -5025,6 +5262,7 @@ class Game:
         self.trans_alpha=0;self.pending_trans=None;self.transitioning=False;self.entering_name=""
         self.inv_sel=0;self.inv_tab=0;self.eq_sel=0  # eq_sel: ekipman sekmesi imleci
         self.epi_pages=[];self.epi_page=0            # kapanış sayfaları
+        self.boss_scene=None                         # boss kapanış sahnesi
         self.splash_t=0                              # açılış animasyonu sayacı
         self.diff_sel=DIFF_IDS.index(CFG.data.get("difficulty","normal")) \
             if CFG.data.get("difficulty","normal") in DIFF_IDS else 1
@@ -5208,7 +5446,8 @@ class Game:
                 # Sabit bayrakların yanında dinamik olanlar da geri yüklenmeli:
                 # kill_<tür> sayaçları ve sqpaid_<görev> ödül işaretleri
                 # önceden tanımlı değil, süresince oluşuyorlar.
-                if k in self.flags or k.startswith(("kill_","sqpaid_","chests_")): self.flags[k]=v
+                if k in self.flags or k.startswith(("kill_","sqpaid_","chests_","boss_")):
+                    self.flags[k]=v
             for key,ms in data.get("maps",{}).items():
                 m=self.maps.get(key)
                 if not m: continue
@@ -5369,7 +5608,7 @@ class Game:
         e.respawn_at=None if e.is_boss else getattr(self,"tick",0)+RESPAWN_FRAMES
         for item in e.loot:
             if item=="gold": self.player.stats.gold+=5
-            elif item in("earth_c","water_c"):
+            elif item in CRYSTAL_FLAG:
                 self.player.quest_items.append(item);self._quest_item(item)
             else: self.player.inventory.append(item)
         # Türün malzemesi: avlanmanın asıl geliri ve yükseltmenin yakıtı
@@ -5385,8 +5624,31 @@ class Game:
         if lv: self.levelup_timer=180; SoundManager.play("level_up")
         if e.is_boss and e.kind=="malachar":
             self.flags["malachar_defeated"]=True
+        if e.is_boss and getattr(e,"boss_id",None) in BOSSES:
+            self._start_boss_scene(e.boss_id,e.kind)
+
+    def _start_boss_scene(self,boss_id,kind):
+        """Ana boss düştü: mühürden bir parça kırılıyor."""
+        b=BOSSES[boss_id]
+        self.boss_scene={"id":boss_id,"kind":kind,"t":0,"page":0,
+                         "lines":list(b["lines"]),"col":b["col"],
+                         "name":b["name"],
+                         "tohum":zlib.crc32(boss_id.encode("utf-8"))}
+        self.flags["boss_"+boss_id]=True
+        self.state="boss_scene"
+        self.add_shake(7,30)
+        SoundManager.play("victory")
+
+    def _end_boss_scene(self):
+        """Sahne bitti: Malachar ise kapanışa, değilse oyuna dön."""
+        bitti=self.boss_scene["id"]=="malachar"
+        self.boss_scene=None
+        if bitti:
             self.epi_pages=epilogue_pages(self.flags);self.epi_page=0
-            self.state="epilogue";SoundManager.play("victory")
+            self.state="epilogue"
+        else:
+            self.state="playing"
+            SoundManager.play_music(self.MAP_MUSIC.get(self.cur_key,"village"))
 
     def _open_shop(self,npc):
         self.shop_npc=npc.name;self.shop_tab=0;self.shop_sel=0;self.shop_msg=None
@@ -5462,6 +5724,10 @@ class Game:
                 (T_("epi.stat_quests"),"%d/%d"%(biten,len(SIDE_QUESTS))),
                 (T_("epi.stat_kills"),oldurulen),
                 (T_("epi.stat_chests"),self.flags.get("chests_opened",0)),
+                (T_("epi.stat_crystals"),
+                 sum(1 for b in ("earth_crystal","water_crystal",
+                                 "fire_crystal","light_crystal")
+                     if self.flags.get(b))),
                 (T_("epi.stat_gold"),st.gold)]
 
     def _check_side_quests(self):
@@ -5477,12 +5743,20 @@ class Game:
                 T_("ui.sq_done"),T_(sq["title"]),sq["gold"],T_("gold"),sq["xp"]),UI_GD)
 
     def _quest_item(self,item):
-        if item=="earth_c" and not self.flags["earth_crystal"]:
-            self.flags["earth_crystal"]=True;self._advance(4)
-            self.dmg_nums.append({"x":SW//2,"y":SH//2-60,"v":None,"l":130,"col":UI_GN,"txt":"Toprak Kristali!","scr":True})
-        elif item=="water_c" and not self.flags["water_crystal"]:
-            self.flags["water_crystal"]=True;self._advance(6)
-            self.dmg_nums.append({"x":SW//2,"y":SH//2-60,"v":None,"l":130,"col":UI_CY,"txt":"Su Kristali!","scr":True})
+        """Kristal alındı: bayrağı kur, bölümü ilerlet, kalıcı gücü ver."""
+        kayit=CRYSTAL_FLAG.get(item)
+        if not kayit: return
+        bayrak,nitelikler=kayit
+        if self.flags.get(bayrak): return
+        self.flags[bayrak]=True
+        if item=="earth_c": self._advance(4)
+        elif item=="water_c": self._advance(6)
+        for st_k,v in nitelikler.items():
+            self.player.stats.apply_item("stat_"+st_k,v)
+        renk={"earth_c":UI_GN,"water_c":UI_CY,
+              "fire_c":(250,130,50),"light_c":(250,230,150)}.get(item,UI_GD)
+        self.dmg_nums.append({"x":SW//2,"y":SH//2-60,"v":None,"l":130,
+                              "col":renk,"txt":item_name(item),"scr":True})
 
     # ── Yetenek ─────────────────────────────────────────────────
     def _use_ability(self,slot):
@@ -5880,7 +6154,7 @@ class Game:
             loot=self.cur_map.chests.pop((itx,ity))
             for ik in loot:
                 if ik=="gold": p.stats.gold+=ITEMS["gold"][3]
-                elif ik in("earth_c","water_c"): p.quest_items.append(ik);self._quest_item(ik)
+                elif ik in CRYSTAL_FLAG: p.quest_items.append(ik);self._quest_item(ik)
                 elif ik in("scroll1","scroll2","scroll3"):
                     p.inventory.append(ik)
                     flag_k="sq_"+ik
@@ -5962,6 +6236,13 @@ class Game:
             if self.splash_t==UI.SPLASH_CRACK:
                 SoundManager.play("hit_heavy");self.add_shake(5,12)
             if self.splash_t>=UI.SPLASH_END: self.state="title"
+        if self.state=="boss_scene" and self.boss_scene:
+            self.boss_scene["t"]+=1
+            # Silüet dağıldığı anda ağır bir darbe
+            if self.boss_scene["t"]==UI.BS_SHATTER:
+                SoundManager.play("hit_heavy");self.add_shake(6,20)
+            elif self.boss_scene["t"]==UI.BS_CRYSTAL:
+                SoundManager.play("chest")
         if self.state=="story":
             self.story_timer+=1
             if self.story_timer%35==0: self.story_shown=min(self.story_shown+1,len(STORY_LINES))
@@ -6220,6 +6501,20 @@ class Game:
                     elif self.state=="gameover":
                         if k==pygame.K_r: self._reset()
 
+                    elif self.state=="boss_scene":
+                        if self.boss_scene is None:
+                            self.state="playing"
+                        elif self.boss_scene["t"]<UI.BS_TEXT:
+                            # Animasyonu geç
+                            self.boss_scene["t"]=UI.BS_TEXT
+                        elif k in(pygame.K_RETURN,pygame.K_SPACE,pygame.K_e):
+                            self.boss_scene["page"]+=1
+                            SoundManager.play("menu_sel")
+                            if self.boss_scene["page"]>=len(self.boss_scene["lines"]):
+                                self._end_boss_scene()
+                        elif k==pygame.K_ESCAPE:
+                            self._end_boss_scene()
+
                     elif self.state=="epilogue":
                         if k in(pygame.K_RETURN,pygame.K_SPACE,pygame.K_e):
                             self.epi_page+=1
@@ -6347,6 +6642,8 @@ class Game:
                     self.ui.draw_stat_alloc(self.screen,self.player.stats,self.player.stats.skill_points,self.stat_sel,True,self.tick)
                 elif self.state=="gameover":
                     self.ui.draw_gameover(self.screen)
+                elif self.state=="boss_scene" and self.boss_scene:
+                    self.ui.draw_boss_scene(self.screen,self.boss_scene,self.tick)
                 elif self.state=="epilogue":
                     sf=self.epi_pages[min(self.epi_page,len(self.epi_pages)-1)]
                     self.ui.draw_epilogue(self.screen,sf,self.epi_page,len(self.epi_pages),self.tick)

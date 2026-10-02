@@ -59,7 +59,12 @@ def hepsi_bitmis():
 
 
 class TestTrigger(unittest.TestCase):
-    def test_boss_defeat_opens_the_epilogue_not_the_victory_screen(self):
+    def test_boss_defeat_opens_the_scene_then_the_epilogue(self):
+        """Malachar olunce once kapanis SAHNESI, sonra epilog gelir.
+
+        Dogrudan zafer ekranina atlamak bir oyunun en cok hatirlanan
+        yerini atlamak demekti; simdi arada sahne de var.
+        """
         g = _game()
         boss = next(e for e in g.maps["shadow_castle"].enemies if e.kind == "malachar")
         g.cur_key = "shadow_castle"
@@ -67,7 +72,11 @@ class TestTrigger(unittest.TestCase):
         boss.hp = 1
         g._hit(boss, 9999)
         self.assertTrue(g.flags["malachar_defeated"])
-        self.assertEqual(g.state, "epilogue", "bos olunce epilog acilmadi")
+        self.assertEqual(g.state, "boss_scene", "boss sahnesi acilmadi")
+        self.assertIsNotNone(g.boss_scene)
+        self.assertEqual(g.boss_scene["id"], "malachar")
+        g._end_boss_scene()
+        self.assertEqual(g.state, "epilogue", "sahneden sonra epilog acilmadi")
         self.assertTrue(g.epi_pages, "epilog sayfasi uretilmedi")
 
     def test_enter_walks_through_and_ends_at_victory(self):
@@ -133,7 +142,7 @@ class TestSummary(unittest.TestCase):
     def test_summary_survives_an_empty_run(self):
         g = _game()
         ozet = g._ending_stats()
-        self.assertEqual(len(ozet), 6)      # zorluk + 5 sayac
+        self.assertEqual(len(ozet), 7)      # zorluk + 6 sayac (kristal dahil)
         for ad, deger in ozet:
             self.assertTrue(str(ad).strip())
 
