@@ -410,20 +410,41 @@ class TestEsyaKullanimi(unittest.TestCase):
         g.dmg_nums = []
         return g
 
-    def test_her_tip_isleniyor(self):
-        """Taninmayan tip = sessizce dusen esya."""
-        BILINEN = {"heal", "mana", "full", "material", "quest", "quest_sq",
-                   "equip", "gold", "stat_str", "stat_int", "stat_agi",
-                   "stat_vit", "stat_wis", "buff_str", "buff_def", "buff_agi"}
-        for k, satir in MOD.ALL_ITEMS.items():
-            with self.subTest(esya=k):
-                self.assertIn(satir[2], BILINEN, "%s taninmayan tipte: %s" % (k, satir[2]))
+    # Kullanilmayan (ama gecerli) tipler. Bunun DISINDAKI her tip
+    # envanterde gercekten bir sey yapmak zorunda.
+    KULLANILMAYAN = {"material", "quest", "quest_sq", "equip", "gold"}
+
+    def _kullanilabilir(self, k):
+        typ = MOD.ALL_ITEMS[k][2]
+        return typ not in self.KULLANILMAYAN
+
+    def test_her_tip_bir_sey_yapiyor(self):
+        """Taninmayan tip = sessizce dusen esya.
+
+        Sabit tip listesi tutmak ise yaramiyordu: yeni tip eklenince liste
+        guncellenmedigi icin test, esyanin CALISIP calismadigini degil
+        listede olup olmadigini olcuyordu. Artik davranisa bakiyoruz -
+        kullanilabilir sayilan her esya envanterden dusmeli.
+        """
+        for k in MOD.ALL_ITEMS:
+            if not self._kullanilabilir(k):
+                continue
+            g = self._oyun()
+            g.player.inventory = [k]
+            g.inv_sel = 0
+            g.player.stats.hp = 1
+            g.player.stats.mp = 0
+            g._inv_use_item()
+            with self.subTest(esya=k, tip=MOD.ALL_ITEMS[k][2]):
+                self.assertEqual(g.player.inventory, [],
+                                 "%s (%s) kullanildi ama hicbir sey olmadi"
+                                 % (k, MOD.ALL_ITEMS[k][2]))
 
     def test_tuketilebilirler_tukeniyor_ve_etki_ediyor(self):
         for k, satir in MOD.ALL_ITEMS.items():
             typ = satir[2]
-            if typ not in ("heal", "mana", "full") and not typ.startswith(("buff_", "stat_")):
-                continue
+            if not self._kullanilabilir(k) or typ == "cure":
+                continue    # panzehrin etkisi "temizlenecek sey varsa" gorulur
             g = self._oyun()
             st = g.player.stats
             st.hp = 1; st.mp = 0

@@ -24,7 +24,7 @@ Beş dilde oynanır, bütün grafikleri ve sesleri çalışma anında üretir �
 
 ### Seçenek 1 — Hazır sürümü indir (önerilen)
 
-[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.3-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
+[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.4-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
 
 ### Seçenek 2 — Kaynaktan çalıştır
 
@@ -58,14 +58,18 @@ Oyuna ilk girişte klavye tanıtımı bir kez açılır; sonra duraklatma menüs
 | `WASD` / Ok tuşları | Hareket |
 | `Space` | Sınıfa özel saldırı |
 | `1` `2` `3` `4` | Yetenekler |
+| `5` `6` `7` `8` | Hızlı erişim yuvaları — iksir, yemek, tılsım |
 | `E` | Konuş / Al / Dükkân |
 | `I` | Envanter ve Ekipman (`TAB` ile sekme değiştir) |
-| `Q` | Görev günlüğü |
+| `Q` | Görev günlüğü (`W`/`S` ile kaydır) |
+| `J` | Görev kutusunu aç / kapat |
 | `M` | Mini harita aç/kapat |
 | `U` | Nitelik dağıtımı |
 | `F1` | Ayarlar · `F11` Tam ekran · `ESC` Duraklat |
 
 Dükkânda `TAB` sekmeleri dolaşır: **Satın Al · Sat · Yükselt** (yükseltme yalnızca demircide).
+
+Hızlı erişim yuvalarına envanterde eşya seçip `5`–`8`'e basarak atama yapılır; yeni bir tüketilebilir aldığında boş yuvaya kendiliğinden yerleşir. Üst sıra da numerik klavye de çalışır.
 
 ---
 
@@ -81,7 +85,8 @@ Dükkânda `TAB` sekmeleri dolaşır: **Satın Al · Sat · Yükselt** (yükselt
 | **6 dükkân** | Demirci, han ve dört tezgâhlı pazar meydanı; alış/satış/konaklama/yükseltme |
 | **131 düşman, 18 tür** | Beş davranış: yanaşan, menzilli, kaçan, sürü hâlinde avlanan, ağ atan |
 | **5 ana boss** | Dördü birer kristal muhafızı, beşincisi Malachar. Her biri düştüğünde araya sahne girer |
-| **39 ekipman + 36 eşya** | Beş yuva, üç kademe, 15 malzeme, iksirler ve tonikler |
+| **39 ekipman + 42 eşya** | Beş yuva, üç kademe, 15 malzeme, iksirler, tonikler, yemekler |
+| **8 durum etkisi** | Zehir, yanma, donma, sarmaşık, hayalet laneti, iyileşme, direnç, bağışıklık |
 | **5 zorluk** | Kolay · Orta · Zor · Çok Zor · **Hardcore** (tek can — ölünce kayıt silinir) |
 | **Kapanış** | Bitirdiğin yan görevler ve topladığın kristaller epiloğa kendi sahnesini ekler |
 
@@ -132,6 +137,29 @@ Kademe tablosunun geçiş grafiğiyle uyuştuğu testle sınanıyor: yeni bir ha
 
 ---
 
+## Durum etkileri
+
+<p align="center"><img src="docs/17_etkiler.png" alt="Durum etkileri" width="620"></p>
+
+Oyunda yalnızca iki geçici etki vardı (savaş çığlığı, kutsal kalkan) ve düşmanların hiçbir kalıcı etkisi yoktu: vuruyorlar, geçiyordu. Artık oyuncu ve düşman aynı tabloyu paylaşıyor.
+
+| Etki | Ne yapar | Nereden gelir |
+|---|---|---|
+| **Zehir** | Zamanla can götürür | Akrep, balçık, doğa elementli silah |
+| **Yanma** | Zehirden hızlı yakar | Köz cini, Köz Devi, ateş silahı, Meteor |
+| **Donma** | Ne yürürsün ne vurursun | Buz kurdu, buz silahı, Buz Kilidi |
+| **Sarmaşık** | Yürüyemezsin ama vurabilirsin | Örümcek ağı, ağaç kök, okçunun tuzağı |
+| **Hayalet Laneti** | Savunma −%30, mana emilir | Hayalet, Sayfa Muhafızı, Malachar |
+| **İyileşme** | Zamanla can verir | Yol ekmeği, yemek, Alan İyileşme |
+| **Direnç** | Gelen hasar −%35 | Direnç iksiri |
+| **Bağışıklık** | Kötü etki tutmaz | Koruma tılsımı, Kutsal Kalkan |
+
+Etkin etkiler sol üstte kalan süresiyle görünür; kötü olanlar nabız atar. Düşmanların can çubuğunun altında da küçük renk noktaları çıkar. **Panzehir** bütün kötü etkileri temizler.
+
+Silahın elementi artık dövüşü değiştiriyor: ateş silahı yakar, buz dondurur, doğa zehirler, gölge lanetler.
+
+---
+
 ## Boss sahneleri
 
 Malachar dışındaki boss'lar sessizce ölüyordu. Artık her ana boss düştüğünde araya bir sahne giriyor: silüet titrer, üzerinde çatlaklar koşar, dağılıp karanlık zerrelere dönüşür, yerinde bir kristal belirir ve ne olduğu sayfa sayfa anlatılır. 2,6 saniye sürer, herhangi bir tuşla geçilir.
@@ -178,7 +206,7 @@ python tools/make_logo_icon.py
 
 Türkçe, İngilizce, Almanca, Rusça, Arapça. `F1` → Dil ile değiştirilir, tercih kaydedilir.
 
-Çeviriler `assets/locales/*.json` dosyalarında (787 anahtar). Bunlar elle düzenlenmez — tek kaynak `tools/locales_data.py`'dir:
+Çeviriler `assets/locales/*.json` dosyalarında (817 anahtar). Bunlar elle düzenlenmez — tek kaynak `tools/locales_data.py`'dir:
 
 ```bash
 python tools/locales_data.py     # bes JSON dosyasini yeniden uretir
@@ -196,7 +224,7 @@ Yazı tipi dile göre seçilir: oyun her yazı tipini gerçekten deneyip gerekli
 python -m unittest discover -s tests
 ```
 
-**398 test**, 24 dosya. Pencere açmadan gerçek kare çizerek çalışırlar (`SDL_VIDEODRIVER=dummy`), ek bağımlılık istemezler — `unittest` yeterlidir.
+**435 test**, 25 dosya. Pencere açmadan gerçek kare çizerek çalışırlar (`SDL_VIDEODRIVER=dummy`), ek bağımlılık istemezler — `unittest` yeterlidir.
 
 Testler yalnızca "çağrı patlamadı" demiyor, davranışı ölçüyor:
 
@@ -207,6 +235,7 @@ Testler yalnızca "çağrı patlamadı" demiyor, davranışı ölçüyor:
 | `test_economy.py` | Sandıktan üst kademe çıkmaması, her türün malzemesi olması, geri doğumun çalışması, seviye tavanının ulaşılabilir olması |
 | `test_boss.py` | Her boss'un sahnesinin açılması, kristallerin kapanışa işlemesi, anlatının kutuya sığması |
 | `test_curve.py` | Zorluğun haritanın uzaklığıyla artması, kademe tablosunun geçiş grafiğiyle uyuşması, boss adının çevrili olması |
+| `test_effects.py` | Her etkinin gerçekten işlemesi (zehir can götürmeli, donma yürütmemeli, bağışıklık tutmamalı), hızlı yuvaların kaydedilmesi, çubukların çakışmaması |
 | `test_quests.py` | Her yan görevin gerçekten bitirilebilmesi — hedef düşmanların oyuncunun gidebildiği haritalarda olması |
 | `test_elements.py` | Denge: hiçbir düşmanın 3 vuruştan çabuk ölmemesi, hiçbir sınıfın bir türe karşı çaresiz kalmaması |
 | `test_sound.py` | Seslerin üretilmesi, dolu olması ve sert olmaması (ölçülen parlaklık değeriyle) |
@@ -219,10 +248,10 @@ Geliştirme süreci ve her kararın gerekçesi [`GELISTIRME_PLANI.md`](GELISTIRM
 ### Dizin yapısı
 
 ```
-pixel_rpg.py            oyunun tamami (~6900 satir)
+pixel_rpg.py            oyunun tamami (~7200 satir)
 assets/locales/*.json   bes dil (tools/locales_data.py uretir)
 assets/fonts/           ortacag yazi tipleri
-tests/                  398 test + kosum takimi (harness.py)
+tests/                  435 test + kosum takimi (harness.py)
 tools/                  ceviri ureteci, ikon ureteci
 docs/                   README gorselleri
 ```
@@ -244,7 +273,7 @@ A single-file 2D pixel RPG whose only dependency is pygame. Every graphic is dra
 
 ### Install
 
-Download `KaranlikTacinLaneti-v6.3-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
+Download `KaranlikTacinLaneti-v6.4-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
 
 ```bash
 pip install pygame
@@ -255,11 +284,15 @@ Python 3.8+. pygame is the only requirement.
 
 ### Controls
 
-`WASD`/arrows move · `Space` attack · `1-4` abilities · `E` interact · `I` inventory · `Q` quests · `M` minimap · `U` stats · `F1` settings · `F11` fullscreen · `ESC` pause. In shops `TAB` cycles Buy · Sell · Upgrade. A one-time keyboard tutorial opens on first launch.
+`WASD`/arrows move · `Space` attack · `1-4` abilities · `5-8` quick slots (potions, food) · `E` interact · `I` inventory · `Q` quests · `J` toggle quest box · `M` minimap · `U` stats · `F1` settings · `F11` fullscreen · `ESC` pause. In shops `TAB` cycles Buy · Sell · Upgrade. A one-time keyboard tutorial opens on first launch.
 
 ### What's in it
 
 13 maps, 4 classes with 16 abilities, 7 elements, 6 story chapters, 22 side quests, 24 NPCs, 6 shops including a four-stall bazaar, 131 enemies across 18 kinds with five behaviours, 39 equipment pieces across three tiers, 15 crafting materials, and an epilogue that changes with what you completed.
+
+**Status effects.** Poison, burning, freeze, entangle, a wraith's curse, regeneration, resistance and immunity — shared by the player and the enemies. Your weapon's element now matters in combat: fire burns, ice freezes, nature poisons, shadow curses. Active effects show in the top left with their remaining time; harmful ones pulse. An antidote clears them all.
+
+**Quick slots.** Keys 5-8 hold consumables (potions, food, charms) so you no longer open the inventory mid-fight. A new consumable drops into the first free slot by itself.
 
 **Difficulty curve.** Every map has a tier equal to its distance in map-hops from the start, and enemy values are scaled to that tier. Previously the Mystic Library, two hops from the village, was harder than the Ice Cave four hops away. A test checks the tier table against the actual transition graph.
 
@@ -275,7 +308,7 @@ Five languages: Turkish, English, German, Russian, Arabic. Switch with `F1`. Tra
 python -m unittest discover -s tests
 ```
 
-398 tests across 24 files, using only `unittest`. They render real frames headlessly (`SDL_VIDEODRIVER=dummy`) and measure behaviour rather than just checking that calls succeed: that no side quest is impossible to finish, that no enemy dies in two hits, that the player can never get stuck between two maps, that no map is covered by a single tile type, that nothing above 210 gold comes free from a chest, and that every dialogue line fits the box in all five languages.
+435 tests across 25 files, using only `unittest`. They render real frames headlessly (`SDL_VIDEODRIVER=dummy`) and measure behaviour rather than just checking that calls succeed: that no side quest is impossible to finish, that no enemy dies in two hits, that the player can never get stuck between two maps, that no map is covered by a single tile type, that nothing above 210 gold comes free from a chest, and that every dialogue line fits the box in all five languages.
 
 </details>
 

@@ -821,6 +821,7 @@ Toplam **292 test**.
 | 2026-10-01 | — | **v6.1:** "Sör" yazım hatası, beş zorluk seviyesi, oyun içi amblem + uygulama ikonu, açılış animasyonu | 33 yeni test; toplam 292 test |
 | 2026-10-02 | — | **v6.2:** dokuz yeni karo + yedi geçit üslubu, harita denetimi (4 bulgu → 0), farming döngüsü (geri doğum, 15 malzeme, +5 yükseltme), 6 yeni düşman türü, 5 boss kapanış sahnesi, dört kristal | 76 yeni test; toplam 368 test |
 | 2026-10-03 | — | **v6.3:** boss adi cevrildi, zorluk egrisi harita uzakligina baglandi, gorev gunlugu kaydirilabilir oldu, 8 yeni yan gorev, 30 yeni NPC repligi | 23 yeni test; toplam 398 test |
+| 2026-10-03 | — | **v6.4:** sekiz durum etkisi (zehir, yanma, donma, sarmasik, lanet, iyilesme, direnc, bagisiklik), alti yeni tuketilebilir, 5-8 hizli erisim yuvalari, J ile gorev kutusu | 37 yeni test; toplam 435 test |
 
 
 ### ✅ v6.2 — Haritalar, ekonomi, farming ve boss sahneleri (2026-10-02)
@@ -1055,6 +1056,77 @@ anlamsız yere düştü (artık herhangi iki durum arasında fark arıyor);
 dayanıyordu, eşikler tablodan türetildi.
 
 
+
+### ✅ v6.4 — Durum etkileri, hızlı erişim ve görev kutusu anahtarı (2026-10-03)
+
+Kullanıcı isteği: buff/debuff etkileri (zehir, wraith etkisi, yanma,
+donma, sarmaşık, iyileşme, direnç, bağışıklık), görev kutusunun bir
+tuşla açılıp kapanması (`J`), ve iksir/yemek için 1-4 dışındaki sayı
+tuşlarında hızlı erişim yuvaları.
+
+#### Durum etkileri
+
+Oyunda yalnızca iki geçici etki vardı (`war_cry`, `holy_shield`); ikisi
+de elle kontrol ediliyordu ve düşmanların hiçbir kalıcı etkisi yoktu —
+vuruyorlar, geçiyordu. Artık oyuncu ve düşman tek bir `EFFECTS`
+tablosunu paylaşıyor.
+
+| Etki | Davranış |
+|---|---|
+| Zehir | 18 karede bir azami canın %2,2'si |
+| Yanma | 12 karede bir %3,0 — zehirden belirgin hızlı |
+| Donma | hareket ve saldırı durur |
+| Sarmaşık | hareket durur, saldırı serbest |
+| Hayalet Laneti | savunma ×0,70 ve 30 karede bir 2 mana |
+| İyileşme | 20 karede bir %2,0 can |
+| Direnç | gelen hasar ×0,65 |
+| Bağışıklık | yeni kötü etki tutmaz |
+
+Üç kaynak: düşman türü (`ENEMY_INFLICT`), mermi (`PROJ_INFLICT`) ve
+**oyuncunun saldırı elementi** (`PLAYER_INFLICT`) — ateş yakar, buz
+dondurur, doğa zehirler, gölge lanetler. Silah seçimi böylece dövüşün
+kendisini değiştiriyor, yalnızca hasar sayısını değil.
+
+Düşman tarafında `frozen` ayrı bir sayaçtı; etkiler sözlüğüne taşındı
+ama **özellik olarak korundu**, böylece `e.frozen=max(e.frozen,120)`
+yazan eski çağrı yerlerinin hiçbirine dokunmak gerekmedi.
+
+Altı yeni tüketilebilir: panzehir, direnç iksiri, koruma tılsımı ve üç
+yemek (yol ekmeği, bal çöreği, kurutulmuş et). Yemek iksirden yavaş ama
+hem can hem mana veriyor, üstüne kısa bir iyileşme bırakıyor.
+
+#### Hızlı erişim yuvaları
+
+Dövüşün ortasında iksir içmek için envanteri açmak gerekiyordu: hem
+yavaş hem de ekranı kapatıyordu. `5`-`8` (üst sıra ve numerik klavye)
+çantadaki tüketilebilirlere bağlandı. Yeni bir tüketilebilir alındığında
+boş yuvaya kendiliğinden yerleşiyor; envanterde eşya seçip `5`-`8`'e
+basarak elle de atanıyor.
+
+Kullanım, ayrı bir kod yazmak yerine mevcut `_inv_use_item` yolunu
+çağırıyor — iki ayrı kullanım kodu tutmak ikisinin zamanla ayrışmasına
+yol açardı.
+
+#### Görev kutusu `J` ile
+
+Yan görev kutusu ekranın sağını sürekli kapatıyordu. `J` ile açılıp
+kapanıyor ve tercih `settings.json`'a yazılıyor.
+
+#### Testlerin yakaladıkları
+
+Eşya tipi testi **sabit bir liste** tutuyordu ve yeni tipler (`cure`,
+`food`, `fx_*`) eklenince listede olmadıkları için düştü. Testin ölçtüğü
+şey yanlıştı: eşyanın çalışıp çalışmadığını değil, listede olup
+olmadığını ölçüyordu. Davranışa çevrildi — kullanılabilir sayılan her
+eşya envanterden düşmek zorunda.
+
+Kötü etki kutusundaki nabız, alfalı renkle alfasız yüzeye çiziliyordu;
+alfa sessizce yok sayılıyordu. Nabız rengin kendisine uygulandı.
+
+`tests/test_effects.py`: 37 yeni test. Sekizinin bozuk hâle karşı ateş
+ettiği tek tek doğrulandı. **435 test geçiyor.**
+
+
 ---
 
 ## 5. Karar kaydı
@@ -1080,3 +1152,7 @@ dayanıyordu, eşikler tablodan türetildi.
 | Zorluk haritanın geçiş grafiğindeki uzaklığına bağlı | Elle yazılan sertlik, dünya büyüdükçe kaçınılmaz olarak kayıyordu: iki adım ötedeki kütüphane dört adım ötedeki mağaradan sertti |
 | Öldürme görevi tablosu türetiliyor | Elle tutulan tablo yeni görevler eklenince güncellenmedi ve testler onları hiç denetlemedi |
 | Her çevrilmiş replik bir senaryoda görünmeli | 36 replik yazıldığı hâlde hiçbir test onlara dokunmuyordu |
+| Oyuncu ve düşman aynı etki tablosunu kullanıyor | İki ayrı sistem tutmak, zehrin oyuncuda başka düşmanda başka davranmasına yol açardı |
+| `Enemy.frozen` özellik olarak korundu | Etkiler sözlüğüne taşınırken eski çağrı yerlerinin hiçbirine dokunmak gerekmedi |
+| Hızlı yuva, mevcut kullanım yolunu çağırıyor | İkinci bir kullanım kodu yazmak, ikisinin zamanla ayrışmasına yol açardı |
+| Eşya tipi testi davranışa bakıyor | Sabit tip listesi, yeni tip eklenince testi anlamsızlaştırıyordu |

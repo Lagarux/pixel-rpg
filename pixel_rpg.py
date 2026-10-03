@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KARANLIK TAC'IN LANETI  v6.3  ─  2D Pixel RPG
+KARANLIK TAC'IN LANETI  v6.4  ─  2D Pixel RPG
 pip install pygame  |  python pixel_rpg.py
 
 Kontroller:
@@ -28,7 +28,7 @@ except Exception:
 SW, SH = 960, 640
 TILE    = 32
 FPS     = 60
-VERSION = "6.3"
+VERSION = "6.4"
 TITLE   = "Karanlik Tac'in Laneti"   # ASCII: pencere basligi ve dosya adlari icin
 
 # ─── Dizinler ────────────────────────────────────────────────────
@@ -71,6 +71,7 @@ class Settings:
         "fullscreen": False, "master_vol": 80, "sfx_vol": 80,
         "music_vol": 60, "language": "TR", "show_fps": False,
         "minimap": True, "tutorial_seen": False, "difficulty": "normal",
+        "quest_hud": True,
     }
     def __init__(self):
         self.data = dict(self.DEFAULTS)
@@ -680,6 +681,23 @@ ITEMS = {
     "tonic_def": ("Taş Derisi",        (160,160,172),"buff_def",900,"15 saniye gelen hasar -%30."),
     "tonic_swift":("Rüzgâr Toniği",    (130,225,170),"buff_agi",900,"15 saniye hız ve kritik artar."),
 
+    # ── Durum etkisi veren eşyalar ───────────────────────────────
+    # "fx_<etki>" tipi doğrudan EFFECTS tablosundaki etkiyi veriyor;
+    # değer kaç kare süreceği.
+    "antidote":     ("Panzehir",        (150,220,120),"cure",     0,
+                     "Üzerindeki bütün kötü etkileri temizler."),
+    "resist_draught":("Direnç İksiri",  (205,205,235),"fx_resist",1200,
+                     "20 saniye gelen hasar -%35."),
+    "ward_charm":   ("Koruma Tılsımı",  (255,232,145),"fx_immune",900,
+                     "15 saniye kötü etkilere bağışıklık."),
+    # ── Yemekler: iksirden yavaş ama hem can hem mana verir ──────
+    "travel_bread": ("Yol Ekmeği",      (200,165,105),"fx_regen", 1200,
+                     "20 saniye boyunca yavaşça iyileşirsin."),
+    "honey_cake":   ("Bal Çöreği",      (240,200,90), "food",     45,
+                     "45 can, 22 mana ve kısa bir iyileşme."),
+    "dried_meat":   ("Kurutulmuş Et",   (175,105,80), "food",     60,
+                     "60 can, 30 mana ve kısa bir iyileşme."),
+
     # ── Kalıcı nitelik taşları (boss ödülü) ──────────────────────
     "oracle_lens":("Kâhin Merceği",   (150,110,220),"stat_int",1,"INT +1 kalıcı."),
     "titan_core": ("Titan Çekirdeği", (190,170,140),"stat_vit",1,"VIT +1 kalıcı."),
@@ -840,6 +858,82 @@ def diff_name(did=None)->str:
     return T_(difficulty(did)[1])
 
 
+# ─── Durum etkileri ──────────────────────────────────────────────
+# Oyunda yalnızca iki geçici etki vardı (savaş çığlığı, kutsal kalkan) ve
+# düşmanların hiçbir kalıcı etkisi yoktu: vuruyorlar, geçiyordu. Artık
+# hem oyuncu hem düşman aynı tabloyu kullanıyor.
+#
+#   dot        : kare başına hasar (hedefin azami canının oranı)
+#   hot        : kare başına iyileşme (aynı ölçek)
+#   tick       : kaç karede bir işler
+#   stun       : hareket ve saldırı durur
+#   root       : hareket durur, saldırı serbest
+#   def_mult   : savunmayı çarpar
+#   dmg_mult   : GELEN hasarı çarpar
+#   mp_drain   : her işleyişte mana emer
+#   immune     : yeni kötü etki tutmaz
+EFFECTS = {
+    "poison": {"name":"fx.poison","col":(130,205,85), "good":False,
+               "tick":18,"dot":0.022,"elem":"nature"},
+    "burn":   {"name":"fx.burn",  "col":(250,135,55), "good":False,
+               "tick":12,"dot":0.030,"elem":"fire"},
+    "freeze": {"name":"fx.freeze","col":(145,215,255),"good":False,"stun":True},
+    "root":   {"name":"fx.root",  "col":(115,175,85), "good":False,"root":True},
+    "curse":  {"name":"fx.curse", "col":(175,115,225),"good":False,
+               "tick":30,"def_mult":0.70,"mp_drain":2},
+    "regen":  {"name":"fx.regen", "col":(95,225,135), "good":True,
+               "tick":20,"hot":0.020},
+    "resist": {"name":"fx.resist","col":(205,205,235),"good":True,"dmg_mult":0.65},
+    "immune": {"name":"fx.immune","col":(255,232,145),"good":True,"immune":True},
+    # Eski iki etki de aynı tabloda olsun ki arayüz tek yerden okusun
+    "war_cry":    {"name":"ui.buff_war_cry","col":(255,120,50),"good":True},
+    "holy_shield":{"name":"ui.buff_holy","col":(255,220,60),"good":True},
+    "tonic_str":  {"name":"ui.buff_tonic_str","col":(225,110,60),"good":True},
+    "tonic_def":  {"name":"ui.buff_tonic_def","col":(170,170,185),"good":True},
+    "tonic_agi":  {"name":"ui.buff_tonic_agi","col":(130,225,170),"good":True},
+}
+
+KOTU_ETKILER = tuple(k for k,v in EFFECTS.items() if not v["good"])
+
+
+def effect_name(eid)->str:
+    e=EFFECTS.get(eid)
+    return T_(e["name"]) if e else eid
+
+
+def effect_col(eid):
+    e=EFFECTS.get(eid)
+    return e["col"] if e else (200,200,210)
+
+
+# Hangi düşman türü vurduğunda hangi etkiyi bulaştırır: (etki, kare, olasılık)
+ENEMY_INFLICT = {
+    "scorpion":    ("poison", 360, 0.55),
+    "spider":      ("root",   120, 0.45),
+    "lava_imp":    ("burn",   240, 0.50),
+    "ember_titan": ("burn",   300, 0.75),
+    "ice_wolf":    ("freeze",  70, 0.30),
+    "wraith":      ("curse",  420, 0.50),
+    "page_warden": ("curse",  420, 0.70),
+    "treant":      ("root",   150, 0.50),
+    "slime":       ("poison", 240, 0.25),
+    "malachar":    ("curse",  480, 0.45),
+}
+
+# Mermiler de bulaştırır
+PROJ_INFLICT = {"web":("root",150,0.70), "fireball":("burn",240,0.60),
+                "shadow_bolt":("curse",300,0.30)}
+
+# Oyuncunun saldırı ELEMENTİ de düşmana iz bırakır: ateş silahı yakar,
+# buz dondurur, doğa zehirler. Silah seçmek böylece dövüşü değiştiriyor.
+PLAYER_INFLICT = {
+    "fire":   ("burn",   200, 0.30),
+    "ice":    ("freeze",  55, 0.22),
+    "nature": ("poison", 300, 0.30),
+    "shadow": ("curse",  260, 0.25),
+}
+
+
 # ─── Elementler ──────────────────────────────────────────────────
 # Her düşmanın bir elementi var; her saldırının da. Çarpan tablosu ikisini
 # karşılaştırıyor: doğru elementle vurmak ödüllendiriyor, yanlışıyla vurmak
@@ -993,6 +1087,8 @@ def behavior(kind)->Dict:
 ITEM_PRICES = {
     "hp_pot":28,"mp_pot":34,"hp_pot_l":80,"mp_pot_l":95,"elixir":210,
     "tonic_str":120,"tonic_def":120,"tonic_swift":130,
+    "antidote":55,"resist_draught":145,"ward_charm":185,
+    "travel_bread":35,"honey_cake":48,"dried_meat":62,
     "iron_sword":110,"steel_sword":260,"fine_bow":120,"shadow_bow":280,
     "arcane_staff":115,"elder_staff":270,"holy_scepter":130,
     "leather_armor":85,"plate_mail":240,"mage_robe":95,"healer_robe":100,"scout_coat":105,
@@ -1098,12 +1194,14 @@ SHOPS = {
     },
     "npc.hanci_mira":{
         "stock":["hp_pot","hp_pot_l","mp_pot","mp_pot_l","elixir",
+                 "travel_bread","honey_cake","dried_meat","antidote",
                  "swift_boots","travel_boots","power_ring","mana_gem"],
         "rest":True,
     },
     # ── Pazar tezgâhları ──
     "npc.otaci_nesrin":{"stock":["hp_pot","hp_pot_l","mp_pot","mp_pot_l","elixir",
                                  "tonic_str","tonic_def","tonic_swift",
+                                 "antidote","resist_draught","ward_charm",
                                  "river_gem"],"rest":False},
     "npc.avci_doruk":{"stock":["fine_bow","hunter_bow","shadow_bow","storm_bow",
                                "scout_coat","ranger_cloak","archer_token",
@@ -1113,7 +1211,8 @@ SHOPS = {
                                  "mana_gem","moon_pendant","ember_charm",
                                  "sage_talisman","mage_focus","warrior_crest"],
                         "rest":False},
-    "npc.ciftci_hale":{"stock":["farm_tool","hp_pot","hp_pot_l","tonic_str"],
+    "npc.ciftci_hale":{"stock":["farm_tool","hp_pot","hp_pot_l","tonic_str",
+                                "travel_bread","honey_cake","dried_meat"],
                        "rest":False},
 }
 
@@ -2563,6 +2662,7 @@ class Projectile:
 class Trap:
     tx:int;ty:int;dmg:int
     active:bool=True;triggered:bool=False;timer:int=0
+    root:int=0            # basan dusmani kac kare sarmasik gibi tutar
 
 # ─── Partiküller ─────────────────────────────────────────────────
 @dataclass
@@ -2613,6 +2713,8 @@ class PlayerStats:
         self.equipment:Dict[str,Optional[str]]={s:None for s in EQUIP_SLOTS}
         # Demircide yükseltilen parçaların kademesi: anahtar -> 0..UPGRADE_MAX
         self.upgrades:Dict[str,int]={}
+        # Hızlı erişim yuvaları: 5-8 tuşlarına bağlı eşya anahtarları
+        self.quick:List[Optional[str]]=[None]*QUICK_SLOTS
         # Sınıfa özel auto-attack cooldown
         self.atk_cd=0
 
@@ -2803,7 +2905,10 @@ class Enemy(Entity):
         self.agro_range=a_fark*TILE;self.leash_range=a_birak*TILE
         self.loot=loot or [];self.is_boss=is_boss
         self.boss_id=boss_id          # BOSSES tablosundaki anahtar
-        self.alive=True;self.state="idle";self.move_cd=0;self.frozen=0
+        self.alive=True;self.state="idle";self.move_cd=0
+        # Durum etkileri: id -> kalan kare. "frozen" eskiden ayrı bir
+        # sayaçtı; eski çağrı yerleri bozulmasın diye özellik olarak duruyor.
+        self.effects:Dict[str,int]={}
         # Geri doğum: öldüğü yerde değil, doğduğu karede geri gelir.
         # respawn_at None ise bir daha doğmaz (boss).
         self.home=(tx,ty);self.respawn_at=None
@@ -2811,10 +2916,21 @@ class Enemy(Entity):
         self.wind_kind="melee"        # hazırlanan saldırının türü
         self.shoot_cd=0               # menzilli saldırı beklemesi
 
+    @property
+    def frozen(self): return self.effects.get("freeze",0)
+
+    @frozen.setter
+    def frozen(self,v):
+        if v>0: self.effects["freeze"]=v
+        else: self.effects.pop("freeze",None)
+
+    @property
+    def rooted(self)->bool: return self.effects.get("root",0)>0
+
     def diril(self):
         """Düşmanı doğduğu karede, dolu canla geri getirir."""
         self.hp=self.max_hp;self.alive=True;self.state="idle"
-        self.frozen=0;self.wind_up=0;self.atk_cd=0;self.shoot_cd=0
+        self.effects={};self.wind_up=0;self.atk_cd=0;self.shoot_cd=0
         self.respawn_at=None
         self.snap(*self.home)
 
@@ -2826,6 +2942,13 @@ class Enemy(Entity):
         # 2x2 çizilen dev boss'lar kareye ortalanır
         if self.kind in BIG_SPRITES: surf.blit(sp,(bx-TILE//2,by-TILE//2))
         else: surf.blit(sp,(bx,by))
+        # Etkin durum etkileri: can cubugunun altinda kucuk renk noktalari
+        if self.effects:
+            ex=bx+TILE//2-len(self.effects)*4
+            for i,eid in enumerate(sorted(self.effects)):
+                c=effect_col(eid)
+                pygame.draw.rect(surf,c,(ex+i*8,by-4,6,4))
+                pygame.draw.rect(surf,BK,(ex+i*8,by-4,6,4),1)
         if self.frozen>0:
             fs=pygame.Surface((TILE,TILE),pygame.SRCALPHA);fs.fill((100,180,255,80));surf.blit(fs,(bx,by))
         if self.wind_up>0:
@@ -3193,6 +3316,29 @@ MAP_TIER = {
     "map.koz_vadisi":        4,
     "map.golge_kalesi":      5,
 }
+
+# ─── Hızlı erişim yuvaları ───────────────────────────────────────
+# Yetenekler 1-4 tuşlarında; iksir içmek için envanteri açmak gerekiyordu
+# ve dövüşün ortasında bu hem yavaş hem de ekranı kapatıyordu. 5-8
+# tuşları çantadaki tüketilebilirlere bağlandı.
+QUICK_SLOTS = 4
+
+# Yuvaya konabilecek eşya tipleri (ekipman ve görev eşyası konamaz)
+QUICK_TYPES = ("heal","mana","full","food","cure")
+
+
+# Tuş kodu -> yuva. Hem üst sıra hem numerik klavye.
+QUICK_KEYS = {}
+for _i,(_a,_b) in enumerate(((pygame.K_5,pygame.K_KP5),(pygame.K_6,pygame.K_KP6),
+                             (pygame.K_7,pygame.K_KP7),(pygame.K_8,pygame.K_KP8))):
+    QUICK_KEYS[_a]=_i;QUICK_KEYS[_b]=_i
+
+
+def quick_ok(key)->bool:
+    row=ALL_ITEMS.get(key)
+    if not row: return False
+    return row[2] in QUICK_TYPES or row[2].startswith(("buff_","fx_"))
+
 
 # Hicbir dusman 1. seviye bir karakterin uc vurusundan az dayanmasin
 TABAN_HP = 32
@@ -4939,14 +5085,16 @@ class UI:
 
         # ── Sağ sütun: eylem tuşları ──
         satirlar=[("E",T_("ui.tut_interact")),("1-4",T_("ui.tut_ability")),
-                  ("I",T_("ui.tut_inventory")),("Q",T_("ui.tut_quests")),
+                  ("5-8",T_("ui.tut_quick")),  ("I",T_("ui.tut_inventory")),
+                  ("Q",T_("ui.tut_quests")),   ("J",T_("ui.tut_questbox")),
                   ("M",T_("ui.tut_minimap")),  ("U",T_("ui.tut_stats")),
                   ("F1",T_("ui.tut_settings")),("ESC",T_("ui.tut_pause")),
                   ("F11",T_("ui.tut_fullscreen"))]
-        cy0=sy+k+26
+        # Iki sutun x alti satir: tus sayisi 9'dan 11'e cikti
+        cy0=sy+k+20
         for i,(tus,ad) in enumerate(satirlar):
-            col=i//5; row=i%5
-            bx=px+40+col*340; by=cy0+row*38
+            col=i//6; row=i%6
+            bx=px+40+col*340; by=cy0+row*34
             self.keycap(surf,bx,by,46,30,tus)
             self.txt(surf,ad,bx+58,by+7,LGR,self.fsm)
 
@@ -5090,19 +5238,14 @@ class UI:
             sc=(255,220,50) if (tick//500)%2==0 else (200,160,30)
             self.txt(surf,f"[U]+{st.skill_points} {T_('skill_pts')}",140,86,sc,self.fsm)
         by=102
-        if "war_cry" in st.buffs:      self.txt(surf,T_("ui.buff_war_cry"),18,by,(255,120,50),self.fsm)
-        elif "holy_shield" in st.buffs:self.txt(surf,T_("ui.buff_holy"), 18,by,(255,220,60),self.fsm)
-        elif "tonic_str" in st.buffs:  self.txt(surf,T_("ui.buff_tonic_str"),18,by,(225,110,60),self.fsm)
-        elif "tonic_def" in st.buffs:  self.txt(surf,T_("ui.buff_tonic_def"),18,by,(170,170,185),self.fsm)
-        elif "tonic_agi" in st.buffs:  self.txt(surf,T_("ui.buff_tonic_agi"),18,by,(130,225,170),self.fsm)
+        # Eskiden yalnızca TEK bir etki yazıyla gösteriliyordu; artık
+        # hepsi birden, kalan süresiyle ve iyi/kötü ayrımıyla görünüyor.
         eq_strs=[]
         for slot,ik in st.equipment.items():
             if ik and ik in EQUIP_ITEMS: eq_strs.append(item_name(ik)[:8])
         if eq_strs:
-            eq_y=by if not any(k in st.buffs for k in
-                               ("war_cry","holy_shield","tonic_str",
-                                "tonic_def","tonic_agi")) else by+14
-            self.txt(surf,"  ".join(eq_strs[:2]),18,eq_y,(100,120,160),self.fsm)
+            self.txt(surf,"  ".join(eq_strs[:2]),18,by,(100,120,160),self.fsm)
+        self.draw_effects(surf,st,tick)
         # Üst merkez
         mn=self.fmd.render(map_name,True,UI_AC)
         surf.blit(mn,(SW//2-mn.get_width()//2,6))
@@ -5114,6 +5257,74 @@ class UI:
         surf.blit(at,(SW//2-at.get_width()//2,42))
         # Eskiden burada soluk bir tuş listesi vardı. Yerini oyuna başlarken
         # bir kez açılan klavye tanıtımı aldı (duraklatma → Kontroller).
+
+    def draw_effects(self,surf,st,tick):
+        """Etkin durum etkileri: sol panelin altında, kalan süresiyle."""
+        etkin=[(k,v) for k,v in st.buffs.items()
+               if isinstance(v,int) and v>0 and k in EFFECTS]
+        if not etkin: return
+        etkin.sort(key=lambda kv:(EFFECTS[kv[0]]["good"],kv[0]))
+        x=8;y=142
+        for eid,kalan in etkin[:6]:
+            tanim=EFFECTS[eid];col=tanim["col"]
+            ad=effect_name(eid)
+            sn=max(1,kalan//FPS)
+            etiket="%s %ds"%(ad,sn)
+            w=self.fsm.size(etiket)[0]+24
+            kutu=pygame.Surface((w,18),pygame.SRCALPHA)
+            kutu.fill((*col,46) if tanim["good"] else (*col,60))
+            pygame.draw.rect(kutu,col,(0,0,w,18),1)
+            surf.blit(kutu,(x,y))
+            # Kötü etkiler nabız atsın: gözden kaçmasın.
+            # (Alfalı renk, alfasız yüzeye çizilince sessizce yok sayılıyor;
+            #  nabız bu yüzden rengin kendisine uygulanıyor.)
+            if not tanim["good"]:
+                nb=abs(math.sin(tick*0.012))
+                pc=tuple(min(255,int(c+(255-c)*nb*0.7)) for c in col)
+                pygame.draw.rect(surf,pc,(x,y,w,18),1)
+                pygame.draw.rect(surf,pc,(x+1,y+1,3,16))
+            pygame.draw.rect(surf,col,(x+4,y+5,8,8))
+            pygame.draw.rect(surf,BK,(x+4,y+5,8,8),1)
+            self.txt(surf,etiket,x+16,y+3,UI_TX,self.fsm,shadow=False)
+            y+=20
+            if y>SH-160: break
+
+    QUICK_W = 44        # yuva genişliği
+
+    def draw_quick_bar(self,surf,player,tick):
+        """5-8 tuşlarına bağlı tüketilebilirler, yetenek çubuğunun yanında."""
+        st=player.stats
+        n=len(st.quick)
+        bar_w=self.QUICK_W*n+8;bar_h=62
+        ab_w=54*4+8
+        bx=SW//2+ab_w//2+10;by=SH-bar_h-6
+        if bx+bar_w>SW-6: bx=SW-bar_w-6
+        self.panel(surf,bx-2,by-2,bar_w+4,bar_h+4)
+        sayim={}
+        for k in player.inventory: sayim[k]=sayim.get(k,0)+1
+        for i,key in enumerate(st.quick):
+            sx=bx+4+i*self.QUICK_W;sy=by
+            adet=sayim.get(key,0) if key else 0
+            itm=ALL_ITEMS.get(key) if key else None
+            col=itm[1] if itm else (70,70,86)
+            ss=pygame.Surface((self.QUICK_W-4,bar_h),pygame.SRCALPHA)
+            ss.fill((*col,50) if adet else (18,12,28,200))
+            pygame.draw.rect(ss,col if adet else GR,(0,0,self.QUICK_W-4,bar_h),2)
+            surf.blit(ss,(sx,sy))
+            self.txt(surf,str(i+5),sx+3,sy+2,UI_GD if adet else GR,self.fsm,shadow=False)
+            if itm:
+                pygame.draw.rect(surf,col if adet else (60,60,70),
+                                 (sx+10,sy+18,20,20))
+                pygame.draw.rect(surf,WH if adet else GR,(sx+10,sy+18,20,20),1)
+                ad=item_name(key)
+                kisa=ad[:6]
+                self.txt(surf,kisa,sx+3,sy+42,
+                         (210,210,225) if adet else (95,95,110),self.fsm,shadow=False)
+                sa="x%d"%adet
+                self.txt(surf,sa,sx+self.QUICK_W-6-self.fsm.size(sa)[0],sy+2,
+                         UI_GN if adet else UI_RD,self.fsm,shadow=False)
+            else:
+                self.txt(surf,"-",sx+self.QUICK_W//2-6,sy+24,GR,self.fsm,shadow=False)
 
     SHOP_ROWS = 7        # ekranda aynı anda görünen satır
 
@@ -5551,6 +5762,9 @@ class Game:
         """Bir kare adım başlatır. Piksel konumu Entity.advance_step ile yayılır."""
         p=self.player
         if p.moving: return False
+        # Donma ve sarmaşık yerinden kıpırdatmaz
+        if p.stats.buffs.get("freeze",0)>0 or p.stats.buffs.get("root",0)>0:
+            return False
         ntx=p.tx+dx;nty=p.ty+dy
         if not self._tile_free(ntx,nty): return False
         # Çapraz adım köşe kesmesin: en az bir komşu kare de açık olmalı
@@ -5614,6 +5828,7 @@ class Game:
                 "level":st.level,"gold":st.gold,"skill_points":st.skill_points,
                 "inventory":list(p.inventory),"quest_items":list(p.quest_items),
                 "equipment":dict(st.equipment),"upgrades":dict(st.upgrades),
+                "quick":list(st.quick),
             },
             "flags":dict(self.flags),
             "maps":maps,
@@ -5644,6 +5859,9 @@ class Game:
             st.equipment={k:pd.get("equipment",{}).get(k) for k in EQUIP_SLOTS}
             st.upgrades={k:int(v) for k,v in pd.get("upgrades",{}).items()
                          if k in EQUIP_ITEMS and 0<int(v)<=UPGRADE_MAX}
+            kayitli=pd.get("quick",[])
+            st.quick=[(k if k and quick_ok(k) else None)
+                      for k in (list(kayitli)+[None]*QUICK_SLOTS)[:QUICK_SLOTS]]
             st.hp=min(pd.get("hp",st.max_hp),st.max_hp)
             st.mp=min(pd.get("mp",st.max_mp),st.max_mp)
             self.player=Player(pd.get("tx",1),pd.get("ty",1),st)
@@ -5696,6 +5914,7 @@ class Game:
         """Space tuşu: sınıfa özel saldırı."""
         p=self.player;st=p.stats
         if p.attacking or st.atk_cd>0: return
+        if st.buffs.get("freeze",0)>0: SoundManager.play("error");return
         cls=st.char_class
         p.attacking=True;p.atk_frame=0
         st.atk_cd=st.atk_max_cd
@@ -5809,7 +6028,86 @@ class Game:
         self.hit_stop=max(self.hit_stop,5 if crit else 3)
         if crit or e.is_boss: self.add_shake(4 if crit else 2,8)
         if crit: self._knockback(e)
+        kayit=PLAYER_INFLICT.get(elem)
+        if kayit and e.alive and e.hp>0 and random.random()<kayit[2]:
+            self._etki_ver(e,kayit[0],kayit[1])
         if e.hp<=0: self._kill(e)
+
+    # ── Durum etkileri ───────────────────────────────────────────
+    def _etki_ver(self,hedef,eid,kare,oyuncu=False)->bool:
+        """Hedefe bir etki bulaştırır. Bağışıklık kötü etkileri tutmaz."""
+        tanim=EFFECTS.get(eid)
+        if tanim is None: return False
+        kap=self.player.stats.buffs if oyuncu else hedef.effects
+        if not tanim["good"] and kap.get("immune",0)>0: return False
+        kap[eid]=max(kap.get(eid,0),kare)
+        renk=tanim["col"]
+        if oyuncu:
+            p=self.player
+            self.ps.emit(p.px+TILE//2,p.py+TILE//2,8,renk,2.5,22)
+            self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py-10,"v":None,"l":55,
+                                  "col":renk,"txt":effect_name(eid)})
+        else:
+            self.ps.emit(hedef.px+TILE//2,hedef.py+TILE//2,6,renk,2.0,18)
+        return True
+
+    def _bulastir(self,hedef,tur,oyuncu=False):
+        """Tür tablosuna göre, olasılıkla etki bulaştırır."""
+        kayit=ENEMY_INFLICT.get(tur)
+        if not kayit: return
+        eid,kare,olasi=kayit
+        # Zorluk, kotu etkinin bulasma ihtimalini de etkiliyor
+        if oyuncu: olasi=min(0.95,olasi*diff_mult("enemy_dmg"))
+        if random.random()<olasi:
+            self._etki_ver(hedef,eid,kare,oyuncu)
+
+    def _etkileri_isle(self):
+        """Her karede: süreleri azalt, hasar/iyileşme uygula."""
+        t=getattr(self,"tick",0)
+        # ── Oyuncu ──
+        p=self.player
+        if p:
+            st=p.stats;biten=[]
+            for eid,kalan in list(st.buffs.items()):
+                tanim=EFFECTS.get(eid)
+                if tanim is None or not isinstance(kalan,int): continue
+                per=tanim.get("tick")
+                if per and t%per==0:
+                    if "dot" in tanim:
+                        d=max(1,int(st.max_hp*tanim["dot"]))
+                        st.hp=max(0,st.hp-d)
+                        self.dmg_nums.append({"x":p.px+TILE//2,"y":p.py,"v":d,
+                                              "l":30,"col":tanim["col"]})
+                        if st.hp<=0:
+                            self.state="gameover";SoundManager.play("death")
+                            if diff_permadeath(): self._wipe_save()
+                    if "hot" in tanim:
+                        st.heal(max(1,int(st.max_hp*tanim["hot"])))
+                        self.ps.emit(p.px+TILE//2,p.py+TILE//2,3,tanim["col"],1.5,16)
+                    if tanim.get("mp_drain"): st.mp=max(0,st.mp-tanim["mp_drain"])
+        # ── Düşmanlar ──
+        for e in self.cur_map.enemies:
+            if not e.alive or not e.effects: continue
+            for eid,kalan in list(e.effects.items()):
+                tanim=EFFECTS.get(eid)
+                if tanim is None: continue
+                e.effects[eid]=kalan-1
+                if e.effects[eid]<=0: del e.effects[eid];continue
+                per=tanim.get("tick")
+                if per and t%per==0 and "dot" in tanim:
+                    d=max(1,int(e.max_hp*tanim["dot"]))
+                    e.hp=max(0,e.hp-d)
+                    self.dmg_nums.append({"x":e.px+TILE//2,"y":e.py,"v":d,
+                                          "l":26,"col":tanim["col"]})
+                    if e.hp<=0: self._kill(e)
+
+    def _etki_carpani(self,anahtar,varsayilan=1.0)->float:
+        """Oyuncunun etkin etkilerinden bir çarpanı toplar."""
+        k=varsayilan
+        for eid in self.player.stats.buffs:
+            t=EFFECTS.get(eid)
+            if t and anahtar in t: k*=t[anahtar]
+        return k
 
     def _kill(self,e):
         e.alive=False
@@ -5903,6 +6201,7 @@ class Game:
                 reason="ui.shop_no_gold" if st.gold<price else "ui.shop_wrong_class"
                 self.shop_msg=(T_(reason),UI_RD);SoundManager.play("error");return
             st.gold-=price;self.player.inventory.append(key)
+            self._quick_autofill(key)
             self.shop_msg=(T_("ui.shop_bought",item_name(key)),UI_GN)
             SoundManager.play("chest")
         else:
@@ -6007,7 +6306,9 @@ class Game:
             for _ in range(5):
                 mx=p.tx+random.randint(-3,3);my=p.ty+random.randint(-3,3)
                 for e in self.cur_map.enemies:
-                    if e.alive and abs(e.tx-mx)<=1 and abs(e.ty-my)<=1: self._hit(e,int(st.magic_atk*1.8),elem=ae)
+                    if e.alive and abs(e.tx-mx)<=1 and abs(e.ty-my)<=1:
+                        self._hit(e,int(st.magic_atk*1.8),elem=ae)
+                        if e.alive: self._etki_ver(e,"burn",300)
                 self.ps.emit(mx*TILE+TILE//2,my*TILE+TILE//2,15,(255,80,20),6.0,35)
         elif aid=="arcane_nova":
             for e in self.cur_map.enemies:
@@ -6023,7 +6324,8 @@ class Game:
             for ang in[-25,0,25]:
                 rad=math.atan2(oy,ox)+math.radians(ang);self._proj(cx,cy,math.cos(rad),math.sin(rad),6,"arrow",int(st.attack*0.9))
         elif aid=="trap":
-            t=Trap(p.tx+ox,p.ty+oy,int(st.attack*1.8));self.cur_map.traps.append(t)
+            t=Trap(p.tx+ox,p.ty+oy,int(st.attack*1.8));t.root=180
+            self.cur_map.traps.append(t)
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(180,140,60),"txt":T_("ui.trap_set")})
         elif aid=="rain_arrows":
             for ang_d in range(0,360,45):
@@ -6037,10 +6339,14 @@ class Game:
                     self.ps.emit(cx,cy,20,(60,40,120),5.0,30);break
         elif aid=="mass_heal":
             amt=int(25+st.wis*2);st.heal(amt)
+            self._etki_ver(p,"regen",480,oyuncu=True)
             self.ps.emit_magic(cx,cy,col=(80,220,120))
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":amt,"l":60,"col":HP_G,"txt":None})
         elif aid=="holy_shield":
-            st.buffs["holy_shield"]=120;self.ps.emit_magic(cx,cy,col=(255,220,80))
+            st.buffs["holy_shield"]=120
+            # Kalkan kotu etkileri de tutuyor: sifaciya acik bir rol veriyor
+            self._etki_ver(p,"immune",240,oyuncu=True)
+            self.ps.emit_magic(cx,cy,col=(255,220,80))
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(255,220,60),"txt":T_("ui.shout_shield")})
         elif aid=="divine_storm":
             for e in self.cur_map.enemies:
@@ -6067,7 +6373,11 @@ class Game:
                 if p and p.invincible<=0:
                     prct=pygame.Rect(p.px+4,p.py+4,TILE-8,TILE-8)
                     if prct.collidepoint(pr.x,pr.y):
-                        self._player_take_hit(pr.dmg,elem=PROJ_ELEM.get(pr.kind,"physical"));hit=True
+                        verilen=self._player_take_hit(pr.dmg,elem=PROJ_ELEM.get(pr.kind,"physical"))
+                        kayit=PROJ_INFLICT.get(pr.kind)
+                        if verilen and kayit and random.random()<kayit[2]:
+                            self._etki_ver(p,kayit[0],kayit[1],oyuncu=True)
+                        hit=True
             else:
                 for e in self.cur_map.enemies:
                     if not e.alive: continue
@@ -6090,6 +6400,7 @@ class Game:
             for e in self.cur_map.enemies:
                 if e.alive and abs(e.tx-tt.tx)<=1 and abs(e.ty-tt.ty)<=1:
                     self._hit(e,tt.dmg,elem="physical");tt.triggered=True;tt.timer=0
+                    if tt.root and e.alive: self._etki_ver(e,"root",tt.root)
                     SoundManager.play("trap")
                     self.ps.emit(tt.tx*TILE+TILE//2,tt.ty*TILE+TILE//2,20,(255,180,40),5.0,35);break
         self.cur_map.traps=[tt for tt in self.cur_map.traps if tt.active]
@@ -6254,6 +6565,7 @@ class Game:
                     if e.is_boss: SoundManager.play("boss_alert")
                 continue
 
+            if e.rooted: continue        # sarmaşık: vurabilir, yürüyemez
             e.move_cd-=1
             if e.move_cd<=0:
                 e.move_cd=spd
@@ -6295,8 +6607,11 @@ class Game:
         """Oyuncuya hasar — yakın dövüş ve düşman mermisi aynı yolu kullanır."""
         p=self.player
         if not p or p.invincible>0: return 0
-        dmg=max(1,raw-p.stats.defense+random.randint(-2,3))
+        # Lanet savunmayı düşürür, direnç gelen hasarı keser.
+        sav=int(p.stats.defense*self._etki_carpani("def_mult"))
+        dmg=max(1,raw-sav+random.randint(-2,3))
         dmg=max(1,int(dmg*self._player_resist(elem)*diff_mult("enemy_dmg")))
+        dmg=max(1,int(dmg*self._etki_carpani("dmg_mult")))
         if "tonic_def" in p.stats.buffs: dmg=max(1,int(dmg*TONIC_DEF))
         if "holy_shield" in p.stats.buffs:
             sh=p.stats.buffs["holy_shield"]
@@ -6313,8 +6628,12 @@ class Game:
 
     def _enemy_strike(self,e,p,ppx,ppy):
         """Telegraf tamamlandı: yakın dövüş hasarı uygula."""
-        self._player_take_hit(e.atk,shake=5 if e.is_boss else 3,
-                              elem=getattr(e,"elem","physical"))
+        verilen=self._player_take_hit(e.atk,shake=5 if e.is_boss else 3,
+                                      elem=getattr(e,"elem","physical"))
+        # Vuran türün kendi etkisi varsa bulaştırır (akrep zehir, hayalet
+        # lanet, köz cini yanma...). Hasar geçmediyse (dokunulmazlık)
+        # etki de geçmez.
+        if verilen: self._bulastir(p,e.kind,oyuncu=True)
 
     DLG_SPEED = 2   # daktilo: kare başına harf
 
@@ -6371,6 +6690,7 @@ class Game:
         if(itx,ity) in self.cur_map.chests:
             loot=self.cur_map.chests.pop((itx,ity))
             for ik in loot:
+                self._quick_autofill(ik)
                 if ik=="gold": p.stats.gold+=ITEMS["gold"][3]
                 elif ik in CRYSTAL_FLAG: p.quest_items.append(ik);self._quest_item(ik)
                 elif ik in MATERIALS:
@@ -6386,6 +6706,47 @@ class Game:
             self.cur_map.set(itx,ity,T.FLOOR);self.ps.emit_gold(itx*TILE+TILE//2,ity*TILE+TILE//2);SoundManager.play("chest")
             self.dmg_nums.append({"x":itx*TILE+TILE//2,"y":ity*TILE,"v":None,"l":70,"col":UI_GD,"txt":T_("chest_opened")})
             self.flags["chests_opened"]=self.flags.get("chests_opened",0)+1
+
+    # ── Hızlı erişim ─────────────────────────────────────────────
+    def _quick_autofill(self,key):
+        """Yeni bir tüketilebilir geldiğinde boş yuvaya kendiliğinden koyar."""
+        if not self.player or not quick_ok(key): return
+        q=self.player.stats.quick
+        if key in q: return
+        for i,v in enumerate(q):
+            if v is None: q[i]=key;return
+
+    def _quick_assign(self,slot,key):
+        q=self.player.stats.quick
+        if not quick_ok(key):
+            SoundManager.play("error")
+            self._toast(T_("ui.quick_bad_item"),UI_RD);return
+        # Aynı eşya başka yuvadaysa oradan kalksın
+        for i,v in enumerate(q):
+            if v==key: q[i]=None
+        q[slot]=key
+        SoundManager.play("menu_sel")
+        self._toast(T_("ui.quick_assigned",slot+5,item_name(key)),UI_GN)
+
+    def _quick_use(self,slot):
+        """5-8 tuşu: yuvadaki eşyayı çantadan kullanır."""
+        p=self.player
+        if not p: return
+        q=p.stats.quick
+        if not (0<=slot<len(q)): return
+        key=q[slot]
+        if not key:
+            SoundManager.play("error");return
+        if key not in p.inventory:
+            SoundManager.play("error")
+            self._toast(T_("ui.quick_empty",item_name(key)),UI_RD);return
+        # Envanterdeki konumunu bul ve mevcut kullanım yolunu kullan:
+        # iki ayrı kullanım kodu tutmak ikisinin ayrışmasına yol açar.
+        u=list(dict.fromkeys(p.inventory))
+        eski=self.inv_sel
+        self.inv_sel=u.index(key)
+        try: self._inv_use_item()
+        finally: self.inv_sel=eski
 
     def _inv_use_item(self):
         """Envanterde seçili eşyayı kullan / ekipmanı giy."""
@@ -6403,6 +6764,28 @@ class Game:
             self.ps.emit_magic(p.px+TILE//2,p.py,col=(255,225,140))
             SoundManager.play("heal")
             self._toast(T_("ui.item_full_used"),UI_GN)
+        elif typ=="cure":
+            # Panzehir: uzerindeki butun kotu etkileri siler
+            silinen=[k for k in p.stats.buffs if k in KOTU_ETKILER]
+            for k in silinen: del p.stats.buffs[k]
+            p.inventory.remove(ik)
+            SoundManager.play("heal")
+            self.ps.emit_magic(p.px+TILE//2,p.py,col=itm[1])
+            self._toast(T_("ui.item_cured",len(silinen)) if silinen
+                        else T_("ui.item_nothing_to_cure"),
+                        UI_GN if silinen else GR)
+        elif typ=="food":
+            # Yemek: hem can hem mana, ustune kisa bir iyilesme
+            p.stats.heal(itm[3]);p.stats.restore_mp(itm[3]//2)
+            self._etki_ver(p,"regen",420,oyuncu=True)
+            p.inventory.remove(ik)
+            SoundManager.play("heal")
+            self.ps.emit_magic(p.px+TILE//2,p.py,col=itm[1])
+            self._toast(T_("ui.item_eaten",item_name(ik)),itm[1])
+        elif typ.startswith("fx_"):
+            self._etki_ver(p,typ[3:],itm[3],oyuncu=True)
+            p.inventory.remove(ik)
+            SoundManager.play("spell")
         elif typ.startswith("buff_"):
             # Tonikler: süresi eşyanın değerinde yazılı (kare)
             anahtar="tonic_"+typ.split("_",1)[1]
@@ -6504,7 +6887,7 @@ class Game:
             if p.invincible>0: p.invincible-=1
             if p.attacking: p.atk_frame+=1
             if p.atk_frame>=p.atk_max: p.attacking=False
-            p.stats.tick_cds();p.stats.tick_buffs()
+            p.stats.tick_cds();p.stats.tick_buffs();self._etkileri_isle()
             # NOT: self.tick milisaniyedir; periyodik iş için kare sayacı kullanılır.
             if p.stats.char_class=="healer" and self.frame_no%120==0:
                 if p.stats.hp<p.stats.max_hp and p.stats.mp>=3: p.stats.heal(2);p.stats.mp-=3
@@ -6705,6 +7088,10 @@ class Game:
                         elif k in(pygame.K_UP,pygame.K_w): self.inv_sel=max(0,self.inv_sel-5)
                         elif k in(pygame.K_DOWN,pygame.K_s): self.inv_sel=min(max(0,len(u)-1),self.inv_sel+5)
                         elif k==pygame.K_e: self._inv_use_item()
+                        elif k in QUICK_KEYS:
+                            # Seçili eşyayı o yuvaya bağla
+                            if 0<=self.inv_sel<len(u):
+                                self._quick_assign(QUICK_KEYS[k],u[self.inv_sel])
                         elif k in(pygame.K_i,pygame.K_ESCAPE): self.state="playing"
 
                     elif self.state=="shop":
@@ -6789,6 +7176,15 @@ class Game:
                             SoundManager.play("open_ui")
                         elif k==pygame.K_e: self._interact()
                         elif k==pygame.K_SPACE: self._auto_attack()
+                        elif k in QUICK_KEYS:
+                            self._quick_use(QUICK_KEYS[k])
+                        elif k==pygame.K_j:
+                            # Görev kutusu ekranın sağını kapatıyordu;
+                            # artık istenince açılıp kapanıyor.
+                            CFG.data["quest_hud"]=not CFG.data.get("quest_hud",True)
+                            CFG.save();SoundManager.play("menu_sel")
+                            self._toast(T_("ui.quest_hud_on") if CFG.data["quest_hud"]
+                                        else T_("ui.quest_hud_off"),UI_CY)
                         elif k in(pygame.K_1,pygame.K_KP1): self._use_ability(0)
                         elif k in(pygame.K_2,pygame.K_KP2): self._use_ability(1)
                         elif k in(pygame.K_3,pygame.K_KP3): self._use_ability(2)
@@ -6867,6 +7263,7 @@ class Game:
                         # Diyalog kutusu alt şeridi kaplıyor — yetenek çubuğunu gizle.
                         if self.state!="dialog":
                             self.ui.draw_ability_bar(self.screen,p.stats,self.tick)
+                            self.ui.draw_quick_bar(self.screen,p,self.tick)
                     # Bilgi pencereleri yalnızca oyun içindeyken; ölüm/zafer ekranını kapatmasınlar.
                     if in_world and self.levelup_timer>0:
                         self.ui.draw_levelup_popup(self.screen,p.stats.level,self.tick)
@@ -6918,7 +7315,9 @@ class Game:
             if self.state=="playing" and self.player and not self.settings_open:
                 if CFG.minimap:
                     self.ui.draw_minimap(self.screen,self.cur_map,self.player,self.tick)
-                self.ui.draw_mini_quests(self.screen,self.flags,self.player.stats.char_class)
+                if CFG.data.get("quest_hud",True):
+                    self.ui.draw_mini_quests(self.screen,self.flags,
+                                             self.player.stats.char_class)
             pygame.display.flip()
 
         pygame.quit();sys.exit()

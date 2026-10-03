@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════╗
-║        KARANLIK TAÇ'IN LANETİ  v6.3  —  2D Pixel RPG         ║
+║        KARANLIK TAÇ'IN LANETİ  v6.4  —  2D Pixel RPG         ║
 ╚══════════════════════════════════════════════════════════════╝
 
   Yüz yıl önce atalarımız Malachar'ı dört kristalle mühürledi.
@@ -19,10 +19,13 @@ KONTROLLER
   WASD / Ok tuşları  Hareket
   Space              Sınıfına özel saldırı
   1 2 3 4            Yetenekler
+  5 6 7 8            Hızlı erişim: iksir, yemek, tılsım
+                     (envanterde eşya seçip 5-8'e basarak ata)
   E                  Konuş / Eşya al / Dükkân aç
   I                  Envanter ve Ekipman   (TAB: sekme değiştir)
                      Dükkânda TAB: Satın Al / Sat / Yükselt
   Q                  Görev günlüğü  (W / S ile kaydır)
+  J                  Görev kutusunu aç / kapat
   M                  Mini harita aç / kapat
   U                  Nitelik dağıtımı
   F1                 Ayarlar (ses, dil, tam ekran)
@@ -80,6 +83,26 @@ ANA BOSS'LAR
   ve unvanını değiştirir.
 
 
+DURUM ETKİLERİ
+─────────────────────────────────────────────────────────────
+  Sol üstte etkin etkiler ve kalan süreleri görünür. Kötüler nabız atar.
+
+    Zehir            zamanla can götürür
+    Yanma            zehirden hızlı yakar
+    Donma            ne yürürsün ne vurursun
+    Sarmaşık         yürüyemezsin ama vurabilirsin
+    Hayalet Laneti   savunman düşer, manan emilir
+    İyileşme         zamanla can verir
+    Direnç           gelen hasar azalır
+    Bağışıklık       kötü etki tutmaz
+
+  Panzehir bütün kötü etkileri temizler. Koruma Tılsımı bir süre
+  hiçbirinin tutmamasını sağlar.
+
+  Taktığın silahın elementi düşmana iz bırakır: ateş yakar, buz
+  dondurur, doğa zehirler, gölge lanetler.
+
+
 İPUÇLARI
 ─────────────────────────────────────────────────────────────
   • Düşman saldırmadan önce kırmızı bir halka daralır — kaçın.
@@ -95,6 +118,9 @@ ANA BOSS'LAR
   • Malzemeleri hepsini satma: yükseltme için de gerekiyorlar.
   • Yirmi iki yan görev var; günlükte W/S ile hepsini gezebilirsin.
   • Haritalar köyden uzaklaştıkça sertleşir. Sıra atlamak zorlar.
+  • Dövüşe girmeden önce 5-8 yuvalarını doldur; envanter açmaya vakit olmaz.
+  • Akrep ve örümcek bölgelerine panzehirsiz girme.
+  • Yemekler iksirden yavaş ama hem can hem mana verir.
 
 
 DİL
