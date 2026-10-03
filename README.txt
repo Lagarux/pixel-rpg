@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════╗
-║        KARANLIK TAÇ'IN LANETİ  v6.2  —  2D Pixel RPG         ║
+║        KARANLIK TAÇ'IN LANETİ  v6.3  —  2D Pixel RPG         ║
 ╚══════════════════════════════════════════════════════════════╝
 
   Yüz yıl önce atalarımız Malachar'ı dört kristalle mühürledi.
@@ -22,7 +22,7 @@ KONTROLLER
   E                  Konuş / Eşya al / Dükkân aç
   I                  Envanter ve Ekipman   (TAB: sekme değiştir)
                      Dükkânda TAB: Satın Al / Sat / Yükselt
-  Q                  Görev günlüğü
+  Q                  Görev günlüğü  (W / S ile kaydır)
   M                  Mini harita aç / kapat
   U                  Nitelik dağıtımı
   F1                 Ayarlar (ses, dil, tam ekran)
@@ -93,6 +93,8 @@ ANA BOSS'LAR
   • Haydutlar canları azalınca kaçar; yolu kesmeden önce köşeye sıkıştır.
   • Dev örümcek ağ atar, yaklaşınca da vurur.
   • Malzemeleri hepsini satma: yükseltme için de gerekiyorlar.
+  • Yirmi iki yan görev var; günlükte W/S ile hepsini gezebilirsin.
+  • Haritalar köyden uzaklaştıkça sertleşir. Sıra atlamak zorlar.
 
 
 DİL

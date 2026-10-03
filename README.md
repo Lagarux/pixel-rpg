@@ -24,7 +24,7 @@ Beş dilde oynanır, bütün grafikleri ve sesleri çalışma anında üretir �
 
 ### Seçenek 1 — Hazır sürümü indir (önerilen)
 
-[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.2-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
+[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.3-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
 
 ### Seçenek 2 — Kaynaktan çalıştır
 
@@ -76,12 +76,12 @@ Dükkânda `TAB` sekmeleri dolaşır: **Satın Al · Sat · Yükselt** (yükselt
 | **13 harita** | Köy, orman, harabeler, kayalık geçit, bataklık, çöl, buz mağarası, Köz Vadisi, gölge kalesi, çayır, nehir, kütüphane, zindan |
 | **4 sınıf** | Savaşçı, Büyücü, Okçu, Şifacı — 16 yetenek |
 | **7 element** | Fiziksel, ateş, buz, doğa, gölge, kutsal, toprak. Her düşmanın ve her saldırının bir elementi var |
-| **6 ana bölüm + 14 yan görev** | Ödüller altın ve XP; ilerleme sağ panelde takip edilir |
+| **6 ana bölüm + 22 yan görev** | Ödüller altın ve XP; günlük `Q` ile açılır, `W`/`S` ile kaydırılır |
 | **24 NPC** | Oyunun gidişatına ve senin yaptıklarına göre konuşurlar |
 | **6 dükkân** | Demirci, han ve dört tezgâhlı pazar meydanı; alış/satış/konaklama/yükseltme |
-| **123 düşman, 16 tür** | Beş davranış: yanaşan, menzilli, kaçan, sürü hâlinde avlanan, ağ atan |
+| **131 düşman, 18 tür** | Beş davranış: yanaşan, menzilli, kaçan, sürü hâlinde avlanan, ağ atan |
 | **5 ana boss** | Dördü birer kristal muhafızı, beşincisi Malachar. Her biri düştüğünde araya sahne girer |
-| **39 ekipman + 34 eşya** | Beş yuva, üç kademe, 15 malzeme, iksirler ve tonikler |
+| **39 ekipman + 36 eşya** | Beş yuva, üç kademe, 15 malzeme, iksirler ve tonikler |
 | **5 zorluk** | Kolay · Orta · Zor · Çok Zor · **Hardcore** (tek can — ölünce kayıt silinir) |
 | **Kapanış** | Bitirdiğin yan görevler ve topladığın kristaller epiloğa kendi sahnesini ekler |
 
@@ -114,6 +114,21 @@ Oyunun ekonomisi ölçülerek yeniden kuruldu. Önceki hâlinde toplanabilecek *
 | **Seviye** | Tavan 30. Eğri ilk yedi seviyede eskisi gibi hızlı, sonrasında yumuşuyor |
 
 Sayılarla: sandıktan çıkan en pahalı ekipman 280 → **195 altın**; yalnızca satın alınabilen ekipman 3 → **23 parça**; bir temizlikte toplanan altın 1730 → **3083**; harcanacak hedef (üst kademe takım + yükseltmeler) **12.470 altın + 100 malzeme**.
+
+### Zorluk eğrisi
+
+Haritaların sertliği elle yazılmıştı ve başlangıca uzaklığıyla ilgisi yoktu: **iki adım** ötedeki Gizemli Kütüphane (91 can / 15,1 saldırı), **dört adım** ötedeki Buz Mağarası'ndan (77 / 12,6) sertti. Artık her haritanın bir kademesi var — geçiş grafiğindeki adım sayısı — ve değerler o kademeye ölçekleniyor. Harita *içindeki* oranlar korunuyor: golem balçıktan sert kalıyor.
+
+| Adım | Ortalama can | Ortalama saldırı | Boss |
+|---|---|---|---|
+| 0 — Ashveil | 36 | 6 | — |
+| 1 — orman, çayır, nehir, zindan | 56 | 10 | — |
+| 2 — harabeler, bataklık, geçit, kütüphane | 74 | 13 | 192 / 18 |
+| 3 — çöl | 92 | 16 | — |
+| 4 — buz mağarası, Köz Vadisi | 110 | 20 | 286 / 27 |
+| 5 — gölge kalesi | 132 | 25 | 620 / 38 |
+
+Kademe tablosunun geçiş grafiğiyle uyuştuğu testle sınanıyor: yeni bir harita eklenip kademesi unutulamaz.
 
 ---
 
@@ -161,7 +176,7 @@ python tools/make_logo_icon.py
 
 Türkçe, İngilizce, Almanca, Rusça, Arapça. `F1` → Dil ile değiştirilir, tercih kaydedilir.
 
-Çeviriler `assets/locales/*.json` dosyalarında (724 anahtar). Bunlar elle düzenlenmez — tek kaynak `tools/locales_data.py`'dir:
+Çeviriler `assets/locales/*.json` dosyalarında (787 anahtar). Bunlar elle düzenlenmez — tek kaynak `tools/locales_data.py`'dir:
 
 ```bash
 python tools/locales_data.py     # bes JSON dosyasini yeniden uretir
@@ -179,7 +194,7 @@ Yazı tipi dile göre seçilir: oyun her yazı tipini gerçekten deneyip gerekli
 python -m unittest discover -s tests
 ```
 
-**368 test**, 23 dosya. Pencere açmadan gerçek kare çizerek çalışırlar (`SDL_VIDEODRIVER=dummy`), ek bağımlılık istemezler — `unittest` yeterlidir.
+**398 test**, 24 dosya. Pencere açmadan gerçek kare çizerek çalışırlar (`SDL_VIDEODRIVER=dummy`), ek bağımlılık istemezler — `unittest` yeterlidir.
 
 Testler yalnızca "çağrı patlamadı" demiyor, davranışı ölçüyor:
 
@@ -189,6 +204,7 @@ Testler yalnızca "çağrı patlamadı" demiyor, davranışı ölçüyor:
 | `test_tiles.py` | Hiçbir haritanın tek karoyla kaplanmaması, her geçidin üslubunun olması, ulaşılamayan adacık kalmaması, her geçişin dönüşünün olması |
 | `test_economy.py` | Sandıktan üst kademe çıkmaması, her türün malzemesi olması, geri doğumun çalışması, seviye tavanının ulaşılabilir olması |
 | `test_boss.py` | Her boss'un sahnesinin açılması, kristallerin kapanışa işlemesi, anlatının kutuya sığması |
+| `test_curve.py` | Zorluğun haritanın uzaklığıyla artması, kademe tablosunun geçiş grafiğiyle uyuşması, boss adının çevrili olması |
 | `test_quests.py` | Her yan görevin gerçekten bitirilebilmesi — hedef düşmanların oyuncunun gidebildiği haritalarda olması |
 | `test_elements.py` | Denge: hiçbir düşmanın 3 vuruştan çabuk ölmemesi, hiçbir sınıfın bir türe karşı çaresiz kalmaması |
 | `test_sound.py` | Seslerin üretilmesi, dolu olması ve sert olmaması (ölçülen parlaklık değeriyle) |
@@ -201,10 +217,10 @@ Geliştirme süreci ve her kararın gerekçesi [`GELISTIRME_PLANI.md`](GELISTIRM
 ### Dizin yapısı
 
 ```
-pixel_rpg.py            oyunun tamami (~6700 satir)
+pixel_rpg.py            oyunun tamami (~6900 satir)
 assets/locales/*.json   bes dil (tools/locales_data.py uretir)
 assets/fonts/           ortacag yazi tipleri
-tests/                  368 test + kosum takimi (harness.py)
+tests/                  398 test + kosum takimi (harness.py)
 tools/                  ceviri ureteci, ikon ureteci
 docs/                   README gorselleri
 ```
@@ -226,7 +242,7 @@ A single-file 2D pixel RPG whose only dependency is pygame. Every graphic is dra
 
 ### Install
 
-Download `KaranlikTacinLaneti-v6.2-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
+Download `KaranlikTacinLaneti-v6.3-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
 
 ```bash
 pip install pygame
@@ -241,7 +257,9 @@ Python 3.8+. pygame is the only requirement.
 
 ### What's in it
 
-13 maps, 4 classes with 16 abilities, 7 elements, 6 story chapters, 14 side quests, 24 NPCs, 6 shops including a four-stall bazaar, 123 enemies across 16 kinds with five behaviours, 39 equipment pieces across three tiers, 15 crafting materials, and an epilogue that changes with what you completed.
+13 maps, 4 classes with 16 abilities, 7 elements, 6 story chapters, 22 side quests, 24 NPCs, 6 shops including a four-stall bazaar, 131 enemies across 18 kinds with five behaviours, 39 equipment pieces across three tiers, 15 crafting materials, and an epilogue that changes with what you completed.
+
+**Difficulty curve.** Every map has a tier equal to its distance in map-hops from the start, and enemy values are scaled to that tier. Previously the Mystic Library, two hops from the village, was harder than the Ice Cave four hops away. A test checks the tier table against the actual transition graph.
 
 **Hunting loop.** Non-boss enemies respawn after 60 seconds at their own tile (and wait while you are within 14 tiles). Each kind drops its own material, which you sell or spend at the blacksmith to upgrade equipment up to +5. Top-tier gear is purchase-only. The level cap is 30.
 
@@ -255,7 +273,7 @@ Five languages: Turkish, English, German, Russian, Arabic. Switch with `F1`. Tra
 python -m unittest discover -s tests
 ```
 
-368 tests across 23 files, using only `unittest`. They render real frames headlessly (`SDL_VIDEODRIVER=dummy`) and measure behaviour rather than just checking that calls succeed: that no side quest is impossible to finish, that no enemy dies in two hits, that the player can never get stuck between two maps, that no map is covered by a single tile type, that nothing above 210 gold comes free from a chest, and that every dialogue line fits the box in all five languages.
+398 tests across 24 files, using only `unittest`. They render real frames headlessly (`SDL_VIDEODRIVER=dummy`) and measure behaviour rather than just checking that calls succeed: that no side quest is impossible to finish, that no enemy dies in two hits, that the player can never get stuck between two maps, that no map is covered by a single tile type, that nothing above 210 gold comes free from a chest, and that every dialogue line fits the box in all five languages.
 
 </details>
 

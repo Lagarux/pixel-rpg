@@ -224,11 +224,15 @@ class TestKapanisaEtkisi(unittest.TestCase):
                            "kristaller kapanisa hicbir sey eklemedi")
 
     def test_kristaller_unvani_yukseltiyor(self):
+        # Esik tablodan turetiliyor: yan gorev sayisi degisince
+        # (14 -> 21) elle yazilmis sayi bu testi yanlis yere dusuruyordu.
+        esikler = sorted(e for e, _k in MOD.ENDING_RANKS if e > 0)
+        hedef = esikler[1] if len(esikler) > 1 else esikler[0]
         f = {}
-        for sq in MOD.SIDE_QUESTS[:9]:
+        for sq in MOD.SIDE_QUESTS[:hedef - 2]:
             f["sqpaid_" + sq["id"]] = True
         dusuk = MOD.ending_rank(f)
-        f["fire_crystal"] = True
+        f["fire_crystal"] = True      # her biri 2 sayiliyor
         f["light_crystal"] = True
         yuksek = MOD.ending_rank(f)
         self.assertNotEqual(dusuk, yuksek, "kristaller unvani degistirmedi")

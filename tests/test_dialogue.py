@@ -27,12 +27,25 @@ TMP = None
 G = None
 
 # Oyunun uc hali: basi, ortasi, sonu
+# Oyunun gidisatini temsil eden bayrak durumlari. Her NPC dalinin en az
+# bir senaryoda gorunmesi gerekiyor; TestKapsam bunu zorunlu kiliyor.
 SENARYO = [
     {"ch": 1},
     {"ch": 4, "earth_crystal": True, "speak_aldric": True, "kill_wolf": 5, "kill_boar": 5},
+    {"ch": 5, "earth_crystal": True, "water_crystal": True, "speak_aldric": True},
     {"ch": 6, "water_crystal": True, "earth_crystal": True, "malachar_defeated": True,
      "sq_fish_done": True, "sq_scroll1": True, "sq_scroll2": True, "sq_scroll3": True,
      "kill_wolf": 9, "kill_boar": 9},
+    # Yeni sistemler: malzeme toplandi, yukseltme yapildi
+    {"ch": 3, "materials_found": 8},
+    {"ch": 4, "materials_found": 30, "max_upgrade": 3},
+    # Parsomenler tamam: once tesekkur, sonra Sayfa Muhafizi uyarisi
+    {"ch": 4, "sq_scroll1": True, "sq_scroll2": True, "sq_scroll3": True},
+    {"ch": 4, "sq_scroll1": True, "sq_scroll2": True, "sq_scroll3": True,
+     "libr_told": True},
+    # Istege bagli kristaller alindi
+    {"ch": 5, "light_crystal": True, "boss_light": True},
+    {"ch": 5, "fire_crystal": True, "boss_fire": True},
 ]
 
 EN_AZ_SATIR = 5
@@ -170,14 +183,54 @@ class TestFitsOnScreen(unittest.TestCase):
             self.assertLessEqual(sayfa, 4, "%s icin %d sayfa cok uzun" % (n.name, sayfa))
 
 
+class TestKapsam(unittest.TestCase):
+    """Her cevrilmis replik en az bir senaryoda gorunmeli.
+
+    Yeni NPC dallari (demircinin yukseltme anlatimi, kutuphanecinin
+    Sayfa Muhafizi uyarisi, Koz Bekcisi'nin Koz Devi sozleri) hicbir
+    senaryoda calismiyordu: 36 replik yazildigi halde tek bir test
+    onlara dokunmuyordu. Bu test bos replik birakilmasini engelliyor.
+    """
+
+    def _ulasilan(self):
+        out = set()
+        for f in SENARYO:
+            for _k, n in npcs():
+                for satir in n.get_dialog(f):
+                    out.add(anahtar(satir))
+        return out
+
+    def test_hicbir_replik_olu_degil(self):
+        import json
+        import io as _io
+        yol = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "assets", "locales", "tr.json")
+        tum = {k for k in json.load(_io.open(yol, encoding="utf-8"))
+               if k.startswith("dlg.")}
+        eksik = sorted(tum - self._ulasilan())
+        self.assertEqual(eksik, [],
+                         "hicbir senaryoda gorunmeyen %d replik: %s"
+                         % (len(eksik), eksik[:8]))
+
+    def test_yeni_sistemler_konusuluyor(self):
+        """Demirci yukseltmeyi, kutuphaneci muhafizi anlatmali."""
+        ulasilan = self._ulasilan()
+        for k in ("dlg.smith.11", "dlg.libr.22", "dlg.koz.15"):
+            self.assertIn(k, ulasilan, "%s hicbir durumda soylenmiyor" % k)
+
+
 class TestProgression(unittest.TestCase):
     def test_some_npcs_react_to_progress(self):
         """Hepsi degil ama onemli bir kismi oyunun gidisatina tepki vermeli."""
+        # Eskiden yalnizca ILK ve SON senaryo karsilastiriliyordu; senaryo
+        # listesine araya yeni durum eklenince (son senaryo artik "oyunun
+        # sonu" degil) test anlamsiz yere dusuyordu. Artik herhangi iki
+        # durum arasinda farklilik ariyoruz - asil sorulan bu.
         degisen = 0
         for key, n in npcs():
-            bas = n.get_dialog(dict(SENARYO[0]))
-            son = n.get_dialog(dict(SENARYO[-1]))
-            if bas != son:
+            soylenenler = {tuple(anahtar(x) for x in n.get_dialog(dict(f)))
+                           for f in SENARYO}
+            if len(soylenenler) > 1:
                 degisen += 1
         toplam = sum(1 for _ in npcs())
         self.assertGreaterEqual(degisen, toplam // 2,

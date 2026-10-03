@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KARANLIK TAC'IN LANETI  v6.2  ─  2D Pixel RPG
+KARANLIK TAC'IN LANETI  v6.3  ─  2D Pixel RPG
 pip install pygame  |  python pixel_rpg.py
 
 Kontroller:
@@ -28,7 +28,7 @@ except Exception:
 SW, SH = 960, 640
 TILE    = 32
 FPS     = 60
-VERSION = "6.2"
+VERSION = "6.3"
 TITLE   = "Karanlik Tac'in Laneti"   # ASCII: pencere basligi ve dosya adlari icin
 
 # ─── Dizinler ────────────────────────────────────────────────────
@@ -1177,6 +1177,43 @@ SIDE_QUESTS = [
      "unit":"ui.unit_knight","col":(190,120,220),
      "progress":lambda f: (min(3,f.get("kill_shadow_knight",0)),3),
      "gold":180,"xp":180},
+
+    # ── Yeni türler ve yeni sistemler ───────────────────────────
+    # Altı yeni düşman türü eklenmişti ama hiçbirinin görevi yoktu;
+    # malzeme ve yükseltme sistemlerini de hiçbir şey tanıtmıyordu.
+    {"id":"spider",  "title":"ui.sq_spider",  "desc":"ui.sq_spider_desc",
+     "unit":"ui.unit_spider","col":(190,160,90),
+     "progress":lambda f: (min(5,f.get("kill_spider",0)),5),
+     "gold":85,"xp":80},
+    {"id":"bat",     "title":"ui.sq_bat",     "desc":"ui.sq_bat_desc",
+     "unit":"ui.unit_bat","col":(150,120,190),
+     "progress":lambda f: (min(6,f.get("kill_bat",0)),6),
+     "gold":60,"xp":55},
+    {"id":"bandit",  "title":"ui.sq_bandit",  "desc":"ui.sq_bandit_desc",
+     "unit":"ui.unit_bandit","col":(210,180,110),
+     "progress":lambda f: (min(4,f.get("kill_bandit",0)),4),
+     "gold":110,"xp":95},
+    {"id":"treant",  "title":"ui.sq_treant",  "desc":"ui.sq_treant_desc",
+     "unit":"ui.unit_treant","col":(110,170,90),
+     "progress":lambda f: (min(2,f.get("kill_treant",0)),2),
+     "gold":120,"xp":110},
+    {"id":"wraith",  "title":"ui.sq_wraith",  "desc":"ui.sq_wraith_desc",
+     "unit":"ui.unit_wraith","col":(190,200,235),
+     "progress":lambda f: (min(4,f.get("kill_wraith",0)),4),
+     "gold":140,"xp":130},
+    {"id":"imp",     "title":"ui.sq_imp",     "desc":"ui.sq_imp_desc",
+     "unit":"ui.unit_imp","col":(240,130,60),
+     "progress":lambda f: (min(4,f.get("kill_lava_imp",0)),4),
+     "gold":150,"xp":140},
+    # Sistem tanıtan iki görev
+    {"id":"gather",  "title":"ui.sq_gather",  "desc":"ui.sq_gather_desc",
+     "unit":"ui.unit_material","col":(170,200,210),
+     "progress":lambda f: (min(20,f.get("materials_found",0)),20),
+     "gold":90,"xp":70},
+    {"id":"forge",   "title":"ui.sq_forge",   "desc":"ui.sq_forge_desc",
+     "unit":"ui.unit_upgrade","col":(230,190,110),
+     "progress":lambda f: (min(3,f.get("max_upgrade",0)),3),
+     "gold":130,"xp":100},
 ]
 
 # Hangi NPC'nin konusulacak bir isi var? (basinda ! rozeti gosterilir)
@@ -1273,8 +1310,10 @@ EPILOGUE = [
 ]
 
 # Bitirilen yan görev sayısına göre unvan
-ENDING_RANKS = [(14,"epi.rank_legend"),(10,"epi.rank_hero"),
-                (5,"epi.rank_wanderer"),(0,"epi.rank_sealer")]
+# Esikler gorev sayisina gore: 14 -> 21 yan gorev oldu, ustune iki
+# istege bagli kristal ikiser sayiliyor (bkz. ending_rank).
+ENDING_RANKS = [(22,"epi.rank_legend"),(14,"epi.rank_hero"),
+                (7,"epi.rank_wanderer"),(0,"epi.rank_sealer")]
 
 
 def epilogue_pages(flags):
@@ -3503,7 +3542,12 @@ def build_ashveil():
         if f.get("earth_crystal"):  return A(13,19)
         return A(19,26)
     m.npcs.append(NPC(24,19,"npc.yasli_aldric",(160,100,60),aldric_d,"elder"))
-    def smith_d(f): return ["dlg.smith.%d"%i for i in range(1,8)]
+    def smith_d(f):
+        D=lambda a,b:["dlg.smith.%d"%i for i in range(a,b)]
+        # Yukseltme tezgahini isletiyor ama agzini acmiyordu.
+        if f.get("max_upgrade",0)>0:        return D(14,20)   # zaten yukseltti
+        if f.get("materials_found",0)>=3:   return D(8,14)    # malzemesi var
+        return D(1,8)
     m.npcs.append(NPC(18,13,"npc.demirci_boran",(140,90,50),smith_d,"smith"))
     def inn_d(f): return ["dlg.inn.%d"%i for i in range(1,8)]
     m.npcs.append(NPC(38,13,"npc.hanci_mira",(180,130,160),inn_d,"inn"))
@@ -3592,6 +3636,10 @@ def build_dark_forest():
         Enemy(30,28,"wolf",42,9,22,agro=5,loot=["gold"]),
         Enemy(12,20,"spider",40, 9,28,agro=5,loot=["hp_pot"]),
         Enemy(44,26,"spider",40, 9,28,agro=5),
+        # Orumcek gorevi bes istiyor; erken haritalarda dort tane vardi,
+        # oyuncu bariz yerde arayip bulamiyordu.
+        Enemy(20,10,"spider",40, 9,28,agro=5,loot=["gold"]),
+        Enemy(38,32,"spider",42, 9,29,agro=5),
         Enemy(34,38,"treant",70,12,44,agro=4,loot=["gold","gold"]),
     ]
     _snap_all(m); return m
@@ -3719,6 +3767,7 @@ def build_misty_swamp():
         Enemy(32,32,"boar",    45,10,28,agro=5),
         Enemy(20,12,"spider",  42,10,29,agro=5,loot=["gold"]),
         Enemy(48,34,"treant",  76,13,47,agro=4,loot=["mp_pot"]),
+        Enemy(24,36,"treant",  74,13,46,agro=4,loot=["gold"]),
     ]
     _snap_all(m); return m
 
@@ -3773,6 +3822,7 @@ def build_ruins():
         Enemy(24,33,"skeleton",65,13,38,agro=5,loot=["mp_pot"]),
         Enemy(18,24,"wraith",  62,14,42,agro=6,loot=["mp_pot"]),
         Enemy(40,10,"spider",  58,12,36,agro=5,loot=["gold"]),
+        Enemy(12,40,"spider",  56,12,35,agro=5),
         Enemy(46,20,"bat",     26, 8,20,agro=5),
         Enemy(46,44,"golem", 130,20,80,agro=6,loot=["earth_c"],is_boss=True,
               boss_id="earth"),
@@ -3916,7 +3966,10 @@ def build_ember_valley():
 
     def warden_d(f):
         W=lambda a,b:["dlg.koz.%d"%i for i in range(a,b)]
-        return W(7,13) if f.get("malachar_defeated") else W(1,7)
+        # Vadisinde Koz Devi vardi ve ondan hic soz etmiyordu.
+        if f.get("boss_fire"):           return W(13,19)
+        if f.get("malachar_defeated"):   return W(7,13)
+        return W(1,7)
     m.npcs.append(NPC(24,8,"npc.koz_bekcisi",(220,120,60),warden_d,"smith"))
 
     m.enemies += [
@@ -3933,6 +3986,10 @@ def build_ember_valley():
         Enemy(38,24,"lava_imp", 54,14,38,agro=5,loot=["hp_pot"]),
         Enemy(30,36,"lava_imp", 58,15,41,agro=5),
         Enemy(20,12,"lava_imp", 58,15,41,agro=5,loot=["mp_pot"]),
+        # Yan görev "Közü Söndür" dört köz cini istiyor ve haritada tam
+        # dört tane vardı: sıfır pay. Geri doğsalar da rahat olsun.
+        Enemy(44,14,"lava_imp", 54,14,38,agro=5,loot=["gold"]),
+        Enemy(10,30,"lava_imp", 54,14,38,agro=5),
         # Köz Devi — ateş kristalinin muhafızı
         Enemy(26,22,"ember_titan",320,28,220,agro=8,loot=["fire_c","ember_core"],
               is_boss=True,boss_id="fire"),
@@ -4126,6 +4183,13 @@ def build_mystic_library():
     m.set(37,30,T.CHEST); m.chests[(37,30)]= ["hp_pot_l","mp_pot_l","travel_boots","gold","bone_dust"]
     def libr_d(f):
         n=sum(1 for k in["sq_scroll1","sq_scroll2","sq_scroll3"] if f.get(k))
+        # Dibinde Sayfa Muhafizi duruyordu, hic soz etmiyordu.
+        # Uc durum: kristali aldin / parsomenleri getirdin ve muhafizi
+        # ogrendin / parsomenleri yeni getirdin. "libr_told" bayragi
+        # olmadan odul konusmasi (1-6) erisilemez kaliyordu.
+        if f.get("light_crystal"): return ["dlg.libr.%d"%i for i in range(13,19)]
+        if n>=3 and f.get("libr_told"):
+            return ["dlg.libr.%d"%i for i in range(19,25)]
         if n>=3: return ["dlg.libr.%d"%i for i in range(1,7)]
         return ["dlg.libr.7","dlg.libr.8",("dlg.libr.9",n),
                 "dlg.libr.10","dlg.libr.11","dlg.libr.12"]
@@ -5209,13 +5273,34 @@ class UI:
             if k not in seen: seen.append(k)
         return [(k,sell_price(k),True) for k in seen]
 
-    def draw_quest_log(self,surf,flags,chapter):
+    # Yan görev listesinin sığdığı yükseklik (panel yüksekliği - 108).
+    # Panel 420'den 520'ye büyüdü: yan görev sayısı 14'ten 22'ye çıkınca
+    # hepsi bitmiş olsa bile liste sığmıyordu.
+    QUEST_PANEL_H = 520
+    QUEST_AREA_H = QUEST_PANEL_H - 108
+
+    @staticmethod
+    def quest_row_h(sq,flags):
+        got,need=sq["progress"](flags)
+        return 18 if got>=need else 40
+
+    @classmethod
+    def quest_scroll_max(cls,flags):
+        """En fazla kaç görev kaydırılabilir; hepsi sığıyorsa 0."""
+        h=[cls.quest_row_h(sq,flags) for sq in SIDE_QUESTS]
+        if sum(h)<=cls.QUEST_AREA_H: return 0
+        i=len(h);kalan=cls.QUEST_AREA_H
+        while i>0 and kalan-h[i-1]>=0:
+            kalan-=h[i-1];i-=1
+        return i
+
+    def draw_quest_log(self,surf,flags,chapter,kaydir=0):
         """İki sütun: solda ana hikâye bölümleri, sağda yan görevler.
 
         Yan görev sayısı 3'ten 8'e çıkınca tek sütuna sığmıyordu.
         """
         self.dim(surf)
-        pw,ph=740,420;px=SW//2-pw//2;py=SH//2-ph//2
+        pw,ph=740,self.QUEST_PANEL_H;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         self.txt(surf,T_("quest_log"),px+16,py+8,UI_GD,self.flg)
         colw=(pw-44)//2
@@ -5240,25 +5325,38 @@ class UI:
             y+=36
 
         # ── Sağ sütun: yan görevler (tablodan) ───────────────────
+        # Liste sessizce kesiliyordu: hiç görev bitmemişken 14 görevin
+        # yalnızca 8'i görünüyor, oyuncunun gerisinden haberi olmuyordu.
         done_n=sum(1 for sq in SIDE_QUESTS if sq_done(sq,flags))
         self.txt(surf,T_("ui.side_quests_hdr"),rx,py+48,UI_PR,self.fsm)
         self.txt(surf,"%d/%d"%(done_n,len(SIDE_QUESTS)),rx+colw-36,py+48,UI_GN,self.fsm)
-        y=py+68
-        for sq in SIDE_QUESTS:
+        ust=max(0,min(kaydir,self.quest_scroll_max(flags)))
+        y=py+68;alt_sinir=py+ph-40
+        if ust>0:
+            # Gosterge basligin uzerine biniyordu: listeyi asagi kaydir
+            self.txt(surf,T_("ui.quest_more_up",ust),rx,y,UI_AC,self.fsm)
+            y+=14
+        gosterilen=0
+        for sq in SIDE_QUESTS[ust:]:
             got,need=sq["progress"](flags)
             done=got>=need
+            yuk=18 if done else 40
+            if y+yuk>alt_sinir: break
             sym="✓" if done else "○"
             self.txt(surf,"[%s] %s"%(sym,T_(sq["title"])),rx,y,UI_GN if done else LGR,self.fsm)
             if done:
                 self.txt(surf,T_("ui.completed"),rx+colw-70,y,UI_GN,self.fsm)
-                y+=18
             else:
                 self.txt(surf,"%d/%d"%(got,need),rx+colw-36,y,sq["col"],self.fsm)
                 self.txt(surf,"  "+T_(sq["desc"]),rx,y+12,GR,self.fsm)
                 self.txt(surf,"  +%d %s  +%d XP"%(sq["gold"],T_("gold"),sq["xp"]),rx,y+24,UI_GD,self.fsm)
-                y+=40
-            if y>py+ph-40: break
-        self.txt(surf,T_("ui.close_quests"),px+14,py+ph-20,GR,self.fsm)
+            y+=yuk;gosterilen+=1
+        kalan=len(SIDE_QUESTS)-ust-gosterilen
+        if kalan>0:
+            self.txt(surf,T_("ui.quest_more_down",kalan),rx,alt_sinir-2,UI_AC,self.fsm)
+        ipucu=T_("ui.close_quests_scroll") if self.quest_scroll_max(flags) \
+              else T_("ui.close_quests")
+        self.txt(surf,ipucu,px+14,py+ph-20,GR,self.fsm)
 
 
 # ─── Game ────────────────────────────────────────────────────────
@@ -5372,6 +5470,7 @@ class Game:
         self.inv_sel=0;self.inv_tab=0;self.eq_sel=0  # eq_sel: ekipman sekmesi imleci
         self.epi_pages=[];self.epi_page=0            # kapanış sayfaları
         self.boss_scene=None                         # boss kapanış sahnesi
+        self.quest_scroll=0                          # görev günlüğü kaydırması
         self.splash_t=0                              # açılış animasyonu sayacı
         self.diff_sel=DIFF_IDS.index(CFG.data.get("difficulty","normal")) \
             if CFG.data.get("difficulty","normal") in DIFF_IDS else 1
@@ -5555,7 +5654,8 @@ class Game:
                 # Sabit bayrakların yanında dinamik olanlar da geri yüklenmeli:
                 # kill_<tür> sayaçları ve sqpaid_<görev> ödül işaretleri
                 # önceden tanımlı değil, süresince oluşuyorlar.
-                if k in self.flags or k.startswith(("kill_","sqpaid_","chests_","boss_")):
+                if k in self.flags or k=="libr_told"                    or k.startswith(("kill_","sqpaid_","chests_","boss_",
+                                                    "materials_","max_")):
                     self.flags[k]=v
             for key,ms in data.get("maps",{}).items():
                 m=self.maps.get(key)
@@ -5724,6 +5824,7 @@ class Game:
         mat=DROP_BY_KIND.get(e.kind)
         if mat and (e.is_boss or random.random()<MAT_DROP_CHANCE):
             self.player.inventory.append(mat)
+            self.flags["materials_found"]=self.flags.get("materials_found",0)+1
         lv=self.player.stats.gain_xp(int(e.xp_r*diff_mult("xp")))
         self.player.stats.gold+=int(random.randint(1,4)*diff_mult("gold"))
         self.ps.emit_xp(e.px+TILE//2,e.py+TILE//2);self.ps.emit_gold(e.px+TILE//2,e.py+TILE//2)
@@ -5785,6 +5886,7 @@ class Game:
         for x in elde[:mal]: p.inventory.remove(x)
         st.gold-=altin
         st.upgrades[k]=lvl+1
+        self.flags["max_upgrade"]=max(self.flags.get("max_upgrade",0),lvl+1)
         self.shop_msg=(T_("ui.upg_done",item_name(k),lvl+1),UI_GN)
         SoundManager.play("level_up")
         self.ps.emit_gold(p.px+TILE//2,p.py)
@@ -6256,6 +6358,12 @@ class Game:
                     self.flags["speak_oracle"]=True;self._advance(5)
                 elif npc.name=="npc.bataklik_cadisi": self.flags["sq_witch_done"]=True
                 elif npc.name=="npc.munzevi": self.flags["sq_hermit_done"]=True
+                elif npc.name=="npc.kutuphaneci_elan":
+                    # Parsomenleri getirdiyse once tesekkur eder, SONRAKI
+                    # konusmada Sayfa Muhafizi'ndan soz eder.
+                    if sum(1 for k in("sq_scroll1","sq_scroll2","sq_scroll3")
+                           if self.flags.get(k))>=3:
+                        self.flags["libr_told"]=True
                 elif npc.name=="npc.balikci_riva" and not self.flags.get("sq_fish_done"):
                     self.flags["sq_fish_done"]=True;SoundManager.play("chest")
                     self.dmg_nums.append({"x":npc.tx*TILE,"y":npc.ty*TILE-TILE,"v":None,"l":100,"col":UI_CY,"txt":T_("ui.sq_done")})
@@ -6265,6 +6373,9 @@ class Game:
             for ik in loot:
                 if ik=="gold": p.stats.gold+=ITEMS["gold"][3]
                 elif ik in CRYSTAL_FLAG: p.quest_items.append(ik);self._quest_item(ik)
+                elif ik in MATERIALS:
+                    p.inventory.append(ik)
+                    self.flags["materials_found"]=self.flags.get("materials_found",0)+1
                 elif ik in("scroll1","scroll2","scroll3"):
                     p.inventory.append(ik)
                     flag_k="sq_"+ik
@@ -6615,7 +6726,14 @@ class Game:
                             self.state="playing";self.shop_msg=None;SoundManager.play("menu_back")
 
                     elif self.state=="quest_log":
-                        if k in(pygame.K_q,pygame.K_ESCAPE): self.state="playing"
+                        enb=UI.quest_scroll_max(self.flags)
+                        if k in(pygame.K_UP,pygame.K_w):
+                            if self.quest_scroll>0:
+                                self.quest_scroll-=1;SoundManager.play("menu_sel")
+                        elif k in(pygame.K_DOWN,pygame.K_s):
+                            if self.quest_scroll<enb:
+                                self.quest_scroll+=1;SoundManager.play("menu_sel")
+                        elif k in(pygame.K_q,pygame.K_ESCAPE): self.state="playing"
 
                     elif self.state=="levelup_alloc":
                         st=self.player.stats; sk_m=["str","int","agi","vit","wis"]; sk=sk_m[self.stat_sel]; rsk="int_" if sk=="int" else sk; fp=st.skill_points
@@ -6666,7 +6784,9 @@ class Game:
                         elif k==pygame.K_m:      # mini haritayı aç/kapat
                             CFG.data["minimap"]=not CFG.data.get("minimap",True)
                             CFG.save(); SoundManager.play("menu_sel")
-                        elif k==pygame.K_q: self.state="quest_log"; SoundManager.play("open_ui")
+                        elif k==pygame.K_q:
+                            self.quest_scroll=0; self.state="quest_log"
+                            SoundManager.play("open_ui")
                         elif k==pygame.K_e: self._interact()
                         elif k==pygame.K_SPACE: self._auto_attack()
                         elif k in(pygame.K_1,pygame.K_KP1): self._use_ability(0)
@@ -6765,7 +6885,8 @@ class Game:
                                       self.shop_npc,self.shop_tab,self.shop_sel,
                                       self.tick,self.shop_msg)
                 elif self.state=="quest_log":
-                    self.ui.draw_quest_log(self.screen,self.flags,self.flags["ch"])
+                    self.ui.draw_quest_log(self.screen,self.flags,self.flags["ch"],
+                                           self.quest_scroll)
                 elif self.state=="tutorial":
                     self.ui.draw_tutorial(self.screen,self.tick)
                 elif self.state=="levelup_alloc":

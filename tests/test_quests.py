@@ -31,11 +31,23 @@ TMP = None
 G = None
 
 # Gorev kimligi -> sayilan dusman turu
-OLDURME_GOREVI = {
-    "boar": "boar", "wolf": "wolf", "bone": "skeleton", "golem": "golem",
-    "slime": "slime", "goblin": "goblin", "scorpion": "scorpion",
-    "icewolf": "ice_wolf", "knight": "shadow_knight",
-}
+# Hangi gorev hangi turu olduruyor - ELLE TUTULMUYOR.
+# Elle yazilan tablo yeni gorevler eklenince guncellenmiyordu: alti yeni
+# dusman turu icin gorev eklendigi halde testler onlari hic denetlemedi.
+# Artik ilerleme fonksiyonuna "kill_<tur>" bayragi verilip sonucun degisip
+# degismedigine bakiliyor; yeni bir gorev kendiliginden kapsama giriyor.
+def _oldurme_gorevleri(mod):
+    out = {}
+    turler = {e.kind for m in G.maps.values() for e in m.enemies}
+    for sq in mod.SIDE_QUESTS:
+        for kind in turler:
+            if sq["progress"]({"kill_" + kind: 999})[0] > sq["progress"]({})[0]:
+                out[sq["id"]] = kind
+                break
+    return out
+
+
+OLDURME_GOREVI = {}
 
 
 def setUpModule():
@@ -49,6 +61,7 @@ def setUpModule():
     G.ui = MOD.UI()
     G.ps = MOD.PS()
     G._reset()
+    OLDURME_GOREVI.update(_oldurme_gorevleri(MOD))
 
 
 def tearDownModule():
@@ -237,6 +250,114 @@ class TestQuestTable(unittest.TestCase):
     def test_there_are_enough_quests(self):
         self.assertGreaterEqual(len(MOD.SIDE_QUESTS), 12,
                                 "yan gorev sayisi az: %d" % len(MOD.SIDE_QUESTS))
+
+
+class TestGunlukKaydirma(unittest.TestCase):
+    """Olcum: hic gorev bitmemisken 14 yan gorevin yalnizca 8'i
+    gorunuyordu ve liste SESSIZCE kesiliyordu."""
+
+    def test_hepsi_sigmiyorsa_kaydirma_aciliyor(self):
+        enb = MOD.UI.quest_scroll_max({})
+        self.assertGreater(enb, 0,
+                           "liste tasiyor ama kaydirma yok: gorevler gizli kalir")
+
+    def test_her_gorev_bir_kaydirmada_gorunuyor(self):
+        """Hicbir gorev erisilemez kalmamali."""
+        flags = {}
+        enb = MOD.UI.quest_scroll_max(flags)
+        gorulen = set()
+        for kay in range(enb + 1):
+            y = 0
+            for sq in MOD.SIDE_QUESTS[kay:]:
+                yuk = MOD.UI.quest_row_h(sq, flags)
+                if y + yuk > MOD.UI.QUEST_AREA_H:
+                    break
+                gorulen.add(sq["id"])
+                y += yuk
+        eksik = {sq["id"] for sq in MOD.SIDE_QUESTS} - gorulen
+        self.assertEqual(eksik, set(), "hicbir kaydirmada gorunmeyen gorev: %s" % eksik)
+
+    def test_son_gorev_en_alt_kaydirmada_gorunuyor(self):
+        flags = {}
+        kay = MOD.UI.quest_scroll_max(flags)
+        y = 0
+        son = None
+        for sq in MOD.SIDE_QUESTS[kay:]:
+            yuk = MOD.UI.quest_row_h(sq, flags)
+            if y + yuk > MOD.UI.QUEST_AREA_H:
+                break
+            son = sq["id"]
+            y += yuk
+        self.assertEqual(son, MOD.SIDE_QUESTS[-1]["id"],
+                         "en alta kaydirinca son gorev gorunmuyor")
+
+    def test_hepsi_bitince_kaydirma_kapaniyor(self):
+        """Bitmis gorev satiri kisa; hepsi bitince liste sigmali."""
+        flags = {}
+        for sq in MOD.SIDE_QUESTS:
+            got, need = sq["progress"]({})
+            flags["sqpaid_" + sq["id"]] = True
+        # bitmis saymasi icin ilerlemeyi doldur
+        flags.update({"kill_boar": 99, "kill_wolf": 99, "kill_skeleton": 99,
+                      "kill_golem": 99, "kill_slime": 99, "kill_goblin": 99,
+                      "kill_scorpion": 99, "kill_ice_wolf": 99,
+                      "kill_shadow_knight": 99, "kill_spider": 99,
+                      "kill_bat": 99, "kill_bandit": 99, "kill_treant": 99,
+                      "kill_wraith": 99, "kill_lava_imp": 99,
+                      "chests_opened": 99, "materials_found": 99,
+                      "max_upgrade": 9, "sq_fish_done": True,
+                      "sq_witch_done": True, "sq_hermit_done": True,
+                      "sq_scroll1": True, "sq_scroll2": True, "sq_scroll3": True})
+        self.assertEqual(MOD.UI.quest_scroll_max(flags), 0,
+                         "hepsi bitmisken bile kaydirma gerekiyor")
+
+    def test_cizim_kaydirmayla_patlamiyor(self):
+        ui = MOD.UI()
+        yuzey = pygame.Surface((MOD.SW, MOD.SH))
+        for kay in (0, 3, MOD.UI.quest_scroll_max({}), 999):
+            with self.subTest(kaydirma=kay):
+                yuzey.fill((0, 0, 0))
+                ui.draw_quest_log(yuzey, {}, 3, kay)
+
+
+class TestYeniSistemBayraklari(unittest.TestCase):
+    """Malzeme ve yukseltme gorevleri bayrak sayaclarina dayaniyor."""
+
+    def _oyun(self):
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        g.player = MOD.Player(5, 5, MOD.PlayerStats("warrior"))
+        g.levelup_timer = 0
+        g.tick = 0
+        return g
+
+    def test_malzeme_dusunce_sayac_artiyor(self):
+        g = self._oyun()
+        once = g.flags.get("materials_found", 0)
+        dustu = 0
+        for _ in range(300):
+            e = MOD.Enemy(6, 5, "wolf", 1, 1, 1, loot=[])
+            g.cur_map.enemies.append(e)
+            g._kill(e)
+        sonra = g.flags.get("materials_found", 0)
+        self.assertGreater(sonra, once, "malzeme sayaci hic artmadi")
+        self.assertEqual(sonra, sum(1 for k in g.player.inventory
+                                    if k in MOD.MATERIALS),
+                         "sayac cantadakiyle uyusmuyor")
+
+    def test_yukseltme_sayaci_gorevi_ilerletiyor(self):
+        g = self._oyun()
+        st = g.player.stats
+        st.gold = 9999
+        st.equipment["weapon"] = "iron_sword"
+        g.player.inventory = ["iron_ore"] * 30
+        g.shop_npc = "npc.demirci_boran"; g.shop_tab = 2; g.shop_sel = 0
+        g.shop_msg = None
+        sq = next(q for q in MOD.SIDE_QUESTS if q["id"] == "forge")
+        for _ in range(3):
+            g._shop_upgrade()
+        got, need = sq["progress"](g.flags)
+        self.assertEqual(got, need, "yukseltme gorevi ilerlemiyor: %d/%d" % (got, need))
 
 
 class TestRewardPayout(unittest.TestCase):

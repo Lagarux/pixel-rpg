@@ -820,6 +820,7 @@ Toplam **292 test**.
 | 2026-10-01 | — | **Parşömen görevi bitirilemiyordu:** üç parşömen de dünyada yoktu. Düşman fark etme mesafeleri tür bazına alındı | 12 yeni test; toplam 259 test |
 | 2026-10-01 | — | **v6.1:** "Sör" yazım hatası, beş zorluk seviyesi, oyun içi amblem + uygulama ikonu, açılış animasyonu | 33 yeni test; toplam 292 test |
 | 2026-10-02 | — | **v6.2:** dokuz yeni karo + yedi geçit üslubu, harita denetimi (4 bulgu → 0), farming döngüsü (geri doğum, 15 malzeme, +5 yükseltme), 6 yeni düşman türü, 5 boss kapanış sahnesi, dört kristal | 76 yeni test; toplam 368 test |
+| 2026-10-03 | — | **v6.3:** boss adi cevrildi, zorluk egrisi harita uzakligina baglandi, gorev gunlugu kaydirilabilir oldu, 8 yeni yan gorev, 30 yeni NPC repligi | 23 yeni test; toplam 398 test |
 
 
 ### ✅ v6.2 — Haritalar, ekonomi, farming ve boss sahneleri (2026-10-02)
@@ -961,6 +962,99 @@ sayısı %37 arttığı hâlde pay bol.
   yerine hafif bir süzülme kondu (kullanıcı isteği).
 
 
+
+### ✅ v6.3 — Zorluk eğrisi, yan görevler ve NPC'lerin sesi (2026-10-03)
+
+Kullanıcı bildirdi: *"Savaşçı sınıfında Gizemli Kütüphane'de zorlandım"*
+ve *"Boss adı ingilizce verilmiş."*
+
+#### Boss adı
+
+Can çubuğunun üstündeki etiket tür **kimliğini** yazıyordu:
+`PAGE_WARDEN`, `EMBER_TITAN`, iki kristal muhafızı için de `GOLEM`.
+Yalnızca Malachar doğru görünüyordu, çünkü kimliği zaten adıydı. Artık
+çeviri tablosundan geliyor. Test, adın `BOSSES[...]["name"]` anahtarından
+geldiğini ve diller arasında farklılaştığını sınıyor.
+
+#### Zorluk eğrisi uzaklığa bağlandı
+
+Ölçüm kullanıcının yaşadığını doğruladı — haritaların sertliğinin
+başlangıca uzaklığıyla ilgisi yoktu:
+
+| Adım | Harita | Ortalama can | Ortalama saldırı |
+|---|---|---|---|
+| 1 | köy altı zindanı | 100 | 15,3 |
+| 2 | **gizemli kütüphane** | **91** | **15,1** + 362 canlık boss |
+| 3 | çöl | 67 | 12,3 |
+| 4 | buz mağarası | 77 | 12,6 |
+
+İki adım ötedeki kütüphane, dört adım ötedeki buz mağarasından sertti.
+Her haritaya geçiş grafiğindeki adım sayısı kadar bir kademe verildi ve
+değerler o kademeye ölçekleniyor; harita *içindeki* oranlar korunuyor.
+
+| Adım | Sonra (can / saldırı) | Boss |
+|---|---|---|
+| 0 | 36 / 6 | — |
+| 1 | 56 / 10 | — |
+| 2 | 74 / 13 | 192 / 18 |
+| 3 | 92 / 16 | — |
+| 4 | 110 / 20 | 286 / 27 |
+| 5 | 132 / 25 | 620 / 38 |
+
+Kütüphane bossu 362/29 → 192/18: artık harabeler bossuyla aynı kademede,
+ki ikisi de iki adım ötede.
+
+Ölçekleme iki aykırı üretti, ikisi de sınırlandı: bataklık ağaç kökü
+172 can / 21 saldırıya çıkıp kendi kademesinin **boss'undan** sert vurmaya
+başladı; zindandaki yarasa 28 cana düşüp iki vuruşta ölür hâle geldi
+(taban 32 can = 1. seviye savaşçının üç vuruşu).
+
+#### Görev günlüğü sessizce kesiliyordu
+
+Ölçüm: hiç görev bitmemişken **14 yan görevin yalnızca 8'i** görünüyordu
+ve oyuncunun gerisinden haberi olmuyordu. Günlük kaydırılabilir yapıldı
+(`W`/`S`), yukarı/aşağı göstergesi eklendi, panel 420 → 520 piksele
+büyütüldü (hepsi bitmişken 22 satır sığsın diye).
+
+#### Sekiz yeni yan görev
+
+Altı yeni düşman türü eklenmişti ama hiçbirinin görevi yoktu; malzeme ve
+yükseltme sistemlerini de hiçbir şey tanıtmıyordu. 14 → **22 yan görev**:
+örümcek, yarasa, haydut, ağaç kök, hayalet, köz cini, "yirmi malzeme
+topla", "bir parçayı +3'e yükselt".
+
+Test tarafında asıl kazanç: `OLDURME_GOREVI` tablosu elle tutuluyordu ve
+yeni görevler eklenince güncellenmemişti — testler onları hiç
+denetlemiyordu. Tablo artık ilerleme fonksiyonuna bayrak verilip
+sonucun değişip değişmediğine bakılarak **türetiliyor**. Türetilmiş tablo
+ilk çalıştırmada gerçek bir sorun buldu: örümcek görevi beş istiyordu ama
+erken haritalarda dört örümcek vardı.
+
+#### NPC'ler yeni içerikten söz etmiyordu
+
+Demirci yükseltme tezgâhını işletiyor ama ağzını açmıyordu; kütüphaneci
+Elan'ın dibinde Sayfa Muhafızı duruyor, haberi yoktu; Köz Bekçisi'nin
+vadisinde Köz Devi vardı, ondan da söz etmiyordu. Üçüne de yeni durumlar
+ve **30 yeni replik** yazıldı (beş dilde 150 çeviri).
+
+`test_dialogue.py`'ye kapsam testi eklendi: çeviride tanımlı her `dlg.`
+anahtarı en az bir senaryoda görünmeli. Ölçüm, test yazılmadan önce
+**36 repliğin hiçbir senaryoda çalışmadığını** gösterdi (30'u yeni, 6'sı
+eski bir boşluk). Kütüphanecinin ödül konuşması yeni dalla erişilemez
+hâle gelmişti; `libr_told` bayrağıyla geri kazanıldı.
+
+#### Testler
+
+`test_curve.py` (14 yeni test) ve mevcut dosyalara 9 test. Yedisinin
+bozuk hâle karşı ateş ettiği tek tek doğrulandı. **398 test geçiyor.**
+
+İki test kendi kusurunu da gösterdi: `test_some_npcs_react_to_progress`
+yalnızca ilk ve son senaryoyu karşılaştırıyordu, araya senaryo eklenince
+anlamsız yere düştü (artık herhangi iki durum arasında fark arıyor);
+`test_kristaller_unvani_yukseltiyor` elle yazılmış görev sayısına
+dayanıyordu, eşikler tablodan türetildi.
+
+
 ---
 
 ## 5. Karar kaydı
@@ -983,3 +1077,6 @@ sayısı %37 arttığı hâlde pay bol.
 | Yeni kristaller isteğe bağlı | Ana zinciri kilitlemek eski kayıtları ve kristali almayan oyuncuyu takardı |
 | Derleme betikleri sürümü kaynaktan okuyor | Elle yazılınca kayıyordu: oyun 6.1'deyken Linux betiği hâlâ 5.0 üretiyordu |
 | Testler ayarları varsayılana sabitliyor | Testler oyuncunun `settings.json`'ını okuyordu; zorluk "Zor" seçiliyken ödül testi yalnızca o makinede düşüyordu |
+| Zorluk haritanın geçiş grafiğindeki uzaklığına bağlı | Elle yazılan sertlik, dünya büyüdükçe kaçınılmaz olarak kayıyordu: iki adım ötedeki kütüphane dört adım ötedeki mağaradan sertti |
+| Öldürme görevi tablosu türetiliyor | Elle tutulan tablo yeni görevler eklenince güncellenmedi ve testler onları hiç denetlemedi |
+| Her çevrilmiş replik bir senaryoda görünmeli | 36 replik yazıldığı hâlde hiçbir test onlara dokunmuyordu |
