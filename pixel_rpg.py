@@ -977,6 +977,13 @@ def game_title()->str:
     return T_("ui.game_title",default="Karanlık Taç'ın Laneti")
 
 
+def boss_name(boss_id,kind)->str:
+    """Can cubugunun ustunde gorunecek boss adi — cevrilmis."""
+    b=BOSSES.get(boss_id)
+    if b: return T_(b["name"])
+    return T_("enemy.%s"%kind,default=kind.replace("_"," ").upper())
+
+
 def behavior(kind)->Dict:
     return BEHAVIORS.get(kind,{"type":"melee"})
 
@@ -2803,7 +2810,13 @@ class Enemy(Entity):
         pygame.draw.rect(surf,ec,(bbx-gs-2,bby-1,gs,gs))
         pygame.draw.rect(surf,BK,(bbx-gs-2,bby-1,gs,gs),1)
         if self.is_boss:
-            tt=_tag_surf(f"{self.kind.upper()} {self.hp}/{self.max_hp}",UI_TX)
+            # Boss adi cevrilmis olmali. Eskiden tur kimligi yaziliyordu:
+            # kutuphane bossu "PAGE_WARDEN", Koz Devi "EMBER_TITAN", iki
+            # kristal muhafizi da "GOLEM" gorunuyordu. Yalnizca Malachar
+            # dogru cikiyordu, cunku kimligi zaten adiydi.
+            tt=_tag_surf("%s %d/%d"%(boss_name(getattr(self,"boss_id",None),
+                                               self.kind),
+                                     self.hp,self.max_hp),UI_TX)
             surf.blit(tt,(bbx+bw//2-tt.get_width()//2,bby-12))
             et=_tag_surf(elem_name(getattr(self,"elem","physical")),ec)
             surf.blit(et,(bbx+bw//2-et.get_width()//2,bby+bh+3))
@@ -3117,6 +3130,79 @@ def _kopuk_baglan(m):
         ana|=set(b)
 
 
+# ─── Zorluk eğrisi ───────────────────────────────────────────────
+# Haritaların sertliği elle yazılmıştı ve başlangıca uzaklıkla ilgisi
+# yoktu: iki adım ötedeki kütüphane (91 HP / 15.1 atk + 362 canlık boss)
+# dört adım ötedeki buz mağarasından (77 / 12.6) sertti. Artık her
+# haritanın bir kademesi var ve değerler o kademeye ölçekleniyor.
+#
+# Elle yazılan sayılar atılmıyor: harita İÇİNDEKİ oranlar korunuyor
+# (golem balçıktan sert kalıyor), yalnızca haritanın geneli kademesine
+# çekiliyor.
+MAP_TIER = {
+    "map.ashveil_koyu":      0,
+    "map.guney_cayiri":      1,
+    "map.karanlik_orman":    1,
+    "map.bati_nehri":        1,
+    "map.koy_alti_zindani":  1,
+    "map.sisli_bataklik":    2,
+    "map.kayalik_gecit":     2,
+    "map.antik_harabeler":   2,
+    "map.gizemli_kutuphane": 2,
+    "map.col_yolu":          3,
+    "map.buz_magara":        4,
+    "map.koz_vadisi":        4,
+    "map.golge_kalesi":      5,
+}
+
+# Hicbir dusman 1. seviye bir karakterin uc vurusundan az dayanmasin
+TABAN_HP = 32
+
+# kademe -> (ortalama can, ortalama saldırı)
+TIER_TARGET = {0:(36,6), 1:(56,10), 2:(74,13), 3:(92,16), 4:(110,20), 5:(132,25)}
+
+# Boss, kendi kademesinin ortalamasının kaç katı olmalı
+BOSS_HP_X  = 2.6
+BOSS_ATK_X = 1.35
+# Son savaş ayrı: Malachar bir kademe değil, bir duvar
+FINAL_HP_X  = 4.7
+FINAL_ATK_X = 1.5
+
+
+def _egriye_oturt(m):
+    """Haritanın düşmanlarını kademesinin hedefine ölçekler.
+
+    XP de aynı oranda ölçekleniyor: daha sert düşman daha çok kazandırmalı,
+    yoksa seviye ilerlemesi haritanın sertliğinin gerisinde kalır.
+    """
+    kademe = MAP_TIER.get(m.name)
+    if kademe is None: return
+    hedef_hp, hedef_atk = TIER_TARGET[kademe]
+    normal = [e for e in m.enemies if not e.is_boss]
+    if not normal: return
+    simdi_hp = sum(e.max_hp for e in normal)/float(len(normal))
+    simdi_atk = sum(e.atk for e in normal)/float(len(normal))
+    k_hp = hedef_hp/simdi_hp if simdi_hp else 1.0
+    k_atk = hedef_atk/simdi_atk if simdi_atk else 1.0
+    # Tür içi aykırılar sınırlanıyor: ölçeklemeden sonra bataklıktaki
+    # ağaç kök 172 can / 21 saldırıya çıkıyordu, yani kendi kademesinin
+    # BOSS'undan sert vuruyordu. Sıradan düşman boss'u geçmemeli.
+    tavan_hp = int(hedef_hp*1.8); tavan_atk = int(hedef_atk*1.30)
+    for e in normal:
+        # TABAN_HP: 1. seviye savasci 15 vuruyor; 32 can "en az uc vurus"
+        # demek. Olceklemeyle zindandaki yarasa 28 cana dusmus ve iki
+        # vurusta olur hale gelmisti — dusman gibi hissettirmiyor.
+        e.max_hp = max(TABAN_HP,min(tavan_hp,int(round(e.max_hp*k_hp))));e.hp = e.max_hp
+        e.atk = max(1,min(tavan_atk,int(round(e.atk*k_atk))))
+        e.xp_r = max(1,int(round(e.xp_r*(k_hp+k_atk)/2.0)))
+    for e in m.enemies:
+        if not e.is_boss: continue
+        son = (e.kind=="malachar")
+        e.max_hp = int(round(hedef_hp*(FINAL_HP_X if son else BOSS_HP_X)))
+        e.hp = e.max_hp
+        e.atk = int(round(hedef_atk*(FINAL_ATK_X if son else BOSS_ATK_X)))
+
+
 def _dagit_dusmanlar(m):
     """Düşmanların ayna düzenini bozar.
 
@@ -3141,6 +3227,7 @@ def _snap_all(m):
     _seal_border(m)          # once kenari kapat, sonra varliklari yerlestir
     _zemin_dokusu(m)         # zemin cesitliligi (yurunebilirligi degistirmez)
     _kopuk_baglan(m)         # ulasilamayan adaciklari bagla
+    _egriye_oturt(m)         # sertligi haritanin kademesine cek
     _dagit_dusmanlar(m)
     occ=set()
     for e in m.npcs+m.enemies:
