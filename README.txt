@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════╗
-║        KARANLIK TAÇ'IN LANETİ  v6.4  —  2D Pixel RPG         ║
+║        KARANLIK TAÇ'IN LANETİ  v6.5  —  2D Pixel RPG         ║
 ╚══════════════════════════════════════════════════════════════╝
 
   Yüz yıl önce atalarımız Malachar'ı dört kristalle mühürledi.
@@ -83,6 +83,26 @@ ANA BOSS'LAR
   ve unvanını değiştirir.
 
 
+HARMAN ŞENLİĞİ
+─────────────────────────────────────────────────────────────
+  Güney Çayırı'nın güneyinde, oyunun tek düşmansız alanı.
+  Üç oyun var, üçü de ayrı:
+
+    Nişan Atışı     nişangâh yeşil alandayken SPACE
+    Çan Sırası      çanları izle, 1-2-3-4 ile tekrarla
+    Olta Başında    SPACE basılı tut, kancayı balığın üstünde tut
+
+  Oyunlar ŞENLİK JETONU kazandırır. Jeton altınla alınmaz, altın da
+  jetonla alınmaz. Tezgâhta her sınıfa bir şenlik silahı ve altı
+  kostüm var. Kostümler yalnızca görünüm; hiçbir nitelik vermez.
+
+
+CAN VE MANA KENDİLİĞİNDEN DOLAR
+─────────────────────────────────────────────────────────────
+  Dövüşün dışında belirgin, dövüşün içinde çok yavaş yenilenir.
+  Dayanıklılık canı, bilgelik manayı hızlandırır.
+
+
 DURUM ETKİLERİ
 ─────────────────────────────────────────────────────────────
   Sol üstte etkin etkiler ve kalan süreleri görünür. Kötüler nabız atar.
@@ -121,6 +141,9 @@ DURUM ETKİLERİ
   • Dövüşe girmeden önce 5-8 yuvalarını doldur; envanter açmaya vakit olmaz.
   • Akrep ve örümcek bölgelerine panzehirsiz girme.
   • Yemekler iksirden yavaş ama hem can hem mana verir.
+  • Satıcılar artık her bölgede var; iksir için köye dönmene gerek yok.
+  • Köz Vadisi'ndeki Köz Bekçisi de ekipman yükseltiyor.
+  • Balıkçı Riva üç balık istiyor: ikisi nehirde, biri bataklıkta.
 
 
 DİL

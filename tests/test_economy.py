@@ -30,7 +30,7 @@ MAPS = {}
 HARITA_ADLARI = ["ashveil", "dark_forest", "ruins", "desert", "ice_cave",
                  "shadow_castle", "village_dungeon", "south_meadow",
                  "west_river", "mystic_library", "rocky_pass", "misty_swamp",
-                 "ember_valley"]
+                 "ember_valley", "festival"]
 
 
 def setUpModule():
@@ -323,16 +323,20 @@ class TestAltinHedefi(unittest.TestCase):
         kazanc += sum(q["gold"] for q in MOD.SIDE_QUESTS) + 20
         hedef = sum(MOD.item_price(k) for k in MOD.ITEM_PRICES
                     if MOD.item_price(k) > 300)
+        # Senlik esyalari altinla alinmiyor; hedefe katilmaz.
         hedef += sum(a for a, _m in MOD.UPGRADE_COST) * len(MOD.EQUIP_SLOTS)
         self.assertGreater(hedef, kazanc * 1.5,
                            "harcanacak yer (%d) kazanca (%d) gore yetersiz"
                            % (hedef, kazanc))
 
     def test_her_satilan_esyanin_fiyati_var(self):
+        """Senlik tezgahi JETONLA calisiyor; fiyati oteki tabloda."""
         for npc, sh in MOD.SHOPS.items():
+            jeton = MOD.shop_currency(sh) != "gold"
+            tablo = MOD.TOKEN_PRICES if jeton else MOD.ITEM_PRICES
             for k in sh["stock"]:
                 with self.subTest(npc=npc, esya=k):
-                    self.assertIn(k, MOD.ITEM_PRICES, "%s fiyatsiz satiliyor" % k)
+                    self.assertIn(k, tablo, "%s fiyatsiz satiliyor" % k)
                     self.assertIn(k, MOD.ALL_ITEMS)
 
     def test_her_sinifin_ust_kademesi_var(self):
@@ -412,7 +416,8 @@ class TestEsyaKullanimi(unittest.TestCase):
 
     # Kullanilmayan (ama gecerli) tipler. Bunun DISINDAKI her tip
     # envanterde gercekten bir sey yapmak zorunda.
-    KULLANILMAYAN = {"material", "quest", "quest_sq", "equip", "gold"}
+    # "token" senlik parasi: cantada durur, kullanilmaz.
+    KULLANILMAYAN = {"material", "quest", "quest_sq", "equip", "gold", "token"}
 
     def _kullanilabilir(self, k):
         typ = MOD.ALL_ITEMS[k][2]
@@ -443,8 +448,10 @@ class TestEsyaKullanimi(unittest.TestCase):
     def test_tuketilebilirler_tukeniyor_ve_etki_ediyor(self):
         for k, satir in MOD.ALL_ITEMS.items():
             typ = satir[2]
-            if not self._kullanilabilir(k) or typ == "cure":
-                continue    # panzehrin etkisi "temizlenecek sey varsa" gorulur
+            if not self._kullanilabilir(k) or typ in ("cure", "costume"):
+                # panzehrin etkisi "temizlenecek sey varsa" gorulur;
+                # kostum bilerek hicbir nitelige dokunmuyor (asagida ayri test)
+                continue
             g = self._oyun()
             st = g.player.stats
             st.hp = 1; st.mp = 0
@@ -460,6 +467,30 @@ class TestEsyaKullanimi(unittest.TestCase):
                                  "%s kullanildi ama envanterden dusmedi" % k)
                 self.assertNotEqual(once, sonra,
                                     "%s kullanildi ama HICBIR SEY degismedi" % k)
+
+    def test_kostum_nitelik_vermiyor(self):
+        """Kostum SADECE gorunum: "en iyi gorunum" ile "en iyi ekipman"
+        birbirine karismasin."""
+        g = self._oyun()
+        st = g.player.stats
+        st.costumes = ["harvest"]
+        once = (st.power, st.defense, st.max_hp, st.max_mp, st.crit)
+        g.player.inventory = ["costume_harvest"]
+        g.inv_sel = 0
+        g._inv_use_item()
+        self.assertEqual(st.costume, "harvest", "kostum giyilmedi")
+        self.assertEqual((st.power, st.defense, st.max_hp, st.max_mp, st.crit), once,
+                         "kostum nitelik degistirdi")
+
+    def test_kostum_tekrar_basinca_cikiyor(self):
+        g = self._oyun()
+        st = g.player.stats
+        st.costumes = ["harvest"]
+        st.costume = "harvest"
+        g.player.inventory = ["costume_harvest"]
+        g.inv_sel = 0
+        g._inv_use_item()
+        self.assertIsNone(st.costume, "kostum cikarilamiyor")
 
     def test_tam_sifa_iksiri_ikisini_de_dolduruyor(self):
         g = self._oyun()

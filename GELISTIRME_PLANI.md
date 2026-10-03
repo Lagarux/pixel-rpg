@@ -822,6 +822,7 @@ Toplam **292 test**.
 | 2026-10-02 | — | **v6.2:** dokuz yeni karo + yedi geçit üslubu, harita denetimi (4 bulgu → 0), farming döngüsü (geri doğum, 15 malzeme, +5 yükseltme), 6 yeni düşman türü, 5 boss kapanış sahnesi, dört kristal | 76 yeni test; toplam 368 test |
 | 2026-10-03 | — | **v6.3:** boss adi cevrildi, zorluk egrisi harita uzakligina baglandi, gorev gunlugu kaydirilabilir oldu, 8 yeni yan gorev, 30 yeni NPC repligi | 23 yeni test; toplam 398 test |
 | 2026-10-03 | — | **v6.4:** sekiz durum etkisi (zehir, yanma, donma, sarmasik, lanet, iyilesme, direnc, bagisiklik), alti yeni tuketilebilir, 5-8 hizli erisim yuvalari, J ile gorev kutusu | 37 yeni test; toplam 435 test |
+| 2026-10-03 | — | **v6.5:** sinif gucu kendi niteliginden, 11 yetenek yeniden dengelendi, 7 bolge saticisi, Balikci Riva gercek gorev oldu, pasif yenilenme, Harman Senligi + 3 mini oyun + jeton + 6 kostum | 60 yeni test; toplam 495 test |
 
 
 ### ✅ v6.2 — Haritalar, ekonomi, farming ve boss sahneleri (2026-10-02)
@@ -1127,6 +1128,94 @@ alfa sessizce yok sayılıyordu. Nabız rengin kendisine uygulandı.
 ettiği tek tek doğrulandı. **435 test geçiyor.**
 
 
+
+### ✅ v6.5 — Sınıf gücü, şenlik ve bölge satıcıları (2026-10-03)
+
+Kullanıcı isteği: pasif can/mana yenilenmesi, pazarın tek bölgede
+olmaması, Balıkçı Riva görevinin anlaşılmaması, oyun içi mini oyunlar
+(panayır, kendi para birimi, sınıfa özel eşyalar, kostüm) ve sınıf
+yeteneklerinin daha etkili olması.
+
+#### Ölçüm dört sorun gösterdi
+
+| Ölçüm | Değer |
+|---|---|
+| Dükkânı olan harita | **1/13** (altısı da Ashveil'de) |
+| 10. seviye savaşçının temel vuruşu | 64 |
+| 10. seviye **okçunun** temel vuruşu | **12** |
+| Temel saldırıdan zayıf hasar yeteneği | **10/12** |
+| En kötüsü: okçunun 8. seviye yeteneği | temelin **0,18 katı** |
+
+**Okçunun oku GÜÇ'ten geliyordu ama sınıf bonusu ÇEVİKLİK+4.** Çevikliğe
+puan veren okçu kendi okunu zayıflatıyordu; şifacı da aynı durumdaydı
+(hasar ZEKÂ'dan, bonus BİLGELİK'ten). `CLASS_POWER` tablosuyla her
+sınıfın hasarı kendi ana niteliğinden geliyor: okçu 12 → 68,
+şifacı 10 → 67.
+
+Yetenek çarpanları tek tabloya (`ABILITY_POWER`) alındı ve ölçüte
+bağlandı: **tek hedefli yetenek tek düşmana karşı, alan yeteneği üç
+düşmana karşı** temel saldırıyı geçmeli. Temelden zayıf kalan: 0.
+Kalkan darbesi artık sersemletiyor, deprem ayağı tutuyor.
+
+#### Bölge satıcıları
+
+Yedi satıcı açıldı; dükkânlı harita **1 → 8**. Köz Bekçisi ikinci
+demirci oldu, yükseltme için köye dönmek gerekmiyor.
+
+Tuzak: dükkân sahibi NPC'ler **hiç konuşmuyordu** — `SHOPS` kontrolü
+diyalogdan önce `return` ediyordu. Cadıyı satıcı yapmak görevini
+kırardı, çünkü `sq_witch_done` diyalog dalında kuruluyor. Artık görev
+etkileri her durumda çalışıyor ve NPC söyleyecek **yeni** bir şeyi
+varsa konuşuyor, yoksa tezgâhını açıyor.
+
+#### Balıkçı Riva
+
+Kullanıcı "konuştuktan sonra görev tamamlanıyor, ilginç bir şekilde"
+demiş — haklı, görev hiçbir şey istemiyordu. Artık üç balık istiyor;
+ikisi nehrin iki yakasında, üçüncüsü bataklıkta. Konuşma görevi
+yalnızca başlatıyor. Ödül 40 → 90 altın.
+
+#### Pasif yenilenme
+
+Dövüş dışında %1,45/sn can, dövüşte %0,55/sn. Ölçüm kendi kusurumu
+gösterdi: `max(1,int(...))` tabanı yüzünden iki oran da saniyede 1 cana
+yuvarlanıyor, aradaki fark tamamen kayboluyordu. Kesirli birikime
+çevrildi.
+
+#### Harman Şenliği (14. harita)
+
+Oyunun **tek düşmansız alanı**. Üç mini oyun, üçü de ayrı mekanik:
+
+| Oyun | Mekanik |
+|---|---|
+| Nişan Atışı | zamanlama — halka her turda daralır |
+| Çan Sırası | hafıza — dizi her turda bir nota uzar |
+| Olta Başında | takip — kancayı balığın üstünde tutmak |
+
+Aynı mekaniğin üç kılığı olsa oynanış tekrar ederdi.
+
+Kendi para birimi var: **şenlik jetonu**. Altınla alınmaz, altın da
+jetonla alınmaz — iki ekonomi birbirine karışmıyor; tezgâhta satış
+sekmesi bile yok. Tezgâh her sınıfa bir şenlik silahı ve **altı kostüm**
+satıyor. Kostümler bilerek hiçbir nitelik vermiyor: "en iyi görünüm" ile
+"en iyi ekipman" ayrı kalsın. Sınıf işareti kostümün altında duruyor.
+
+#### Testlerin yakaladıkları
+
+| Kusur | Nasıl bulundu |
+|---|---|
+| `ALL_ITEMS`, kostümler eklenmeden önce kopyalanıyordu | Kostümler "tanınmayan eşya" kalıyordu |
+| Şenlik silahlarının elementi yoktu | `test_every_weapon_has_an_element` |
+| Eşya tipi testi yine sabit liste tutuyordu | Yeni `token` tipi listede yoktu |
+| Meydan dokusu %28 çim koyunca plaza değil otlak göründü | Ekran görüntüsü |
+
+Kendi testlerimden biri de yanlış kurulmuştu: alan yeteneğiyle tek
+hedefli yeteneğin **vuruş başına** hasarını karşılaştırıyordu.
+
+`tests/test_festival.py` (35) ve mevcut dosyalara 25 test.
+**495 test geçiyor.**
+
+
 ---
 
 ## 5. Karar kaydı
@@ -1156,3 +1245,8 @@ ettiği tek tek doğrulandı. **435 test geçiyor.**
 | `Enemy.frozen` özellik olarak korundu | Etkiler sözlüğüne taşınırken eski çağrı yerlerinin hiçbirine dokunmak gerekmedi |
 | Hızlı yuva, mevcut kullanım yolunu çağırıyor | İkinci bir kullanım kodu yazmak, ikisinin zamanla ayrışmasına yol açardı |
 | Eşya tipi testi davranışa bakıyor | Sabit tip listesi, yeni tip eklenince testi anlamsızlaştırıyordu |
+| Hasar tek bir `power` özelliğinden geliyor | Okçunun oku GÜÇ'ten, bonusu ÇEVİKLİK'tendi: oyuncu kendi sınıfını yanlışlıkla zayıflatıyordu |
+| Yetenek dengesi ölçüte bağlı | "Mana ve bekleme harcayıp temel saldırıdan az vuran yetenek" tanımı testle yazıldı: tek hedefli tek düşmana, alan üç düşmana karşı geçmeli |
+| Dükkân sahibi NPC söyleyecek yeni şeyi varsa konuşur | Eskiden hiç konuşmuyordu; cadıyı satıcı yapmak görevini kırardı |
+| Şenlik jetonu altına çevrilemiyor | Çevrilebilseydi mini oyunlar altın musluğuna dönerdi ve şenliğin kendi ekonomisi anlamsızlaşırdı |
+| Kostüm hiçbir nitelik vermiyor | Verseydi görünüm seçimi bir denge kararına dönerdi |

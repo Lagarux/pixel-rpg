@@ -27,7 +27,7 @@ MOD = None
 HARITA_ADLARI = ["ashveil", "dark_forest", "ruins", "desert", "ice_cave",
                  "shadow_castle", "village_dungeon", "south_meadow",
                  "west_river", "mystic_library", "rocky_pass", "misty_swamp",
-                 "ember_valley"]
+                 "ember_valley", "festival"]
 
 
 def setUpModule():

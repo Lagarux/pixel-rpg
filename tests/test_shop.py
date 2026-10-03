@@ -46,11 +46,15 @@ class TestShop(unittest.TestCase):
 
     # ── Fiyatlandirma ────────────────────────────────────────────
     def test_every_stocked_item_has_a_price(self):
-        for npc, shop in MOD.SHOPS.items():
-            for key in shop["stock"]:
-                with self.subTest(npc=npc, item=key):
-                    self.assertIn(key, MOD.ITEM_PRICES, f"{key} fiyatsiz")
-                    self.assertIn(key, MOD.ALL_ITEMS, f"{key} esya tablosunda yok")
+        """Senlik tezgahi jetonla calisiyor; fiyati TOKEN_PRICES'ta."""
+        for npc, sh in MOD.SHOPS.items():
+            jeton = MOD.shop_currency(sh) != "gold"
+            tablo = MOD.TOKEN_PRICES if jeton else MOD.ITEM_PRICES
+            for item in sh["stock"]:
+                with self.subTest(npc=npc, item=item):
+                    self.assertIn(item, tablo)
+                    self.assertGreater(tablo[item], 0)
+
 
     def test_sell_price_is_below_buy_price(self):
         """Alip satarak sonsuz para kazanilmamali."""

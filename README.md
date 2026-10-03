@@ -24,7 +24,7 @@ Beş dilde oynanır, bütün grafikleri ve sesleri çalışma anında üretir �
 
 ### Seçenek 1 — Hazır sürümü indir (önerilen)
 
-[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.4-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
+[**Releases**](https://github.com/Lagarux/pixel-rpg/releases) sayfasından `KaranlikTacinLaneti-v6.5-Windows.zip` dosyasını indirin, açın, `KaranlikTacinLaneti.exe` dosyasını çalıştırın. Python kurmanıza gerek yok.
 
 ### Seçenek 2 — Kaynaktan çalıştır
 
@@ -77,15 +77,17 @@ Hızlı erişim yuvalarına envanterde eşya seçip `5`–`8`'e basarak atama ya
 
 | | |
 |---|---|
-| **13 harita** | Köy, orman, harabeler, kayalık geçit, bataklık, çöl, buz mağarası, Köz Vadisi, gölge kalesi, çayır, nehir, kütüphane, zindan |
+| **14 harita** | Köy, orman, harabeler, kayalık geçit, bataklık, çöl, buz mağarası, Köz Vadisi, gölge kalesi, çayır, nehir, kütüphane, zindan |
 | **4 sınıf** | Savaşçı, Büyücü, Okçu, Şifacı — 16 yetenek |
 | **7 element** | Fiziksel, ateş, buz, doğa, gölge, kutsal, toprak. Her düşmanın ve her saldırının bir elementi var |
 | **6 ana bölüm + 22 yan görev** | Ödüller altın ve XP; günlük `Q` ile açılır, `W`/`S` ile kaydırılır |
 | **24 NPC** | Oyunun gidişatına ve senin yaptıklarına göre konuşurlar |
-| **6 dükkân** | Demirci, han ve dört tezgâhlı pazar meydanı; alış/satış/konaklama/yükseltme |
-| **131 düşman, 18 tür** | Beş davranış: yanaşan, menzilli, kaçan, sürü hâlinde avlanan, ağ atan |
+| **14 dükkân, 8 bölgede** | Demirci, han, dört tezgâhlı pazar; bataklık cadısı, münzevi, geçit gözcüsü, çöl kervanı, kütüphaneci, Köz Bekçisi (ikinci demirci) ve şenlik tezgâhı |
+| **134 düşman, 18 tür** | Beş davranış: yanaşan, menzilli, kaçan, sürü hâlinde avlanan, ağ atan |
+| **3 mini oyun** | Harman Şenliği'nde nişan, çan ve olta — kendi jeton parasıyla |
+| **6 kostüm** | Yalnızca görünüm; jetonla alınır |
 | **5 ana boss** | Dördü birer kristal muhafızı, beşincisi Malachar. Her biri düştüğünde araya sahne girer |
-| **39 ekipman + 42 eşya** | Beş yuva, üç kademe, 15 malzeme, iksirler, tonikler, yemekler |
+| **43 ekipman + 52 eşya** | Beş yuva, üç kademe, 15 malzeme, iksirler, tonikler, yemekler |
 | **8 durum etkisi** | Zehir, yanma, donma, sarmaşık, hayalet laneti, iyileşme, direnç, bağışıklık |
 | **5 zorluk** | Kolay · Orta · Zor · Çok Zor · **Hardcore** (tek can — ölünce kayıt silinir) |
 | **Kapanış** | Bitirdiğin yan görevler ve topladığın kristaller epiloğa kendi sahnesini ekler |
@@ -134,6 +136,30 @@ Haritaların sertliği elle yazılmıştı ve başlangıca uzaklığıyla ilgisi
 | 5 — gölge kalesi | 132 | 25 | 620 / 38 |
 
 Kademe tablosunun geçiş grafiğiyle uyuştuğu testle sınanıyor: yeni bir harita eklenip kademesi unutulamaz.
+
+---
+
+## Harman Şenliği
+
+<p align="center"><img src="docs/18_senlik.png" alt="Harman Şenliği" width="620"></p>
+
+Güney Çayırı'nın güneyinde, oyunun **tek düşmansız alanı**. Üç oyun var ve üçü de ayrı bir mekanik kullanıyor — aynı mekaniğin üç kılığı olsa oynanış tekrar ederdi:
+
+| Oyun | Mekanik |
+|---|---|
+| **Nişan Atışı** | Zamanlama — nişangâh şeritte gider gelir, yeşil alandayken `SPACE` |
+| **Çan Sırası** | Hafıza — dört çan sırayla çalar, `1`–`4` ile tekrarlarsın; her tur bir nota uzar |
+| **Olta Başında** | Takip — balık kaçar, `SPACE` basılı tutup kancayı üstünde tutarsın |
+
+| | |
+|---|---|
+| ![Nişan Atışı](docs/19_nisan.png) | ![Olta](docs/20_olta.png) |
+
+Oyunlar **şenlik jetonu** kazandırır. Jeton altınla alınmaz, altın da jetonla alınmaz: iki ekonomi birbirine karışmıyor. Jetonla alınanlar şenlik tezgâhında — her sınıfa bir şenlik silahı ve **altı kostüm**.
+
+<p align="center"><img src="docs/21_kostumler.png" alt="Kostümler" width="700"></p>
+
+Kostümler bilerek **hiçbir nitelik vermiyor**: "en iyi görünüm" ile "en iyi ekipman" birbirine karışmasın. Sınıf işareti (savaşçının miğferi, büyücünün külahı) kostümün altında durmaya devam ediyor.
 
 ---
 
@@ -206,7 +232,7 @@ python tools/make_logo_icon.py
 
 Türkçe, İngilizce, Almanca, Rusça, Arapça. `F1` → Dil ile değiştirilir, tercih kaydedilir.
 
-Çeviriler `assets/locales/*.json` dosyalarında (817 anahtar). Bunlar elle düzenlenmez — tek kaynak `tools/locales_data.py`'dir:
+Çeviriler `assets/locales/*.json` dosyalarında (914 anahtar). Bunlar elle düzenlenmez — tek kaynak `tools/locales_data.py`'dir:
 
 ```bash
 python tools/locales_data.py     # bes JSON dosyasini yeniden uretir
@@ -224,7 +250,7 @@ Yazı tipi dile göre seçilir: oyun her yazı tipini gerçekten deneyip gerekli
 python -m unittest discover -s tests
 ```
 
-**435 test**, 25 dosya. Pencere açmadan gerçek kare çizerek çalışırlar (`SDL_VIDEODRIVER=dummy`), ek bağımlılık istemezler — `unittest` yeterlidir.
+**495 test**, 26 dosya. Pencere açmadan gerçek kare çizerek çalışırlar (`SDL_VIDEODRIVER=dummy`), ek bağımlılık istemezler — `unittest` yeterlidir.
 
 Testler yalnızca "çağrı patlamadı" demiyor, davranışı ölçüyor:
 
@@ -235,6 +261,7 @@ Testler yalnızca "çağrı patlamadı" demiyor, davranışı ölçüyor:
 | `test_economy.py` | Sandıktan üst kademe çıkmaması, her türün malzemesi olması, geri doğumun çalışması, seviye tavanının ulaşılabilir olması |
 | `test_boss.py` | Her boss'un sahnesinin açılması, kristallerin kapanışa işlemesi, anlatının kutuya sığması |
 | `test_curve.py` | Zorluğun haritanın uzaklığıyla artması, kademe tablosunun geçiş grafiğiyle uyuşması, boss adının çevrili olması |
+| `test_festival.py` | Üç mini oyunun gerçekten puan vermesi, jetonun altınla karışmaması, kostümlerin nitelik vermemesi |
 | `test_effects.py` | Her etkinin gerçekten işlemesi (zehir can götürmeli, donma yürütmemeli, bağışıklık tutmamalı), hızlı yuvaların kaydedilmesi, çubukların çakışmaması |
 | `test_quests.py` | Her yan görevin gerçekten bitirilebilmesi — hedef düşmanların oyuncunun gidebildiği haritalarda olması |
 | `test_elements.py` | Denge: hiçbir düşmanın 3 vuruştan çabuk ölmemesi, hiçbir sınıfın bir türe karşı çaresiz kalmaması |
@@ -248,10 +275,10 @@ Geliştirme süreci ve her kararın gerekçesi [`GELISTIRME_PLANI.md`](GELISTIRM
 ### Dizin yapısı
 
 ```
-pixel_rpg.py            oyunun tamami (~7200 satir)
+pixel_rpg.py            oyunun tamami (~8000 satir)
 assets/locales/*.json   bes dil (tools/locales_data.py uretir)
 assets/fonts/           ortacag yazi tipleri
-tests/                  435 test + kosum takimi (harness.py)
+tests/                  495 test + kosum takimi (harness.py)
 tools/                  ceviri ureteci, ikon ureteci
 docs/                   README gorselleri
 ```
@@ -273,7 +300,7 @@ A single-file 2D pixel RPG whose only dependency is pygame. Every graphic is dra
 
 ### Install
 
-Download `KaranlikTacinLaneti-v6.4-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
+Download `KaranlikTacinLaneti-v6.5-Windows.zip` from [Releases](https://github.com/Lagarux/pixel-rpg/releases) and run the executable, or run from source:
 
 ```bash
 pip install pygame
@@ -294,6 +321,12 @@ Python 3.8+. pygame is the only requirement.
 
 **Quick slots.** Keys 5-8 hold consumables (potions, food, charms) so you no longer open the inventory mid-fight. A new consumable drops into the first free slot by itself.
 
+**The Harvest Fair.** The one enemy-free map, south of the meadow. Three mini-games, each on a different mechanic: timing (target shoot), memory (bell order) and tracking (fishing). They pay in fair tokens, which gold cannot buy and which buy nothing outside the fair. The stall sells a festival weapon per class and six costumes - cosmetic only, so "best looking" and "best geared" stay separate.
+
+**Passive regeneration.** HP and MP now refill on their own: noticeably out of combat, very slowly in it, scaled by VIT and WIS.
+
+**Shops everywhere.** Vendors used to be six NPCs in one village; now fourteen across eight maps, including a second blacksmith with the upgrade bench in Ember Valley.
+
 **Difficulty curve.** Every map has a tier equal to its distance in map-hops from the start, and enemy values are scaled to that tier. Previously the Mystic Library, two hops from the village, was harder than the Ice Cave four hops away. A test checks the tier table against the actual transition graph.
 
 **Hunting loop.** Non-boss enemies respawn after 60 seconds at their own tile (and wait while you are within 14 tiles). Each kind drops its own material, which you sell or spend at the blacksmith to upgrade equipment up to +5. Top-tier gear is purchase-only. The level cap is 30.
@@ -308,7 +341,7 @@ Five languages: Turkish, English, German, Russian, Arabic. Switch with `F1`. Tra
 python -m unittest discover -s tests
 ```
 
-435 tests across 25 files, using only `unittest`. They render real frames headlessly (`SDL_VIDEODRIVER=dummy`) and measure behaviour rather than just checking that calls succeed: that no side quest is impossible to finish, that no enemy dies in two hits, that the player can never get stuck between two maps, that no map is covered by a single tile type, that nothing above 210 gold comes free from a chest, and that every dialogue line fits the box in all five languages.
+495 tests across 26 files, using only `unittest`. They render real frames headlessly (`SDL_VIDEODRIVER=dummy`) and measure behaviour rather than just checking that calls succeed: that no side quest is impossible to finish, that no enemy dies in two hits, that the player can never get stuck between two maps, that no map is covered by a single tile type, that nothing above 210 gold comes free from a chest, and that every dialogue line fits the box in all five languages.
 
 </details>
 

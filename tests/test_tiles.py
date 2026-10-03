@@ -30,7 +30,7 @@ MAPS = {}
 HARITA_ADLARI = ["ashveil", "dark_forest", "ruins", "desert", "ice_cave",
                  "shadow_castle", "village_dungeon", "south_meadow",
                  "west_river", "mystic_library", "rocky_pass", "misty_swamp",
-                 "ember_valley"]
+                 "ember_valley", "festival"]
 
 
 def setUpModule():
@@ -301,7 +301,9 @@ class TestDunyaBaglantisi(unittest.TestCase):
         for ad, m in MAPS.items():
             if len({v[0] for v in m.transitions.values()}) <= 1:
                 tek_kapili.append(ad)
-        self.assertLessEqual(len(tek_kapili), 4,
+        # Tek kapili bes bolge var ve hepsi VARIS noktasi, gecis degil:
+        # golge kalesi, koy alti zindani, Koz Vadisi, kutuphane, senlik.
+        self.assertLessEqual(len(tek_kapili), 5,
                              "cok fazla cikmaz bolge: %s" % tek_kapili)
 
 

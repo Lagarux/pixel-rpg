@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KARANLIK TAC'IN LANETI  v6.4  ─  2D Pixel RPG
+KARANLIK TAC'IN LANETI  v6.5  ─  2D Pixel RPG
 pip install pygame  |  python pixel_rpg.py
 
 Kontroller:
@@ -28,7 +28,7 @@ except Exception:
 SW, SH = 960, 640
 TILE    = 32
 FPS     = 60
-VERSION = "6.4"
+VERSION = "6.5"
 TITLE   = "Karanlik Tac'in Laneti"   # ASCII: pencere basligi ve dosya adlari icin
 
 # ─── Dizinler ────────────────────────────────────────────────────
@@ -648,6 +648,14 @@ EQUIP_ITEMS = {
     "moon_pendant": ("Ay Kolyesi",   (200,220,255),{"wis":3,"int":2},"amulet", None),
     "ember_charm":  ("Köz Tılsımı",  (240,140,60),{"str":3,"vit":1}, "amulet", None),
     "sage_talisman":("Bilge Tılsımı",(180,160,240),{"wis":4,"int":2},"amulet", None),
+
+    # ── Şenlik ödülleri: yalnızca jetonla alınır ────────────────
+    # Üst kademeyi geçmiyorlar; şenliğin ödülü güç değil, yoldan
+    # çıkmadan bir orta kademe parçaya ulaşabilmek ve görünüm.
+    "fair_blade":  ("Şenlik Kılıcı",   (240,190,90), {"str":6,"agi":2},"weapon",{"warrior"}),
+    "fair_bow":    ("Şenlik Yayı",     (200,220,120),{"agi":6,"str":2},"weapon",{"archer"}),
+    "fair_wand":   ("Şenlik Değneği",  (200,150,240),{"int":6,"wis":2},"weapon",{"mage"}),
+    "fair_censer": ("Şenlik Buhurdanı",(250,225,150),{"wis":6,"int":2},"weapon",{"healer"}),
 }
 
 # Ekipman yuvalarının sabit sırası — envanter imleci ve çizim bunu paylaşır.
@@ -702,6 +710,12 @@ ITEMS = {
                      "45 can, 22 mana ve kısa bir iyileşme."),
     "dried_meat":   ("Kurutulmuş Et",   (175,105,80), "food",     60,
                      "60 can, 30 mana ve kısa bir iyileşme."),
+
+    # ── Şenlik ───────────────────────────────────────────────────
+    # Harman Şenliği'nin kendi parası. Altınla alınmaz, yalnızca
+    # şenlik oyunlarından kazanılır.
+    "festival_token":("Şenlik Jetonu",(245,205,90),"token",0,
+                      "Şenlik tezgâhında geçer. Altınla alınmaz."),
 
     # ── Kalıcı nitelik taşları (boss ödülü) ──────────────────────
     "oracle_lens":("Kâhin Merceği",   (150,110,220),"stat_int",1,"INT +1 kalıcı."),
@@ -1013,6 +1027,46 @@ ENEMY_ELEM = {
 
 CLASS_ELEM = {"warrior":"physical", "archer":"physical", "mage":"fire", "healer":"holy"}
 
+# ─── Şenlik oyunları ─────────────────────────────────────────────
+# Üçü de AYRI bir mekanik: zamanlama, hafıza, takip. Aynı mekaniğin üç
+# kılığı olsa oynanış tekrar ederdi.
+#   anahtar -> (ad, NPC, tur sayısı, tur başına jeton)
+MINIGAMES = {
+    "target": ("mg.target", "npc.nisanci_usta", 5, 1),
+    "bells":  ("mg.bells",  "npc.canci_dede",   4, 2),
+    "fish":   ("mg.fish",   "npc.olta_ustasi",  3, 2),
+}
+MG_BY_NPC = {v[1]: k for k, v in MINIGAMES.items()}
+
+MG_ENTRY_FEE = 0        # oyunlar ücretsiz: şenlik parası oradan kazanılıyor
+
+
+# ─── Kostümler ───────────────────────────────────────────────────
+# Şenlikte jetonla alınır. Yalnızca görünüm: hiçbir nitelik vermez,
+# böylece "en iyi görünüm" ile "en iyi ekipman" birbirine karışmaz.
+#   anahtar -> (ad anahtarı, gövde rengi, başlık rengi, jeton bedeli)
+COSTUMES = {
+    "harvest":  ("costume.harvest",  (214,150,60),  (248,206,96),  12),
+    "midnight": ("costume.midnight", (52,46,96),    (150,130,230), 18),
+    "ember":    ("costume.ember",    (182,66,38),   (248,146,62),  18),
+    "frost":    ("costume.frost",    (118,174,212), (214,238,250), 18),
+    "verdant":  ("costume.verdant",  (62,128,66),   (150,210,120), 12),
+    "royal":    ("costume.royal",    (108,52,140),  (236,206,110), 30),
+}
+
+
+# Kostümler envanterde birer eşya olarak duruyor: "costume_<anahtar>".
+# ALL_ITEMS yukarıda ITEMS'ten kopyalandığı için ona da eklenmeli;
+# yoksa kostümler "tanınmayan eşya" olarak kalıyor.
+for _ck,(_ad,_c1,_c2,_bedel) in COSTUMES.items():
+    ITEMS["costume_"+_ck]=(_ad,_c2,"costume",0,"")
+    ALL_ITEMS["costume_"+_ck]=ITEMS["costume_"+_ck]
+
+
+def costume_name(key)->str:
+    row=COSTUMES.get(key)
+    return T_(row[0]) if row else ""
+
 # ─── Sınıfın vuruş gücü ──────────────────────────────────────────
 # Okçunun oku st.attack (GÜÇ) kullanıyordu ama sınıf bonusu ÇEVİKLİK+4;
 # çevikliğe puan veren okçu kendi okunu zayıflatıyordu. Şifacı da aynı
@@ -1047,6 +1101,10 @@ WEAPON_ELEM = {
     "hunter_bow":"physical", "storm_bow":"ice",
     "ember_rod":"fire",      "void_staff":"shadow",
     "oak_staff":"nature",    "dawn_scepter":"holy",
+    # Şenlik silahları: her biri başka bir elementle, sınıfın alışık
+    # olduğundan farklı bir seçenek sunsun diye
+    "fair_blade":"holy",     "fair_bow":"nature",
+    "fair_wand":"ice",       "fair_censer":"holy",
 }
 
 # Zırh ve muskalar bir elemente karşı koruma veriyor: hangi bölgeye
@@ -1156,6 +1214,25 @@ ITEM_PRICES = {
     "guardian_plate":720,"arch_robe":700,"ranger_cloak":690,"saint_robe":700,
     "wind_greaves":560,"obsidian_ring":600,"sage_talisman":620,
 }
+# Şenlik tezgâhının fiyatları JETON cinsinden. Altınla alınmaz;
+# jeton da başka yerde geçmez, böylece iki ekonomi birbirine karışmaz.
+TOKEN_PRICES = {
+    "fair_blade":25,"fair_bow":25,"fair_wand":25,"fair_censer":25,
+    "honey_cake":2,"elixir":8,
+}
+for _ck,(_ad,_c1,_c2,_bedel) in COSTUMES.items():
+    TOKEN_PRICES["costume_"+_ck]=_bedel
+
+
+def token_price(key)->int:
+    return TOKEN_PRICES.get(key,5)
+
+
+def shop_currency(shop)->str:
+    """Dükkânın parası: "gold" ya da "festival_token"."""
+    return shop.get("currency","gold")
+
+
 SELL_RATE = 0.4     # satarken alınan oran (dükkân kâr eder)
 REST_PRICE = 18     # handa konaklama
 
@@ -1294,6 +1371,15 @@ SHOPS = {
         "stock":["mp_pot","mp_pot_l","elixir","mage_focus","arcane_staff",
                  "ember_rod","mage_robe","moon_pendant","sage_talisman"],
         "rest":False},
+    # Şenlik tezgâhı: parası jeton. Altın burada geçmez, jeton da
+    # başka yerde geçmez — şenlik kendi ekonomisini koruyor.
+    "npc.senlik_satici":{
+        "stock":["costume_harvest","costume_verdant","costume_midnight",
+                 "costume_ember","costume_frost","costume_royal",
+                 "fair_blade","fair_bow","fair_wand","fair_censer",
+                 "honey_cake","elixir"],
+        "rest":False,"currency":"festival_token"},
+
     "npc.koz_bekcisi":{        # Köz Vadisi — ikinci demirci
         "stock":["war_axe","ember_rod","hunter_bow","oak_staff","chain_mail",
                  "ember_charm","ruby_ring","hp_pot_l","resist_draught"],
@@ -2039,19 +2125,23 @@ class PA:
         return out
 
     @staticmethod
-    def player_surf(direction,frame,char_class="warrior"):
+    def player_surf(direction,frame,char_class="warrior",costume=None):
         af=PA.anim(frame)
-        key=("pl",direction,af,char_class)
+        key=("pl",direction,af,char_class,costume)
         if key in PA._c: return PA._c[key]
-        s=PA._player_raw(direction,af,char_class)
+        s=PA._player_raw(direction,af,char_class,costume)
         s=PA._finish(s);PA._c[key]=s;return s
 
     @staticmethod
-    def _player_raw(direction,af,char_class="warrior"):
+    def _player_raw(direction,af,char_class="warrior",costume=None):
         s=pygame.Surface((TILE,TILE),pygame.SRCALPHA)
         frame=af*PA.ANIM_HOLD
         bob=PA._bob(af)
         cc=CLASS_COL.get(char_class,(80,120,220));skin=(200,160,120)
+        # Kostüm yalnızca rengi değiştirir; silueti ve sınıf işaretini
+        # bozmaz, böylece karşıdaki hangi sınıf olduğunu yine anlar.
+        kost=COSTUMES.get(costume)
+        if kost: cc=kost[1]
         pygame.draw.rect(s,cc,(10,14+bob,12,12))
         pygame.draw.rect(s,skin,(9,4+bob,14,12))
         ey=7+bob
@@ -2067,6 +2157,12 @@ class PA:
         elif char_class=="healer":
             pygame.draw.rect(s,(200,160,40),(8,3+bob,16,5))
             pygame.draw.rect(s,(255,220,60),(13,1+bob,6,8));pygame.draw.rect(s,(255,220,60),(10,3+bob,12,4))
+        if kost:
+            # Şenlik pelerini: omuzdan dökülen renkli kumaş
+            pygame.draw.polygon(s,kost[2],
+                                [(9,15+bob),(23,15+bob),(25,27+bob),(7,27+bob)])
+            pygame.draw.rect(s,cc,(11,16+bob,10,10))
+            pygame.draw.rect(s,kost[2],(8,13+bob,16,3))
         lo=int(math.sin(af/PA.ANIM_FRAMES*math.tau)*3)
         lc=(int(cc[0]*0.7),int(cc[1]*0.7),int(cc[2]*0.7))
         pygame.draw.rect(s,lc,(10,26+bob,5,6-abs(lo)//2));pygame.draw.rect(s,lc,(17,26+bob,5,6+abs(lo)//2))
@@ -2803,6 +2899,9 @@ class PlayerStats:
         self.upgrades:Dict[str,int]={}
         # Hızlı erişim yuvaları: 5-8 tuşlarına bağlı eşya anahtarları
         self.quick:List[Optional[str]]=[None]*QUICK_SLOTS
+        # Giyili kostum (yalnizca gorunum) ve sahip olunanlar
+        self.costume:Optional[str]=None
+        self.costumes:List[str]=[]
         # Sınıfa özel auto-attack cooldown
         self.atk_cd=0
 
@@ -2969,7 +3068,8 @@ class Player(Entity):
         self.invincible=0;self.attacking=False;self.atk_frame=0;self.atk_max=15
     def draw(self,surf,cx,cy):
         if self.invincible>0 and (self.invincible//4)%2==1: return
-        surf.blit(PA.player_surf(self.direction,self.frame,self.stats.char_class),
+        surf.blit(PA.player_surf(self.direction,self.frame,self.stats.char_class,
+                                 getattr(self.stats,"costume",None)),
                   (int(self.px-cx),int(self.py-cy)))
 
 class NPC(Entity):
@@ -3274,6 +3374,11 @@ GROUND_TEXTURE = {
     "map.koy_alti_zindani":  [(T.FLOOR,  [(T.RUBBLE,0.14),(T.MOSS,0.10)])],
     "map.golge_kalesi":      [(T.FLOOR,  [(T.RUBBLE,0.09),(T.MOSS,0.05),(T.CRACKED,0.06)])],
     "map.gizemli_kutuphane": [(T.FLOOR,  [(T.MOSS,0.07),(T.RUBBLE,0.06)])],
+    # Şenlik meydanı taş döşeli ama boz kalmasın: aralara çim ve
+    # çiçek sızsın, kenarları patika olsun.
+    # Meydan TASLI kalmali: %28 cim koyunca plaza degil otlak gorundu.
+    "map.harman_senligi":    [(T.ROAD,   [(T.MEADOW,0.06),(T.PATH,0.035)]),
+                              (T.MEADOW, [(T.GRASS,0.14)])],
 }
 
 
@@ -3413,6 +3518,8 @@ MAP_TIER = {
     "map.buz_magara":        4,
     "map.koz_vadisi":        4,
     "map.golge_kalesi":      5,
+    # Şenlik düşmansız: kademe yalnızca uzaklık testi için
+    "map.harman_senligi":    2,
 }
 
 # ─── Pasif yenilenme ─────────────────────────────────────────────
@@ -4363,6 +4470,8 @@ def build_south_meadow():
     _trans_strip(m,'y',2,  16,26, "ashveil",  22,49, T.GRASS,(0,-1),style="arch")
     # Doğu → Sisli Bataklık: çayır artık çıkmaz sokak değil
     _trans_strip(m,'x',54,20,26, "misty_swamp", 8,20, T.DIRT,(1,0),style="arch")
+    # Güney → Harman Şenliği: köyün güneyindeki şenlik alanı
+    _trans_strip(m,'y',38, 8,18, "festival", 22,4, T.PATH,(0,1),style="arch")
     m.set(8, 30,T.CHEST); m.chests[(8,30)]  = ["farm_tool","hp_pot","gold"]
     m.set(46,22,T.CHEST); m.chests[(46,22)] = ["hp_pot","mana_gem","boar_tusk","tonic_swift"]
     def farmer_d(f): return ["dlg.farmer.%d"%i for i in range(1,7)]
@@ -4384,6 +4493,58 @@ def build_south_meadow():
         Enemy(30,20,"spider",34, 8,24,agro=5,loot=["gold"]),
         Enemy(44,16,"bandit",48,11,34,agro=5,loot=["hp_pot"]),
     ]
+    _snap_all(m); return m
+
+
+def build_festival():
+    """Harman Şenliği — düşmansız şenlik meydanı.
+
+    Oyunun tek güvenli alanı: burada dövüş yok, üç oyun ve jetonla
+    çalışan bir tezgâh var. Altın burada geçmiyor; jeton da başka yerde
+    geçmiyor, böylece şenlik kendi ekonomisini koruyor.
+    """
+    m = GameMap(44, 34, "map.harman_senligi")
+    m.frame_tile = T.HEDGE
+    _rect(m, 0, 0, 44, 34, T.MEADOW)
+    # Meydanın taş döşemesi
+    _rect(m, 8, 8, 28, 18, T.ROAD)
+    _path(m, 22, 0, 22, 10, T.PATH, 2)
+    # Çevresi çalı çitle çevrili: şenlik alanı belli olsun
+    for tx in range(44):
+        m.set(tx, 0, T.HEDGE); m.set(tx, 33, T.HEDGE)
+    for ty in range(34):
+        m.set(0, ty, T.HEDGE); m.set(43, ty, T.HEDGE)
+    # Tezgâhlar: üç oyun standı ve satıcı
+    for sx in (10, 18, 26, 33):
+        for dx in range(3):
+            m.set(sx+dx, 7, T.STALL)
+    # Şenlik ateşi çevresinde taş halka
+    for tx, ty in ((21,17),(22,17),(21,18),(22,18)):
+        m.set(tx, ty, T.STONE)
+    # Köşelerde çiçek tarhı
+    for rx, ry in ((4,4),(38,4),(4,29),(38,29)):
+        for dx in range(-2,3):
+            for dy in range(-2,3):
+                if abs(dx)+abs(dy)<=2: m.set(rx+dx, ry+dy, T.MEADOW)
+
+    # GEÇİŞ — Güney Çayırı'nın batısından gelinir
+    _trans_strip(m,'y',2, 18,26, "south_meadow", 12,30, T.PATH,(0,-1),style="arch")
+
+    m.set(6, 20,T.CHEST); m.chests[(6,20)]  = ["honey_cake","honey_cake","gold"]
+    m.set(37,20,T.CHEST); m.chests[(37,20)] = ["travel_bread","hp_pot","gold"]
+
+    def cigirtkan_d(f):
+        return ["dlg.senlik.%d"%i for i in range(1,7)]
+    m.npcs.append(NPC(11,9,"npc.nisanci_usta",(190,120,80),
+                      lambda f:["dlg.nisan.%d"%i for i in range(1,6)],"guard"))
+    m.npcs.append(NPC(19,9,"npc.canci_dede",(140,140,200),
+                      lambda f:["dlg.can.%d"%i for i in range(1,6)],"elder"))
+    m.npcs.append(NPC(27,9,"npc.olta_ustasi",(110,160,190),
+                      lambda f:["dlg.olta.%d"%i for i in range(1,6)],"fisher"))
+    m.npcs.append(NPC(34,9,"npc.senlik_satici",(230,180,90),
+                      cigirtkan_d,"traveler"))
+    m.npcs.append(NPC(22,22,"npc.senlik_cocugu",(200,180,220),
+                      lambda f:["dlg.senlikc.%d"%i for i in range(1,6)],"child"))
     _snap_all(m); return m
 
 
@@ -5458,6 +5619,95 @@ class UI:
             else:
                 self.txt(surf,"-",sx+self.QUICK_W//2-6,sy+24,GR,self.fsm,shadow=False)
 
+    def draw_minigame(self,surf,g,tick):
+        """Şenlik oyunları — üçü de aynı çerçeveyi paylaşır."""
+        self.dim(surf,190)
+        pw,ph=620,340;px=SW//2-pw//2;py=SH//2-ph//2
+        self.panel(surf,px,py,pw,ph,glow=True)
+        ad,_npc,max_tur,_j=MINIGAMES[g["id"]]
+        self.txt_c(surf,T_(ad),px+pw//2,py+12,UI_GD,self.flg)
+        self.txt(surf,T_("mg.round",min(g["tur"]+1,max_tur),max_tur),
+                 px+18,py+54,LGR,self.fsm)
+        jt="%s: %d"%(T_("mg.tokens"),g["jeton"])
+        self.txt(surf,jt,px+pw-self.fsm.size(jt)[0]-18,py+54,(245,205,90),self.fsm)
+
+        if g["durum"]=="bitti":
+            self.txt_c(surf,T_("mg.finished"),px+pw//2,py+130,UI_AC,self.fxl)
+            self.txt_c(surf,T_("mg.earned",g["jeton"]),px+pw//2,py+186,
+                       (245,205,90),self.fmd)
+            pv=int(abs(math.sin(tick*0.004))*80)+140
+            self.txt_c(surf,T_("mg.leave"),px+pw//2,py+ph-40,(pv,pv,120),self.fmd)
+            return
+
+        if g["id"]=="target":   self._mg_draw_target(surf,g,px,py,pw,ph,tick)
+        elif g["id"]=="bells":  self._mg_draw_bells(surf,g,px,py,pw,ph,tick)
+        elif g["id"]=="fish":   self._mg_draw_fish(surf,g,px,py,pw,ph,tick)
+
+        if g.get("mesaj"):
+            self.txt_c(surf,g["mesaj"][0],px+pw//2,py+ph-70,g["mesaj"][1],self.fmd)
+        self.txt_c(surf,T_("mg.quit"),px+pw//2,py+ph-26,GR,self.fsm)
+
+    def _mg_draw_target(self,surf,g,px,py,pw,ph,tick):
+        sx=px+(pw-Game.MG_T_W)//2;sy=py+150
+        pygame.draw.rect(surf,(40,30,55),(sx,sy,Game.MG_T_W,26))
+        pygame.draw.rect(surf,UI_BD,(sx,sy,Game.MG_T_W,26),2)
+        # Hedef halkası: dış bölge sarı, iç bölge yeşil
+        b=int(g["bolge"]);m=int(g["merkez"])
+        pygame.draw.rect(surf,(150,130,40),(sx+m-b//2,sy+2,b,22))
+        pygame.draw.rect(surf,(60,150,70),(sx+m-b//6,sy+2,max(4,b//3),22))
+        # Nişangâh
+        nx=sx+int(g["x"])
+        pygame.draw.rect(surf,(255,240,200),(nx-2,sy-8,4,42))
+        pygame.draw.polygon(surf,UI_GD,[(nx,sy-12),(nx-6,sy-22),(nx+6,sy-22)])
+        self.txt_c(surf,T_("mg.target_hint"),px+pw//2,sy+54,LGR,self.fsm)
+
+    def _mg_draw_bells(self,surf,g,px,py,pw,ph,tick):
+        renk=((220,90,80),(230,185,70),(90,190,120),(100,150,235))
+        cw=92;toplam=cw*4+24
+        sx=px+(pw-toplam)//2;sy=py+130
+        yanan=-1
+        if g["durum"]=="gosteriyor":
+            i=g["gosterim"]
+            if i<len(g["dizi"]) and (g["t"]%34)<22: yanan=g["dizi"][i]
+        for i in range(4):
+            cx=sx+i*(cw+8)
+            parlak=(i==yanan)
+            c=renk[i] if parlak else tuple(int(v*0.38) for v in renk[i])
+            pygame.draw.rect(surf,c,(cx,sy,cw,78),border_radius=8)
+            pygame.draw.rect(surf,renk[i],(cx,sy,cw,78),3,border_radius=8)
+            self.txt_c(surf,str(i+1),cx+cw//2,sy+28,
+                       (20,16,24) if parlak else (210,210,225),self.flg)
+        if g["durum"]=="gosteriyor":
+            self.txt_c(surf,T_("mg.bells_watch"),px+pw//2,sy+100,UI_AC,self.fmd)
+        else:
+            self.txt_c(surf,T_("mg.bells_repeat",len(g["girilen"]),len(g["dizi"])),
+                       px+pw//2,sy+100,UI_GN,self.fmd)
+            kalan=max(0,(420-g["t"]))//60
+            self.txt_c(surf,T_("mg.seconds",kalan),px+pw//2,sy+126,LGR,self.fsm)
+
+    def _mg_draw_fish(self,surf,g,px,py,pw,ph,tick):
+        bx=px+pw//2-30;by=py+96;bw=58;bh=170
+        pygame.draw.rect(surf,(26,52,78),(bx,by,bw,bh))
+        pygame.draw.rect(surf,UI_BD,(bx,by,bw,bh),2)
+        # Kanca bölgesi
+        ky=by+int(bh*(g["kanca"]/100.0))-18
+        pygame.draw.rect(surf,(70,160,90,0) if False else (70,160,90),
+                         (bx+3,max(by+2,ky),bw-6,36))
+        pygame.draw.rect(surf,(150,240,170),(bx+3,max(by+2,ky),bw-6,36),2)
+        # Balık
+        fy=by+int(bh*(g["balik"]/100.0))
+        pygame.draw.ellipse(surf,(220,190,90),(bx+bw//2-12,fy-7,24,14))
+        pygame.draw.polygon(surf,(220,190,90),
+                            [(bx+bw//2+10,fy),(bx+bw//2+20,fy-7),(bx+bw//2+20,fy+7)])
+        pygame.draw.circle(surf,BK,(bx+bw//2-6,fy-2),2)
+        # Dolum çubuğu
+        self.grad_bar(surf,px+pw//2+60,by,24,bh,int(g["dolu"]),100,
+                      (20,40,30),(90,220,130))
+        self.txt(surf,T_("mg.fish_bar"),px+pw//2+92,by,LGR,self.fsm)
+        kalan=max(0,g["sure"])//60
+        self.txt(surf,T_("mg.seconds",kalan),px+pw//2+92,by+20,LGR,self.fsm)
+        self.txt_c(surf,T_("mg.fish_hint"),px+pw//2,by+bh+22,LGR,self.fsm)
+
     SHOP_ROWS = 7        # ekranda aynı anda görünen satır
 
     def draw_shop(self,surf,player,shop,npc_key,tab,sel,tick,msg=None):
@@ -5469,7 +5719,11 @@ class UI:
         pw,ph=680,430;px=SW//2-pw//2;py=SH//2-ph//2
         self.panel(surf,px,py,pw,ph,glow=True)
         self.txt(surf,T_(npc_key),px+16,py+8,UI_GD,self.flg)
-        gold_s="%s: %d"%(T_("gold"),player.stats.gold)
+        if shop_currency(shop)!="gold":
+            gold_s="%s: %d"%(T_("ui.tokens"),
+                             sum(1 for x in player.inventory if x=="festival_token"))
+        else:
+            gold_s="%s: %d"%(T_("gold"),player.stats.gold)
         self.txt(surf,gold_s,px+pw-self.fmd.size(gold_s)[0]-16,py+14,UI_GD,self.fmd)
 
         # Sekmeler
@@ -5510,7 +5764,8 @@ class UI:
             name_col=WH if ok else (95,90,95)
             self.txt(surf,item_name(key),px+58,y+6,name_col,self.fss)
             self.txt(surf,item_desc(key) or "",px+58,y+22,GR,self.fsm)
-            ps="%d %s"%(price,T_("gold"))
+            ps="%d %s"%(price,T_("ui.tokens") if shop_currency(shop)!="gold"
+                        else T_("gold"))
             self.txt(surf,ps,px+pw-self.fss.size(ps)[0]-26,y+12,
                      UI_GD if ok else (120,90,60),self.fss)
             y+=42
@@ -5577,6 +5832,9 @@ class UI:
     @staticmethod
     def shop_tabs(shop):
         """Bu dükkânda hangi sekmeler var."""
+        # Jeton tezgâhı eşya satın almıyor: altın ile jeton birbirine
+        # çevrilebilseydi şenliğin kendi ekonomisi anlamsızlaşırdı.
+        if shop_currency(shop)!="gold": return ["ui.shop_buy"]
         t=["ui.shop_buy","ui.shop_sell"]
         if shop.get("upgrade"): t.append("ui.shop_upgrade")
         return t
@@ -5603,13 +5861,19 @@ class UI:
         """(anahtar, fiyat, islem yapilabilir mi) listesi."""
         st=player.stats
         if tab==0:
+            jeton=shop_currency(shop)!="gold"
+            kese=(sum(1 for x in player.inventory if x=="festival_token")
+                  if jeton else st.gold)
             out=[]
             for k in shop["stock"]:
-                ok=st.gold>=item_price(k)
+                fiyat=token_price(k) if jeton else item_price(k)
+                ok=kese>=fiyat
                 if k in EQUIP_ITEMS:
                     cls_set=EQUIP_ITEMS[k][4]
                     if cls_set and st.char_class not in cls_set: ok=False
-                out.append((k,item_price(k),ok))
+                # Alınmış kostüm tekrar satılmaz
+                if k.startswith("costume_") and k[8:] in st.costumes: ok=False
+                out.append((k,fiyat,ok))
             return out
         seen=[]
         for k in player.inventory:
@@ -5782,6 +6046,7 @@ class Game:
             "mystic_library":build_mystic_library(),
             "rocky_pass":build_rocky_pass(),"misty_swamp":build_misty_swamp(),
             "ember_valley":build_ember_valley(),
+            "festival":build_festival(),
         }
         for _m in self.maps.values():
             _m.base_chests=set(_m.chests.keys())
@@ -5815,6 +6080,7 @@ class Game:
         self.boss_scene=None                         # boss kapanış sahnesi
         self.quest_scroll=0                          # görev günlüğü kaydırması
         self.combat_t=-10**6                         # son darbenin karesi
+        self.mg=None                                 # etkin şenlik oyunu
         self.splash_t=0                              # açılış animasyonu sayacı
         self.diff_sel=DIFF_IDS.index(CFG.data.get("difficulty","normal")) \
             if CFG.data.get("difficulty","normal") in DIFF_IDS else 1
@@ -5837,6 +6103,7 @@ class Game:
         "west_river":"village","mystic_library":"library",
         "rocky_pass":"dungeon","misty_swamp":"forest",
         "ember_valley":"battle",
+        "festival":"village",
     }
 
     def _start_game(self):
@@ -5962,6 +6229,7 @@ class Game:
                 "inventory":list(p.inventory),"quest_items":list(p.quest_items),
                 "equipment":dict(st.equipment),"upgrades":dict(st.upgrades),
                 "quick":list(st.quick),
+                "costume":st.costume,"costumes":list(st.costumes),
             },
             "flags":dict(self.flags),
             "maps":maps,
@@ -5992,6 +6260,9 @@ class Game:
             st.equipment={k:pd.get("equipment",{}).get(k) for k in EQUIP_SLOTS}
             st.upgrades={k:int(v) for k,v in pd.get("upgrades",{}).items()
                          if k in EQUIP_ITEMS and 0<int(v)<=UPGRADE_MAX}
+            st.costumes=[k for k in pd.get("costumes",[]) if k in COSTUMES]
+            kk=pd.get("costume")
+            st.costume=kk if kk in st.costumes else None
             kayitli=pd.get("quick",[])
             st.quick=[(k if k and quick_ok(k) else None)
                       for k in (list(kayitli)+[None]*QUICK_SLOTS)[:QUICK_SLOTS]]
@@ -6349,6 +6620,139 @@ class Game:
             # görevi BAŞLATIYOR, bitirmek için balık getirmek gerekiyor.
             self.flags["sq_fish_started"]=True
 
+    # ── Şenlik oyunları ──────────────────────────────────────────
+    def _mg_start(self,oyun):
+        """Şenlik oyununu başlatır."""
+        ad,npc,tur,jeton=MINIGAMES[oyun]
+        self.mg={"id":oyun,"tur":0,"max_tur":tur,"jeton":0,"t":0,
+                 "durum":"hazir","mesaj":None}
+        if oyun=="target":   self._mg_target_round()
+        elif oyun=="bells":  self._mg_bells_round()
+        elif oyun=="fish":   self._mg_fish_round()
+        self.state="minigame"
+        SoundManager.play("open_ui")
+
+    # Nişan Atışı: hedef gidip gelir, halkanın içindeyken vur
+    MG_T_W = 420          # şeridin genişliği
+    def _mg_target_round(self):
+        g=self.mg
+        g["hiz"]=2.6+g["tur"]*0.7
+        g["x"]=0.0;g["yon"]=1
+        g["bolge"]=max(34,74-g["tur"]*9)      # halka tur tur daralır
+        g["merkez"]=random.randint(90,self.MG_T_W-90)
+        g["durum"]="oynuyor"
+
+    def _mg_target_hit(self):
+        g=self.mg
+        fark=abs(g["x"]-g["merkez"])
+        if fark<=g["bolge"]/2:
+            tam=fark<=g["bolge"]/6
+            kazanc=2 if tam else 1
+            g["jeton"]+=kazanc
+            g["mesaj"]=(T_("mg.bullseye") if tam else T_("mg.hit"),UI_GN)
+            SoundManager.play("hit")
+        else:
+            g["mesaj"]=(T_("mg.miss"),UI_RD);SoundManager.play("error")
+        self._mg_next()
+
+    # Çan Sırası: dizi gösterilir, 1-4 ile tekrarlanır
+    def _mg_bells_round(self):
+        g=self.mg
+        n=3+g["tur"]
+        g["dizi"]=[random.randint(0,3) for _ in range(n)]
+        g["girilen"]=[];g["gosterim"]=0;g["durum"]="gosteriyor";g["t"]=0
+
+    def _mg_bells_key(self,i):
+        g=self.mg
+        if g["durum"]!="oynuyor": return
+        g["girilen"].append(i)
+        SoundManager.play("menu_sel")
+        n=len(g["girilen"])
+        if g["dizi"][n-1]!=i:
+            g["mesaj"]=(T_("mg.wrong_note"),UI_RD);SoundManager.play("error")
+            self._mg_next();return
+        if n==len(g["dizi"]):
+            g["jeton"]+=MINIGAMES["bells"][3]
+            g["mesaj"]=(T_("mg.sequence_ok"),UI_GN);SoundManager.play("chest")
+            self._mg_next()
+
+    # Olta: balık şeridde kaçar, kancayı üstünde tut
+    def _mg_fish_round(self):
+        g=self.mg
+        g["balik"]=50.0;g["b_hiz"]=0.0
+        g["kanca"]=50.0;g["k_hiz"]=0.0
+        g["dolu"]=0.0;g["sure"]=600-g["tur"]*60
+        g["durum"]="oynuyor"
+
+    def _mg_update(self):
+        """Şenlik oyununun kare kare ilerlemesi."""
+        g=getattr(self,"mg",None)
+        if not g: return
+        g["t"]+=1
+        oid=g["id"]
+        if oid=="target" and g["durum"]=="oynuyor":
+            g["x"]+=g["hiz"]*g["yon"]
+            if g["x"]<=0: g["x"]=0;g["yon"]=1
+            elif g["x"]>=self.MG_T_W: g["x"]=self.MG_T_W;g["yon"]=-1
+        elif oid=="bells":
+            if g["durum"]=="gosteriyor":
+                # Her 34 karede bir çan yanar
+                i=g["t"]//34
+                g["gosterim"]=i
+                if i>=len(g["dizi"]): g["durum"]="oynuyor";g["t"]=0
+            elif g["durum"]=="oynuyor":
+                if g["t"]>420:          # süre doldu
+                    g["mesaj"]=(T_("mg.too_slow"),UI_RD);SoundManager.play("error")
+                    self._mg_next()
+        elif oid=="fish" and g["durum"]=="oynuyor":
+            # Balık rastgele kaçar, kanca tuşla yukarı itilir
+            g["b_hiz"]+=random.uniform(-0.55,0.55)
+            g["b_hiz"]=max(-2.2,min(2.2,g["b_hiz"]*0.94))
+            g["balik"]=max(2.0,min(98.0,g["balik"]+g["b_hiz"]))
+            if g["balik"] in (2.0,98.0): g["b_hiz"]*=-0.5
+            tutuyor=pygame.key.get_pressed()[pygame.K_SPACE]
+            g["k_hiz"]+=(-0.42 if tutuyor else 0.34)
+            g["k_hiz"]=max(-2.6,min(2.6,g["k_hiz"]*0.92))
+            g["kanca"]=max(6.0,min(94.0,g["kanca"]+g["k_hiz"]))
+            if abs(g["kanca"]-g["balik"])<=9.0: g["dolu"]+=0.55
+            else: g["dolu"]=max(0.0,g["dolu"]-0.30)
+            g["sure"]-=1
+            if g["dolu"]>=100.0:
+                g["jeton"]+=MINIGAMES["fish"][3]
+                g["mesaj"]=(T_("mg.caught"),UI_GN);SoundManager.play("chest")
+                self._mg_next()
+            elif g["sure"]<=0:
+                g["mesaj"]=(T_("mg.got_away"),UI_RD);SoundManager.play("error")
+                self._mg_next()
+
+    def _mg_next(self):
+        g=self.mg
+        g["tur"]+=1
+        if g["tur"]>=g["max_tur"]:
+            g["durum"]="bitti"
+            if g["jeton"]>0:
+                for _ in range(g["jeton"]):
+                    self.player.inventory.append("festival_token")
+                self.flags["mg_"+g["id"]]=max(self.flags.get("mg_"+g["id"],0),
+                                              g["jeton"])
+                SoundManager.play("level_up")
+            return
+        g["t"]=0
+        if g["id"]=="target":  self._mg_target_round()
+        elif g["id"]=="bells": self._mg_bells_round()
+        elif g["id"]=="fish":  self._mg_fish_round()
+
+    def _mg_key(self,k):
+        g=getattr(self,"mg",None)
+        if not g: self.state="playing";return
+        if g["durum"]=="bitti" or k==pygame.K_ESCAPE:
+            self.mg=None;self.state="playing";SoundManager.play("menu_back");return
+        if g["id"]=="target" and k in(pygame.K_SPACE,pygame.K_e,pygame.K_RETURN):
+            if g["durum"]=="oynuyor": self._mg_target_hit()
+        elif g["id"]=="bells" and g["durum"]=="oynuyor":
+            for i,tus in enumerate((pygame.K_1,pygame.K_2,pygame.K_3,pygame.K_4)):
+                if k==tus: self._mg_bells_key(i);break
+
     def _open_shop(self,npc):
         self.shop_npc=npc.name;self.shop_tab=0;self.shop_sel=0;self.shop_msg=None
         self.state="shop";SoundManager.play("open_ui")
@@ -6388,10 +6792,29 @@ class Game:
         key,price,ok=rows[self.shop_sel]
         st=self.player.stats
         if self.shop_tab==0:
+            shop=SHOPS[self.shop_npc]
+            jeton=shop_currency(shop)!="gold"
+            kese=(sum(1 for x in self.player.inventory if x=="festival_token")
+                  if jeton else st.gold)
             if not ok:
-                reason="ui.shop_no_gold" if st.gold<price else "ui.shop_wrong_class"
+                if key.startswith("costume_") and key[8:] in st.costumes:
+                    reason="ui.shop_have_costume"
+                elif kese<price:
+                    reason="ui.shop_no_token" if jeton else "ui.shop_no_gold"
+                else:
+                    reason="ui.shop_wrong_class"
                 self.shop_msg=(T_(reason),UI_RD);SoundManager.play("error");return
-            st.gold-=price;self.player.inventory.append(key)
+            if jeton:
+                for _ in range(price): self.player.inventory.remove("festival_token")
+            else:
+                st.gold-=price
+            if key.startswith("costume_"):
+                # Kostüm çantaya değil gardıroba girer ve hemen giyilir
+                kk=key[8:]
+                if kk not in st.costumes: st.costumes.append(kk)
+                st.costume=kk
+            else:
+                self.player.inventory.append(key)
             self._quick_autofill(key)
             self.shop_msg=(T_("ui.shop_bought",item_name(key)),UI_GN)
             SoundManager.play("chest")
@@ -6878,6 +7301,8 @@ class Game:
                 # kontrolü diyalogdan önce return ediyordu. Artık söyleyecek
                 # YENİ bir şeyi varsa konuşuyor, yoksa tezgâhını açıyor.
                 yeni=self._npc_has_news(npc,lines)
+                if npc.name in MG_BY_NPC and not yeni:
+                    self._mg_start(MG_BY_NPC[npc.name]);return
                 if npc.name in SHOPS and not yeni:
                     self._open_shop(npc);return
                 self.dlg_npc=npc;self.dlg_lines=lines
@@ -6960,6 +7385,14 @@ class Game:
             self.ps.emit_magic(p.px+TILE//2,p.py,col=(255,225,140))
             SoundManager.play("heal")
             self._toast(T_("ui.item_full_used"),UI_GN)
+        elif typ=="costume":
+            kk=ik[8:] if ik.startswith("costume_") else None
+            if kk in p.stats.costumes:
+                p.stats.costume=None if p.stats.costume==kk else kk
+                SoundManager.play("equip")
+                self._toast(costume_name(kk) if p.stats.costume
+                            else T_("ui.costume_off"),(245,205,90))
+            p.inventory.remove(ik)
         elif typ=="cure":
             # Panzehir: uzerindeki butun kotu etkileri siler
             silinen=[k for k in p.stats.buffs if k in KOTU_ETKILER]
@@ -7056,6 +7489,7 @@ class Game:
             if self.splash_t==UI.SPLASH_CRACK:
                 SoundManager.play("hit_heavy");self.add_shake(5,12)
             if self.splash_t>=UI.SPLASH_END: self.state="title"
+        if self.state=="minigame": self._mg_update()
         if self.state=="boss_scene" and self.boss_scene:
             self.boss_scene["t"]+=1
             # Silüet dağıldığı anda ağır bir darbe
@@ -7333,6 +7767,9 @@ class Game:
                     elif self.state=="gameover":
                         if k==pygame.K_r: self._reset()
 
+                    elif self.state=="minigame":
+                        self._mg_key(k)
+
                     elif self.state=="boss_scene":
                         if self.boss_scene is None:
                             self.state="playing"
@@ -7487,6 +7924,8 @@ class Game:
                     self.ui.draw_stat_alloc(self.screen,self.player.stats,self.player.stats.skill_points,self.stat_sel,True,self.tick)
                 elif self.state=="gameover":
                     self.ui.draw_gameover(self.screen)
+                elif self.state=="minigame" and self.mg:
+                    self.ui.draw_minigame(self.screen,self.mg,self.tick)
                 elif self.state=="boss_scene" and self.boss_scene:
                     self.ui.draw_boss_scene(self.screen,self.boss_scene,self.tick)
                 elif self.state=="epilogue":
