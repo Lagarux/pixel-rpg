@@ -147,6 +147,8 @@ Hikâyede **dört kristalden** söz ediliyordu ama oyunda ikisi vardı. Köz Vad
 | ![Geçitler](docs/12_gecitler.png) | ![Bataklık](docs/11_bataklik.png) |
 | Yedi geçit ağzı üslubu | Sisli Bataklık — sığ su, saz, nilüfer |
 
+<p align="center"><img src="docs/16_gorev_gunlugu.png" alt="Görev günlüğü" width="620"><br><i>Yirmi iki yan görev — günlük W/S ile kaydırılır</i></p>
+
 Geçitlerin hepsi aynı taş çerçeveydi: ormanın kenarında da, buz mağarasının ağzında da, kalenin kapısında da. Artık **her geçit gittiği yere benziyor** — mağara ağzı, yıkık kemer, dağ geçidi, dal kemeri, ahşap kapı, buz ağzı, kül ağzı.
 
 Dokuz yeni zemin karosu eklendi (patika, yeşillik, çalı çit, yosunlu taş, döküntü, çakıl, çam, sığ su, çatlak zemin). Ölçüm: baskın zemin oranı harabelerde %100 → %66, kayalık geçitte %99 → %65; en büyük tek tip blok 16 kare → 12; harita başına zemin türü 2–3 → 4–9. Köz Vadisi'nin dekor yoğunluğu %0,7 → %6,1 (kül ve buz karolarının dekor kaydı eksikti).
