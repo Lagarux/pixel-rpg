@@ -670,6 +670,11 @@ ITEMS = {
     "scroll1":  ("Karanlık Parşömen",(180,140,220),"quest_sq",0,"Gizemli parşömen 1/3."),
     "scroll2":  ("Ateş Parşömeni",  (220,140,80), "quest_sq",0,"Gizemli parşömen 2/3."),
     "scroll3":  ("Buz Parşömeni",   (140,200,220),"quest_sq",0,"Gizemli parşömen 3/3."),
+    # Balıkçı Riva'nın istediği balıklar. Eskiden bu görev yalnızca
+    # konuşmakla bitiyordu; oyuncu ne yaptığını anlamıyordu.
+    "fish_silver":("Gümüş Alabalık", (200,215,230),"quest_sq",0,"Riva'nın aradığı balık 1/3."),
+    "fish_gold":  ("Altın Sazan",    (230,195,90), "quest_sq",0,"Riva'nın aradığı balık 2/3."),
+    "fish_shadow":("Gölge Yılanbalığı",(130,110,160),"quest_sq",0,"Riva'nın aradığı balık 3/3."),
 
     # ── Büyük iksirler ve tonikler ───────────────────────────────
     # Tek bir sağlık iksiri vardı ve 54 tanesi sandıklardan bedava
@@ -738,12 +743,45 @@ for k,(name,col,bonus,slot,cls) in EQUIP_ITEMS.items():
     ALL_ITEMS[k] = (name, col, "equip", slot, desc)
 
 # ─── Yetenek Sistemi ────────────────────────────────────────────
+# Yetenek hasar çarpanları tek yerde. Ölçüm: on iki hasar yeteneğinin
+# onu temel saldırıdan daha az hasar/saniye veriyordu — mana ve bekleme
+# harcayıp daha az vuran yetenek, yetenek değildir.
+#   id -> (güç çarpanı, vurduğu hedef sayısı — yalnızca denge ölçümü için)
+ABILITY_POWER = {
+    "shield_bash":3.2, "whirlwind":2.6,  "earthquake":5.5,
+    "freeze":2.4,      "meteor":3.4,     "arcane_nova":4.2,
+    "multi_shot":1.6,  "trap":3.0,       "rain_arrows":2.6,
+    "shadow_step":5.5, "divine_storm":3.4,
+}
+
+# Yeteneğin kaç kareye kadar vurduğu — denge ölçümü ve testler buna bakıyor.
+# (Elle sayılan "kaç hedef" tablosu kaynakla ayrışıyordu.)
+ABILITY_RADIUS = {
+    "shield_bash":2.0, "whirlwind":2.2, "earthquake":3.5,
+    "freeze":3.0, "meteor":1.5, "arcane_nova":4.0, "divine_storm":3.5,
+}
+
+# Alan yeteneği mi, tek hedef mi? Denge ölçütü ikisinde farklı:
+# tek hedefli yetenek TEK düşmana karşı temel saldırıyı geçmeli;
+# alan yeteneği üç düşmana karşı geçmeli.
+ABILITY_AREA = ("whirlwind","earthquake","freeze","meteor","arcane_nova",
+                "rain_arrows","divine_storm")
+
+# Zorunlu krit uygulayan yetenekler (_hit(..., True, ...))
+ABILITY_CRIT = ("shadow_step",)
+
+
+def ability_power(stats,aid)->int:
+    """Yeteneğin tek hedefe vuracağı hasar."""
+    return max(1,int(stats.power*ABILITY_POWER.get(aid,1.0)))
+
+
 ABILITIES = {
     "warrior":[
         {"id":"shield_bash","name":"Kalkan Darb.","level":1,"mp":6, "cd":50, "col":(220,100,50)},
         {"id":"whirlwind",  "name":"Kasirga",     "level":3,"mp":14,"cd":100,"col":(200,160,60)},
         {"id":"war_cry",    "name":"Savas Ciglik","level":5,"mp":18,"cd":200,"col":(220,60,60)},
-        {"id":"earthquake", "name":"Deprem",      "level":8,"mp":28,"cd":320,"col":(180,120,40)},
+        {"id":"earthquake", "name":"Deprem",      "level":8,"mp":28,"cd":260,"col":(180,120,40)},
     ],
     "mage":[
         {"id":"freeze",     "name":"Buz Kilidi",  "level":1,"mp":16,"cd":80, "col":(80,180,255)},
@@ -754,8 +792,8 @@ ABILITIES = {
     "archer":[
         {"id":"multi_shot", "name":"Coklu Atis",  "level":1,"mp":8, "cd":40, "col":(80,200,80)},
         {"id":"trap",       "name":"Tuzak Kur",   "level":3,"mp":10,"cd":60, "col":(160,120,40)},
-        {"id":"rain_arrows","name":"Ok Yagmuru",  "level":5,"mp":22,"cd":180,"col":(60,220,120)},
-        {"id":"shadow_step","name":"Golge Adim",  "level":8,"mp":25,"cd":240,"col":(80,60,160)},
+        {"id":"rain_arrows","name":"Ok Yagmuru",  "level":5,"mp":22,"cd":150,"col":(60,220,120)},
+        {"id":"shadow_step","name":"Golge Adim",  "level":8,"mp":25,"cd":180,"col":(80,60,160)},
     ],
     "healer":[
         {"id":"mass_heal",  "name":"Alan Iyilesme","level":1,"mp":18,"cd":80, "col":(80,220,120)},
@@ -974,6 +1012,20 @@ ENEMY_ELEM = {
 }
 
 CLASS_ELEM = {"warrior":"physical", "archer":"physical", "mage":"fire", "healer":"holy"}
+
+# ─── Sınıfın vuruş gücü ──────────────────────────────────────────
+# Okçunun oku st.attack (GÜÇ) kullanıyordu ama sınıf bonusu ÇEVİKLİK+4;
+# çevikliğe puan veren okçu kendi okunu zayıflatıyordu. Şifacı da aynı
+# durumdaydı (hasar ZEKÂ'dan, bonus BİLGELİK'ten). Ölçümde 10. seviyede
+# savaşçının temel vuruşu 64, okçununki 12 çıkıyordu.
+# Her sınıfın hasarı artık kendi ana niteliğinden geliyor.
+#   sınıf -> (ana nitelik, katsayı, yan nitelik, katsayı)
+CLASS_POWER = {
+    "warrior": ("str",  2, "vit",  0),
+    "mage":    ("int_", 2, "wis",  0),
+    "archer":  ("agi",  2, "str",  1),
+    "healer":  ("wis",  2, "int_", 1),
+}
 
 ABILITY_ELEM = {
     "shield_bash":"physical", "whirlwind":"physical", "earthquake":"earth",
@@ -1214,6 +1266,38 @@ SHOPS = {
     "npc.ciftci_hale":{"stock":["farm_tool","hp_pot","hp_pot_l","tonic_str",
                                 "travel_bread","honey_cake","dried_meat"],
                        "rest":False},
+
+    # ── Bölge satıcıları ────────────────────────────────────────
+    # Altı dükkânın altısı da Ashveil'deydi; öteki on iki haritada hiç
+    # alışveriş yoktu. Uzaktaki bir harita, iksiri bitince köye dönmek
+    # dışında bir şey sunmuyordu.
+    "npc.ciftci_torben":{      # Güney Çayırı — çiftlik ürünleri
+        "stock":["travel_bread","honey_cake","dried_meat","hp_pot","farm_tool"],
+        "rest":False},
+    "npc.bataklik_cadisi":{    # Sisli Bataklık — şifa ve zehir işleri
+        "stock":["antidote","antidote","hp_pot","mp_pot","tonic_def",
+                 "resist_draught","river_gem"],
+        "rest":False},
+    "npc.munzevi":{            # Batı Nehri — münzevinin kiler
+        "stock":["travel_bread","dried_meat","hp_pot_l","mp_pot_l",
+                 "travel_boots","ward_charm"],
+        "rest":True},          # münzevi yolcuyu barındırır
+    "npc.gecit_gozcusu":{      # Kayalık Geçit — nöbetçi kumanyası
+        "stock":["hp_pot","hp_pot_l","mp_pot","travel_bread","antidote",
+                 "chain_mail","leather_armor"],
+        "rest":False},
+    "npc.kervanci_sahra":{     # Çöl — kervan tüccarı
+        "stock":["hp_pot_l","mp_pot_l","elixir","tonic_swift","ward_charm",
+                 "ruby_ring","jade_ring","scout_coat","swift_boots"],
+        "rest":True},          # kervan çadırında dinlenilir
+    "npc.kutuphaneci_elan":{   # Gizemli Kütüphane — büyücü malzemesi
+        "stock":["mp_pot","mp_pot_l","elixir","mage_focus","arcane_staff",
+                 "ember_rod","mage_robe","moon_pendant","sage_talisman"],
+        "rest":False},
+    "npc.koz_bekcisi":{        # Köz Vadisi — ikinci demirci
+        "stock":["war_axe","ember_rod","hunter_bow","oak_staff","chain_mail",
+                 "ember_charm","ruby_ring","hp_pot_l","resist_draught"],
+        "rest":False,"upgrade":True},
 }
 
 # ─── Yan görevler ────────────────────────────────────────────────
@@ -1229,9 +1313,10 @@ SIDE_QUESTS = [
      "progress":lambda f: (min(3,f.get("kill_boar",0)),3),
      "gold":50,"xp":40},
     {"id":"fish",    "title":"ui.sq_fish",    "desc":"ui.sq_fish_desc",
-     "unit":"ui.unit_talk","col":UI_CY,
-     "progress":lambda f: (1 if f.get("sq_fish_done") else 0,1),
-     "gold":40,"xp":30},
+     "unit":"ui.unit_fish","col":UI_CY,
+     "progress":lambda f: (sum(1 for k in("sq_fish_silver","sq_fish_gold",
+                                          "sq_fish_shadow") if f.get(k)),3),
+     "gold":90,"xp":80},
     {"id":"wolf",    "title":"ui.sq_wolf",    "desc":"ui.sq_wolf_desc",
      "unit":"ui.unit_wolf","col":(190,170,150),
      "progress":lambda f: (min(5,f.get("kill_wolf",0)),5),
@@ -1319,7 +1404,10 @@ SIDE_QUESTS = [
 NPC_MARKS = {
     "npc.yasli_aldric":    lambda f: not f.get("speak_aldric"),
     "npc.oracle_nyx":      lambda f: f.get("earth_crystal") and not f.get("speak_oracle"),
-    "npc.balikci_riva":    lambda f: not f.get("sq_fish_done"),
+    "npc.balikci_riva":    lambda f: sum(1 for k in("sq_fish_silver",
+                                                     "sq_fish_gold",
+                                                     "sq_fish_shadow")
+                                         if f.get(k))<3,
     "npc.bataklik_cadisi": lambda f: not f.get("sq_witch_done"),
     "npc.munzevi":         lambda f: not f.get("sq_hermit_done"),
 }
@@ -2732,6 +2820,16 @@ class PlayerStats:
     @property
     def magic_atk(self): return 4+(self.int_+self._equip_bonus("int"))*2
     @property
+    def power(self):
+        """Sınıfın vuruş gücü: hasar hesaplarının tamamı bunu kullanır."""
+        ana,k1,yan,k2=CLASS_POWER.get(self.char_class,("str",2,"vit",0))
+        ad={"str":"str","int_":"int","agi":"agi","vit":"vit","wis":"wis"}
+        taban=4+(getattr(self,ana)+self._equip_bonus(ad[ana]))*k1
+        if k2: taban+=(getattr(self,yan)+self._equip_bonus(ad[yan]))*k2
+        if "war_cry" in self.buffs: taban=int(taban*1.6)
+        if "tonic_str" in self.buffs: taban=int(taban*TONIC_ATK)
+        return taban
+    @property
     def defense(self): return 1+(self.vit+self._equip_bonus("vit"))+(self.str+self._equip_bonus("str"))//3
     @property
     def _agi_eff(self):
@@ -3317,6 +3415,20 @@ MAP_TIER = {
     "map.golge_kalesi":      5,
 }
 
+# ─── Pasif yenilenme ─────────────────────────────────────────────
+# Can ve mana yalnızca iksirle, handa uyuyarak ya da seviye atlayarak
+# doluyordu; iki dövüş arasında oturup beklemenin bir karşılığı yoktu.
+# Dövüşün dışında belirgin, dövüşün içinde çok yavaş yenileniyor.
+REGEN_TICK      = 60     # saniyede bir işler
+REGEN_HP_IDLE   = 0.012  # azami canın %1.2'si
+REGEN_MP_IDLE   = 0.030
+REGEN_HP_FIGHT  = 0.003
+REGEN_MP_FIGHT  = 0.010
+REGEN_VIT_BONUS = 0.0005 # dayanıklılık başına ek oran
+REGEN_WIS_BONUS = 0.0010 # bilgelik başına ek oran
+COMBAT_WINDOW   = 300    # son darbeden kaç kare sonra "dövüş bitti"
+
+
 # ─── Hızlı erişim yuvaları ───────────────────────────────────────
 # Yetenekler 1-4 tuşlarında; iksir içmek için envanteri açmak gerekiyordu
 # ve dövüşün ortasında bu hem yavaş hem de ekranı kapatıyordu. 5-8
@@ -3332,6 +3444,12 @@ QUICK_KEYS = {}
 for _i,(_a,_b) in enumerate(((pygame.K_5,pygame.K_KP5),(pygame.K_6,pygame.K_KP6),
                              (pygame.K_7,pygame.K_KP7),(pygame.K_8,pygame.K_KP8))):
     QUICK_KEYS[_a]=_i;QUICK_KEYS[_b]=_i
+
+
+# Alinca kendi bayragini kuran gorev esyalari (parsomenler, balıklar).
+# Bayrak adi: "sq_" + anahtar.
+QUEST_PICKUPS = ("scroll1","scroll2","scroll3",
+                 "fish_silver","fish_gold","fish_shadow")
 
 
 def quick_ok(key)->bool:
@@ -3895,6 +4013,8 @@ def build_misty_swamp():
     _trans_strip(m,'x',2, 18,22, "south_meadow", 52,23, T.DIRT,(-1,0),style="arch")
 
     m.set(26,20, T.CHEST); m.chests[(26,20)] = ["hp_pot","mp_pot","gold"]
+    # Üçüncü balık bataklıkta: Riva oraya gitmeye çekiniyor
+    m.set(44,10, T.CHEST); m.chests[(44,10)] = ["fish_shadow","antidote"]
     m.set(48,20, T.CHEST); m.chests[(48,20)] = ["hp_pot","tonic_def","venom_sac"]
     m.set(10,20, T.CHEST); m.chests[(10,20)] = ["hp_pot","gold","gold"]
     m.set(46,20, T.CHEST); m.chests[(46,20)] = ["mp_pot","hunter_bow","spider_silk"]
@@ -4009,6 +4129,11 @@ def build_desert():
         if f.get("earth_crystal"): return O(6,11)
         return O(11,16)
     m.npcs.append(NPC(30,8,"npc.oracle_nyx",(120,80,180),oracle_d,"oracle"))
+    # Vahanın kenarında kervan: çölde alışveriş yapılacak tek yer
+    def kervan_d(f):
+        K=lambda a,b:["dlg.kervan.%d"%i for i in range(a,b)]
+        return K(7,13) if f.get("water_crystal") else K(1,7)
+    m.npcs.append(NPC(34,22,"npc.kervanci_sahra",(205,165,95),kervan_d,"traveler"))
     m.enemies += [
         Enemy(10,10,"scorpion",45,10,30,agro=5,loot=["gold"]),
         Enemy(48,10,"scorpion",45,10,30,agro=5),
@@ -4285,11 +4410,18 @@ def build_west_river():
     _trans_strip(m,'y',2, 10,16, "mystic_library",21, 4, T.GRASS,(0,-1),
                  style="door")
     m.set(5, 16,T.CHEST); m.chests[(5,16)]  = ["river_gem","mp_pot","gold"]
+    # Riva'nın aradığı üç balık: ikisi nehrin iki yakasında
+    m.set(22, 6,T.CHEST); m.chests[(22,6)]  = ["fish_silver","hp_pot"]
+    m.set(34,36,T.CHEST); m.chests[(34,36)] = ["fish_gold","mp_pot","gold"]
     m.set(46,  5,T.CHEST); m.chests[(46,5)] = ["hp_pot","hp_pot","mana_gem"]
     m.set(46, 33,T.CHEST); m.chests[(46,33)]= ["fine_bow","gold","spider_silk","tonic_def"]
     def fisher_d(f):
         F=lambda a,b:["dlg.fisher.%d"%i for i in range(a,b)]
-        return F(1,7) if f.get("sq_fish_done") else F(7,14)
+        n=sum(1 for k in("sq_fish_silver","sq_fish_gold","sq_fish_shadow")
+              if f.get(k))
+        if n>=3: return F(1,7)                    # üçü de geldi: teşekkür
+        if f.get("sq_fish_started"): return F(14,20)   # hangisi eksik
+        return F(7,14)                            # görevi anlatır
     m.npcs.append(NPC(6,16,"npc.balikci_riva",(100,140,180),fisher_d,"fisher"))
     def hermit_d(f): return ["dlg.hermit.%d"%i for i in range(1,7)]
     m.npcs.append(NPC(44,4,"npc.munzevi",(180,160,200),hermit_d,"hermit"))
@@ -5226,7 +5358,7 @@ class UI:
         self.txt(surf,f"{st.mp}/{st.max_mp}",38,45,(180,220,255),self.fsm)
         self.txt(surf,"XP",18,58,XP_T,self.fsm)
         self.grad_bar(surf,36,58,226,8,st.xp,st.xp_next,(15,45,35),XP_T)
-        self.txt(surf,f"ATK:{st.attack}  DEF:{st.defense}  AGI:{st.agi+st._equip_bonus('agi')}",18,72,LGR,self.fsm)
+        self.txt(surf,f"ATK:{st.power}  DEF:{st.defense}  AGI:{st.agi+st._equip_bonus('agi')}",18,72,LGR,self.fsm)
         # Saldırı elementi: silah değişince ne olduğunu görmek lazım
         ael=WEAPON_ELEM.get(st.equipment.get("weapon")) or CLASS_ELEM.get(st.char_class,"physical")
         ac=ELEM_COL.get(ael,(200,200,205))
@@ -5666,7 +5798,7 @@ class Game:
             "fire_crystal":False,"light_crystal":False,
             # Mini görevler
             "sq_scroll1":False,"sq_scroll2":False,"sq_scroll3":False,  # Gizemli Kütüphane
-            "sq_fish_done":False,    # Nehir görevi: balıkçıya yardım
+            "sq_fish_started":False, # Nehir görevi: Riva balık istedi
             "sq_witch_done":False,   # Bataklık cadısıyla konuş
             "sq_hermit_done":False,  # Münzeviyi ziyaret et
         }
@@ -5682,6 +5814,7 @@ class Game:
         self.epi_pages=[];self.epi_page=0            # kapanış sayfaları
         self.boss_scene=None                         # boss kapanış sahnesi
         self.quest_scroll=0                          # görev günlüğü kaydırması
+        self.combat_t=-10**6                         # son darbenin karesi
         self.splash_t=0                              # açılış animasyonu sayacı
         self.diff_sel=DIFF_IDS.index(CFG.data.get("difficulty","normal")) \
             if CFG.data.get("difficulty","normal") in DIFF_IDS else 1
@@ -5872,8 +6005,9 @@ class Game:
                 # Sabit bayrakların yanında dinamik olanlar da geri yüklenmeli:
                 # kill_<tür> sayaçları ve sqpaid_<görev> ödül işaretleri
                 # önceden tanımlı değil, süresince oluşuyorlar.
-                if k in self.flags or k=="libr_told"                    or k.startswith(("kill_","sqpaid_","chests_","boss_",
-                                                    "materials_","max_")):
+                KALICI=("kill_","sqpaid_","chests_","boss_","said_",
+                        "materials_","max_")
+                if k in self.flags or k=="libr_told" or k.startswith(KALICI):
                     self.flags[k]=v
             for key,ms in data.get("maps",{}).items():
                 m=self.maps.get(key)
@@ -5935,7 +6069,7 @@ class Game:
                     dot=ox*ex+oy*ey
                     if dot>0 or dist<=1.3:  # Arkaya da kısa mesafede
                         is_crit=random.random()<(st.crit+0.15)
-                        self._hit(e,int(st.attack*1.1),is_crit,self._attack_elem());hit_any=True
+                        self._hit(e,int(st.power*1.1),is_crit,self._attack_elem());hit_any=True
             if hit_any: self.ps.emit_magic(cx+ox*TILE,cy+oy*TILE,col=(255,200,80))
 
         elif cls=="mage":
@@ -5949,14 +6083,14 @@ class Game:
                 tdx=(target.px+TILE//2)-cx;tdy=(target.py+TILE//2)-cy
                 mag=math.hypot(tdx,tdy)
                 if mag>0: tdx/=mag;tdy/=mag
-                self._proj(cx,cy,tdx,tdy,6,"arcane_bolt",int(st.magic_atk*0.85))
+                self._proj(cx,cy,tdx,tdy,6,"arcane_bolt",int(st.power*0.85))
             else:
-                self._proj(cx,cy,float(ox),float(oy),6,"arcane_bolt",int(st.magic_atk*0.85))
+                self._proj(cx,cy,float(ox),float(oy),6,"arcane_bolt",int(st.power*0.85))
             self.ps.emit(cx,cy,5,(140,80,255),4.0,15)
 
         elif cls=="archer":
             # Hassas ok — baktığı yöne, yüksek krit, orta hasar
-            dmg=int(st.attack*0.95)
+            dmg=int(st.power*0.95)
             is_crit=random.random()<(st.crit+0.10)
             if is_crit: dmg=int(dmg*2.0)
             pr=self._proj(cx,cy,float(ox),float(oy),7,"arrow",dmg)
@@ -5971,7 +6105,7 @@ class Game:
             for e in self.cur_map.enemies:
                 if not e.alive: continue
                 if math.hypot(e.tx-p.tx,e.ty-p.ty)<=1.6:
-                    self._hit(e,int(st.magic_atk*0.9),elem=self._attack_elem());hit_any=True
+                    self._hit(e,int(st.power*0.9),elem=self._attack_elem());hit_any=True
             if hit_any:
                 heal_amt=max(2,st.wis)
                 st.heal(heal_amt)
@@ -6014,6 +6148,7 @@ class Game:
         k=elem_mult(elem,getattr(e,"elem","physical"))
         dmg=max(1,int(dmg*k*diff_mult("player_dmg")))
         e.hp-=dmg;e.hp=max(0,e.hp)
+        self.combat_t=getattr(self,"tick",0)
         col=UI_GD if crit else HP_R
         # Oyuncu neden az/çok vurduğunu görsün: element etkisi yazıyla söyleniyor
         if k>=1.25:   col=ELEM_COL.get(elem,col); etiket=T_("ui.elem_weak")
@@ -6060,6 +6195,30 @@ class Game:
         if oyuncu: olasi=min(0.95,olasi*diff_mult("enemy_dmg"))
         if random.random()<olasi:
             self._etki_ver(hedef,eid,kare,oyuncu)
+
+    def _yenilenme(self):
+        """Pasif can/mana yenilenmesi — dövüş dışında belirgin hızlanır."""
+        p=self.player
+        if not p: return
+        t=getattr(self,"tick",0)
+        if t%REGEN_TICK: return
+        st=p.stats
+        if st.hp<=0: return
+        dovuste=(t-getattr(self,"combat_t",-10**6))<COMBAT_WINDOW
+        hp_o=(REGEN_HP_FIGHT if dovuste else REGEN_HP_IDLE)+st.vit*REGEN_VIT_BONUS
+        mp_o=(REGEN_MP_FIGHT if dovuste else REGEN_MP_IDLE)+st.wis*REGEN_WIS_BONUS
+        # Kesirli birikim: eskiden max(1,int(...)) yazıyordu ve 100 canlı
+        # bir karakterde dövüş içi oran da dövüş dışı oran da aşağı
+        # yuvarlanıp SANİYEDE 1 CANA düşüyordu — ikisi arasındaki fark
+        # tamamen kayboluyordu.
+        self._reg_hp=getattr(self,"_reg_hp",0.0)+st.max_hp*hp_o
+        self._reg_mp=getattr(self,"_reg_mp",0.0)+st.max_mp*mp_o
+        if st.hp<st.max_hp and self._reg_hp>=1.0:
+            st.heal(int(self._reg_hp));self._reg_hp-=int(self._reg_hp)
+        elif st.hp>=st.max_hp: self._reg_hp=0.0
+        if st.mp<st.max_mp and self._reg_mp>=1.0:
+            st.restore_mp(int(self._reg_mp));self._reg_mp-=int(self._reg_mp)
+        elif st.mp>=st.max_mp: self._reg_mp=0.0
 
     def _etkileri_isle(self):
         """Her karede: süreleri azalt, hasar/iyileşme uygula."""
@@ -6157,6 +6316,38 @@ class Game:
         else:
             self.state="playing"
             SoundManager.play_music(self.MAP_MUSIC.get(self.cur_key,"village"))
+
+    def _npc_has_news(self,npc,lines)->bool:
+        """NPC bu sefer başka bir şey mi söylüyor?
+
+        Konuşmanın ilk satırının anahtarı saklanıyor; değiştiyse adamın
+        yeni bir haberi var demektir. Böylece dükkân sahibi hem tezgâh
+        açabiliyor hem de hikâye ilerleyince susmuyor.
+        """
+        if not lines: return False
+        ilk=lines[0][0] if isinstance(lines[0],tuple) else lines[0]
+        anahtar="said_"+npc.name
+        if self.flags.get(anahtar)==ilk: return False
+        self.flags[anahtar]=ilk
+        return True
+
+    def _npc_side_effects(self,npc):
+        """Konuşmanın görev etkileri — tezgâh açılsa da çalışmalı."""
+        if npc.name=="npc.yasli_aldric" and not self.flags["speak_aldric"]:
+            self.flags["speak_aldric"]=True;self._advance(2)
+        elif npc.name=="npc.oracle_nyx" and not self.flags.get("speak_oracle") \
+                and self.flags.get("earth_crystal"):
+            self.flags["speak_oracle"]=True;self._advance(5)
+        elif npc.name=="npc.bataklik_cadisi": self.flags["sq_witch_done"]=True
+        elif npc.name=="npc.munzevi": self.flags["sq_hermit_done"]=True
+        elif npc.name=="npc.kutuphaneci_elan":
+            if sum(1 for k in("sq_scroll1","sq_scroll2","sq_scroll3")
+                   if self.flags.get(k))>=3:
+                self.flags["libr_told"]=True
+        elif npc.name=="npc.balikci_riva":
+            # Eskiden konuşur konuşmaz görev biterdi; artık yalnızca
+            # görevi BAŞLATIYOR, bitirmek için balık getirmek gerekiyor.
+            self.flags["sq_fish_started"]=True
 
     def _open_shop(self,npc):
         self.shop_npc=npc.name;self.shop_tab=0;self.shop_sel=0;self.shop_msg=None
@@ -6281,25 +6472,31 @@ class Game:
         if aid=="shield_bash":
             for e in self.cur_map.enemies:
                 if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=1.8:
-                    self._hit(e,int(st.attack*1.5),elem=ae)
+                    self._hit(e,ability_power(st,"shield_bash"),elem=ae)
+                    # Kalkan darbesi sersemletsin: adi ustunde
+                    if e.alive: self._etki_ver(e,"freeze",45)
                     nx2=e.tx+ox;ny2=e.ty+oy
                     if self.cur_map.walkable(nx2,ny2): e.start_step(nx2,ny2,5)
             self.ps.emit_magic(cx,cy,col=(220,120,60))
         elif aid=="whirlwind":
             for e in self.cur_map.enemies:
-                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=2.2: self._hit(e,int(st.attack*1.2),elem=ae)
+                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=2.2:
+                    self._hit(e,ability_power(st,"whirlwind"),elem=ae)
             self.ps.emit(cx,cy,30,(200,150,60),6.0,40)
         elif aid=="war_cry":
             st.buffs["war_cry"]=180;self.ps.emit(cx,cy,25,(220,80,40),5.0,50)
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":80,"col":(220,80,40),"txt":T_("ui.shout_war_cry")})
         elif aid=="earthquake":
             for e in self.cur_map.enemies:
-                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5: self._hit(e,int(st.attack*2.0),elem=ae)
+                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5:
+                    self._hit(e,ability_power(st,"earthquake"),elem=ae)
+                    # Yarilan zemin ayagi tutar
+                    if e.alive: self._etki_ver(e,"root",150)
             for _ in range(40): self.ps.emit(cx+random.randint(-96,96),cy+random.randint(-96,96),5,(180,120,40),3.0,30)
         elif aid=="freeze":
             for e in self.cur_map.enemies:
                 if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.0:
-                    e.frozen=max(e.frozen,120);self._hit(e,int(st.magic_atk*0.8),elem=ae)
+                    e.frozen=max(e.frozen,120);self._hit(e,ability_power(st,"freeze"),elem=ae)
             SoundManager.play("freeze")
             self.ps.emit(cx,cy,25,(80,180,255),5.0,50)
         elif aid=="meteor":
@@ -6307,35 +6504,40 @@ class Game:
                 mx=p.tx+random.randint(-3,3);my=p.ty+random.randint(-3,3)
                 for e in self.cur_map.enemies:
                     if e.alive and abs(e.tx-mx)<=1 and abs(e.ty-my)<=1:
-                        self._hit(e,int(st.magic_atk*1.8),elem=ae)
+                        self._hit(e,ability_power(st,"meteor"),elem=ae)
                         if e.alive: self._etki_ver(e,"burn",300)
                 self.ps.emit(mx*TILE+TILE//2,my*TILE+TILE//2,15,(255,80,20),6.0,35)
         elif aid=="arcane_nova":
             for e in self.cur_map.enemies:
-                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=4.0: self._hit(e,int(st.magic_atk*2.2),elem=ae)
+                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=4.0:
+                    self._hit(e,ability_power(st,"arcane_nova"),elem=ae)
             for ang in range(0,360,20):
                 dx2=math.cos(math.radians(ang));dy2=math.sin(math.radians(ang))
-                self._proj(cx,cy,dx2,dy2,4,"shadow_bolt",int(st.magic_atk*0.6))
+                self._proj(cx,cy,dx2,dy2,4,"shadow_bolt",int(st.power*0.6))
         elif aid=="time_stop":
             for e in self.cur_map.enemies: e.frozen=max(e.frozen,240)
             self.ps.emit(cx,cy,40,(180,180,255),6.0,60)
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":100,"col":(180,180,255),"txt":T_("ui.shout_time")})
         elif aid=="multi_shot":
             for ang in[-25,0,25]:
-                rad=math.atan2(oy,ox)+math.radians(ang);self._proj(cx,cy,math.cos(rad),math.sin(rad),6,"arrow",int(st.attack*0.9))
+                rad=math.atan2(oy,ox)+math.radians(ang)
+                self._proj(cx,cy,math.cos(rad),math.sin(rad),6,"arrow",
+                           ability_power(st,"multi_shot"))
         elif aid=="trap":
-            t=Trap(p.tx+ox,p.ty+oy,int(st.attack*1.8));t.root=180
+            t=Trap(p.tx+ox,p.ty+oy,ability_power(st,"trap"));t.root=180
             self.cur_map.traps.append(t)
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(180,140,60),"txt":T_("ui.trap_set")})
         elif aid=="rain_arrows":
             for ang_d in range(0,360,45):
-                rad=math.radians(ang_d);self._proj(cx,cy,math.cos(rad),math.sin(rad),5,"arrow",int(st.attack*0.8))
+                rad=math.radians(ang_d)
+                self._proj(cx,cy,math.cos(rad),math.sin(rad),5,"arrow",
+                           ability_power(st,"rain_arrows"))
         elif aid=="shadow_step":
             for e in self.cur_map.enemies:
                 if not e.alive: continue
                 nx2=e.tx-ox;ny2=e.ty-oy
                 if self.cur_map.walkable(nx2,ny2):
-                    p.snap(nx2,ny2);self._hit(e,int(st.attack*2.0),elem=ae)
+                    p.snap(nx2,ny2);self._hit(e,ability_power(st,"shadow_step"),True,ae)
                     self.ps.emit(cx,cy,20,(60,40,120),5.0,30);break
         elif aid=="mass_heal":
             amt=int(25+st.wis*2);st.heal(amt)
@@ -6350,7 +6552,8 @@ class Game:
             self.dmg_nums.append({"x":cx,"y":cy-TILE,"v":None,"l":60,"col":(255,220,60),"txt":T_("ui.shout_shield")})
         elif aid=="divine_storm":
             for e in self.cur_map.enemies:
-                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5: self._hit(e,int(st.magic_atk*1.8),elem=ae)
+                if e.alive and math.hypot(e.tx-p.tx,e.ty-p.ty)<=3.5:
+                    self._hit(e,ability_power(st,"divine_storm"),elem=ae)
             for _ in range(30): self.ps.emit(cx+random.randint(-80,80),cy+random.randint(-80,80),6,(255,240,120),4.0,40)
         elif aid=="resurrection":
             st.heal(st.max_hp//2);st.restore_mp(st.max_mp//2)
@@ -6617,6 +6820,7 @@ class Game:
             sh=p.stats.buffs["holy_shield"]
             if isinstance(sh,int): p.stats.buffs["holy_shield"]=max(0,sh-dmg);dmg=0
         p.stats.hp=max(0,p.stats.hp-dmg);p.invincible=40
+        self.combat_t=getattr(self,"tick",0)
         ppx=p.px+TILE//2;ppy=p.py+TILE//2
         self.ps.emit_hit(ppx,ppy)
         self.dmg_nums.append({"x":ppx,"y":ppy-TILE//2,"v":dmg,"l":40,"col":HP_R})
@@ -6668,24 +6872,16 @@ class Game:
         itx,ity=(obj.tx,obj.ty) if kind=="npc" else obj
         for npc in self.cur_map.npcs:
             if npc.tx==itx and npc.ty==ity:
-                if npc.name in SHOPS: self._open_shop(npc);return
-                lines=npc.get_dialog(self.flags);self.dlg_npc=npc;self.dlg_lines=lines
+                self._npc_side_effects(npc)
+                lines=npc.get_dialog(self.flags)
+                # Dükkân sahibi NPC'ler eskiden HİÇ konuşmuyordu: SHOPS
+                # kontrolü diyalogdan önce return ediyordu. Artık söyleyecek
+                # YENİ bir şeyi varsa konuşuyor, yoksa tezgâhını açıyor.
+                yeni=self._npc_has_news(npc,lines)
+                if npc.name in SHOPS and not yeni:
+                    self._open_shop(npc);return
+                self.dlg_npc=npc;self.dlg_lines=lines
                 self.dlg_page=0;self.dlg_reveal=0;self.state="dialog"
-                if npc.name=="npc.yasli_aldric" and not self.flags["speak_aldric"]:
-                    self.flags["speak_aldric"]=True;self._advance(2)
-                elif npc.name=="npc.oracle_nyx" and not self.flags.get("speak_oracle") and self.flags.get("earth_crystal"):
-                    self.flags["speak_oracle"]=True;self._advance(5)
-                elif npc.name=="npc.bataklik_cadisi": self.flags["sq_witch_done"]=True
-                elif npc.name=="npc.munzevi": self.flags["sq_hermit_done"]=True
-                elif npc.name=="npc.kutuphaneci_elan":
-                    # Parsomenleri getirdiyse once tesekkur eder, SONRAKI
-                    # konusmada Sayfa Muhafizi'ndan soz eder.
-                    if sum(1 for k in("sq_scroll1","sq_scroll2","sq_scroll3")
-                           if self.flags.get(k))>=3:
-                        self.flags["libr_told"]=True
-                elif npc.name=="npc.balikci_riva" and not self.flags.get("sq_fish_done"):
-                    self.flags["sq_fish_done"]=True;SoundManager.play("chest")
-                    self.dmg_nums.append({"x":npc.tx*TILE,"y":npc.ty*TILE-TILE,"v":None,"l":100,"col":UI_CY,"txt":T_("ui.sq_done")})
                 return
         if(itx,ity) in self.cur_map.chests:
             loot=self.cur_map.chests.pop((itx,ity))
@@ -6696,7 +6892,7 @@ class Game:
                 elif ik in MATERIALS:
                     p.inventory.append(ik)
                     self.flags["materials_found"]=self.flags.get("materials_found",0)+1
-                elif ik in("scroll1","scroll2","scroll3"):
+                elif ik in QUEST_PICKUPS:
                     p.inventory.append(ik)
                     flag_k="sq_"+ik
                     if not self.flags.get(flag_k):
@@ -6887,7 +7083,8 @@ class Game:
             if p.invincible>0: p.invincible-=1
             if p.attacking: p.atk_frame+=1
             if p.atk_frame>=p.atk_max: p.attacking=False
-            p.stats.tick_cds();p.stats.tick_buffs();self._etkileri_isle()
+            p.stats.tick_cds();p.stats.tick_buffs()
+            self._etkileri_isle();self._yenilenme()
             # NOT: self.tick milisaniyedir; periyodik iş için kare sayacı kullanılır.
             if p.stats.char_class=="healer" and self.frame_no%120==0:
                 if p.stats.hp<p.stats.max_hp and p.stats.mp>=3: p.stats.heal(2);p.stats.mp-=3

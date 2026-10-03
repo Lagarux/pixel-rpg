@@ -252,6 +252,73 @@ class TestQuestTable(unittest.TestCase):
                                 "yan gorev sayisi az: %d" % len(MOD.SIDE_QUESTS))
 
 
+class TestBalikciGorevi(unittest.TestCase):
+    """Kullanici bildirdi: "konustuktan sonra gorev tamamlaniyor,
+    ilginc bir sekilde". Gercekten de tek yaptigi konusmakti."""
+
+    def test_konusmak_gorevi_bitirmiyor(self):
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        g.player = MOD.Player(5, 5, MOD.PlayerStats("warrior"))
+        riva = next(n for m in g.maps.values() for n in m.npcs
+                    if n.name == "npc.balikci_riva")
+        g._npc_side_effects(riva)
+        sq = next(q for q in MOD.SIDE_QUESTS if q["id"] == "fish")
+        got, need = sq["progress"](g.flags)
+        self.assertEqual(got, 0, "konusunca gorev kendiliginden ilerledi")
+        self.assertTrue(g.flags.get("sq_fish_started"), "gorev baslamadi")
+
+    def test_uc_balik_dunyada_var(self):
+        baliklar = {"fish_silver", "fish_gold", "fish_shadow"}
+        bulunan = set()
+        for ad, m in G.maps.items():
+            for loot in m.chests.values():
+                bulunan |= (set(loot) & baliklar)
+        self.assertEqual(bulunan, baliklar,
+                         "dunyada olmayan balik: %s" % (baliklar - bulunan))
+
+    def test_baliklar_erisilebilir_haritalarda(self):
+        """Parsomen hatasinin aynisi olmasin: esya dunyada ama ulasilmazsa
+        gorev bitmez."""
+        baliklar = {"fish_silver", "fish_gold", "fish_shadow"}
+        for ad, m in G.maps.items():
+            for pos, loot in m.chests.items():
+                if set(loot) & baliklar:
+                    komsu = any(m.walkable(pos[0] + dx, pos[1] + dy)
+                                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+                    with self.subTest(harita=ad, kare=pos):
+                        self.assertTrue(komsu, "%s %s sandigina ulasilamiyor"
+                                        % (ad, pos))
+
+    def test_balik_alinca_bayrak_kuruluyor(self):
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        g.player = MOD.Player(5, 5, MOD.PlayerStats("warrior"))
+        g.cur_map = g.maps["west_river"]
+        kare = next(p for p, l in g.cur_map.chests.items() if "fish_silver" in l)
+        g.player.snap(*MOD._snap(g.cur_map, kare[0] + 1, kare[1]))
+        g.player.direction = "left"
+        g._interact()
+        self.assertTrue(g.flags.get("sq_fish_silver"), "balik bayragi kurulmadi")
+
+    def test_uc_balikla_gorev_bitiyor(self):
+        sq = next(q for q in MOD.SIDE_QUESTS if q["id"] == "fish")
+        f = {"sq_fish_silver": True, "sq_fish_gold": True, "sq_fish_shadow": True}
+        got, need = sq["progress"](f)
+        self.assertEqual((got, need), (3, 3))
+        self.assertTrue(MOD.sq_done(sq, f))
+
+    def test_riva_uc_farkli_sey_soyluyor(self):
+        riva = next(n for m in G.maps.values() for n in m.npcs
+                    if n.name == "npc.balikci_riva")
+        bas = tuple(riva.get_dialog({}))
+        orta = tuple(riva.get_dialog({"sq_fish_started": True}))
+        son = tuple(riva.get_dialog({"sq_fish_silver": True, "sq_fish_gold": True,
+                                     "sq_fish_shadow": True}))
+        self.assertEqual(len({bas, orta, son}), 3,
+                         "Riva gorevin her asamasinda ayni seyi soyluyor")
+
+
 class TestGunlukKaydirma(unittest.TestCase):
     """Olcum: hic gorev bitmemisken 14 yan gorevin yalnizca 8'i
     gorunuyordu ve liste SESSIZCE kesiliyordu."""
@@ -305,7 +372,9 @@ class TestGunlukKaydirma(unittest.TestCase):
                       "kill_bat": 99, "kill_bandit": 99, "kill_treant": 99,
                       "kill_wraith": 99, "kill_lava_imp": 99,
                       "chests_opened": 99, "materials_found": 99,
-                      "max_upgrade": 9, "sq_fish_done": True,
+                      "max_upgrade": 9,
+                      "sq_fish_silver": True, "sq_fish_gold": True,
+                      "sq_fish_shadow": True,
                       "sq_witch_done": True, "sq_hermit_done": True,
                       "sq_scroll1": True, "sq_scroll2": True, "sq_scroll3": True})
         self.assertEqual(MOD.UI.quest_scroll_max(flags), 0,

@@ -513,6 +513,154 @@ class TestEsyaKullanimi(unittest.TestCase):
                 self.assertLessEqual(sure, 60, "%s cok uzun: %.0f sn" % (k, sure))
 
 
+class TestBolgeSaticilari(unittest.TestCase):
+    """Olcum: alti dukkanin ALTISI da Ashveil'deydi, oteki on iki
+    haritada sifir. Iksiri biten oyuncunun tek secenegi koye donmekti."""
+
+    def _dukkan_haritalari(self):
+        out = {}
+        for ad, m in MAPS.items():
+            sat = [n.name for n in m.npcs if n.name in MOD.SHOPS]
+            if sat:
+                out[ad] = sat
+        return out
+
+    def test_dukkanlar_bolgelere_yayilmis(self):
+        h = self._dukkan_haritalari()
+        self.assertGreaterEqual(len(h), 6,
+                                "dukkanlar hala tek yerde toplu: %s" % list(h))
+
+    def test_koy_disinda_da_iksir_var(self):
+        for ad, saticilar in self._dukkan_haritalari().items():
+            if ad == "ashveil":
+                continue
+            mal = set()
+            for n in saticilar:
+                mal |= set(MOD.SHOPS[n]["stock"])
+            with self.subTest(harita=ad):
+                self.assertTrue(mal & {"hp_pot", "hp_pot_l", "mp_pot", "mp_pot_l",
+                                       "elixir", "travel_bread", "honey_cake",
+                                       "dried_meat"},
+                                "%s saticisi hic iyilestirici satmiyor" % ad)
+
+    def test_her_satici_bir_npc(self):
+        tum = set()
+        for m in MAPS.values():
+            tum |= {n.name for n in m.npcs}
+        for npc in MOD.SHOPS:
+            with self.subTest(npc=npc):
+                self.assertIn(npc, tum, "%s diye bir NPC yok" % npc)
+
+    def test_ikinci_demirci_var(self):
+        """Yukseltme icin koye donmek zorunda kalmamali."""
+        yuk = [n for n, sh in MOD.SHOPS.items() if sh.get("upgrade")]
+        self.assertGreaterEqual(len(yuk), 2, "yukseltme yalniz tek yerde: %s" % yuk)
+        haritalar = set()
+        for ad, m in MAPS.items():
+            for n in m.npcs:
+                if n.name in yuk:
+                    haritalar.add(ad)
+        self.assertGreaterEqual(len(haritalar), 2, "iki demirci de ayni haritada")
+
+    def test_dukkan_sahibi_konusabiliyor(self):
+        """Eskiden SHOPS kontrolu diyalogdan once return ediyordu:
+        dukkan sahibi NPC hicbir sey soylemiyordu."""
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        g.player = MOD.Player(5, 5, MOD.PlayerStats("warrior"))
+        npc = next(n for m in g.maps.values() for n in m.npcs
+                   if n.name == "npc.bataklik_cadisi")
+        satirlar = npc.get_dialog(g.flags)
+        self.assertTrue(g._npc_has_news(npc, satirlar),
+                        "ilk karsilasmada soyleyecek sey yok sayiliyor")
+        self.assertFalse(g._npc_has_news(npc, satirlar),
+                         "ayni lafi her seferinde yeniden soyluyor")
+
+    def test_dukkan_sahibinin_gorev_etkisi_calisiyor(self):
+        """Cadi ve munzevi artik satici; gorev bayraklari yine kurulmali."""
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        g.player = MOD.Player(5, 5, MOD.PlayerStats("warrior"))
+        for ad, bayrak in (("npc.bataklik_cadisi", "sq_witch_done"),
+                           ("npc.munzevi", "sq_hermit_done")):
+            npc = next(n for m in g.maps.values() for n in m.npcs if n.name == ad)
+            g._npc_side_effects(npc)
+            with self.subTest(npc=ad):
+                self.assertTrue(g.flags.get(bayrak), "%s gorevi islemedi" % ad)
+
+
+class TestPasifYenilenme(unittest.TestCase):
+    """Can ve mana yalnizca iksirle, handa uyuyarak ya da seviye atlayarak
+    doluyordu; iki dovus arasinda beklemenin karsiligi yoktu."""
+
+    def _kos(self, dovuste, saniye=60, cls="warrior"):
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        st = MOD.PlayerStats(cls)
+        g.player = MOD.Player(5, 5, st)
+        st.hp = 1; st.mp = 0
+        for i in range(saniye * 60):
+            g.tick = i
+            g.combat_t = i if dovuste else -10 ** 6
+            g._yenilenme()
+        return st.hp, st.mp
+
+    def test_dovus_disinda_yenileniyor(self):
+        hp, mp = self._kos(False)
+        self.assertGreater(hp, 1, "can hic yenilenmedi")
+        self.assertGreater(mp, 0, "mana hic yenilenmedi")
+
+    def test_dovuste_belirgin_yavas(self):
+        """max(1,int(...)) tabani yuzunden iki oran AYNI cikiyordu."""
+        hp_d, mp_d = self._kos(True)
+        hp_s, mp_s = self._kos(False)
+        self.assertLess(hp_d, hp_s * 0.7,
+                        "dovuste yenilenme yavas degil: %d / %d" % (hp_d, hp_s))
+        self.assertLess(mp_d, mp_s, "mana dovuste de ayni hizda")
+
+    def test_azami_degeri_asmiyor(self):
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        st = MOD.PlayerStats("warrior")
+        g.player = MOD.Player(5, 5, st)
+        g.combat_t = -10 ** 6
+        for i in range(60 * 200):
+            g.tick = i
+            g._yenilenme()
+        self.assertEqual(st.hp, st.max_hp)
+        self.assertEqual(st.mp, st.max_mp)
+
+    def test_olmus_oyuncu_dirilmiyor(self):
+        g = MOD.Game.__new__(MOD.Game)
+        g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+        st = MOD.PlayerStats("warrior")
+        g.player = MOD.Player(5, 5, st)
+        st.hp = 0
+        g.combat_t = -10 ** 6
+        for i in range(60 * 30):
+            g.tick = i
+            g._yenilenme()
+        self.assertEqual(st.hp, 0, "olu oyuncu kendiliginden dirildi")
+
+    def test_dayaniklilik_ve_bilgelik_etkiliyor(self):
+        def kos_stat(vit, wis):
+            g = MOD.Game.__new__(MOD.Game)
+            g.ui = MOD.UI(); g.ps = MOD.PS(); g._reset()
+            st = MOD.PlayerStats("warrior")
+            st.vit = vit; st.wis = wis
+            g.player = MOD.Player(5, 5, st)
+            st.hp = 1; st.mp = 0
+            g.combat_t = -10 ** 6
+            for i in range(60 * 20):
+                g.tick = i
+                g._yenilenme()
+            return st.hp / float(st.max_hp), st.mp / float(st.max_mp)
+        dusuk = kos_stat(3, 3)
+        yuksek = kos_stat(20, 20)
+        self.assertGreater(yuksek[0], dusuk[0], "dayaniklilik cana etki etmiyor")
+        self.assertGreater(yuksek[1], dusuk[1], "bilgelik manaya etki etmiyor")
+
+
 class TestDukkanTusAkisi(unittest.TestCase):
     """Gercek tus yolundan: TAB uc sekme arasinda donmeli.
 

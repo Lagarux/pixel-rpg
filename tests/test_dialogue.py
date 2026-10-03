@@ -46,6 +46,10 @@ SENARYO = [
     # Istege bagli kristaller alindi
     {"ch": 5, "light_crystal": True, "boss_light": True},
     {"ch": 5, "fire_crystal": True, "boss_fire": True},
+    # Balikci gorevi: baslatildi ama baliklar eksik / tamamlandi
+    {"ch": 3, "sq_fish_started": True},
+    {"ch": 3, "sq_fish_started": True, "sq_fish_silver": True,
+     "sq_fish_gold": True, "sq_fish_shadow": True},
 ]
 
 EN_AZ_SATIR = 5

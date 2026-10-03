@@ -295,6 +295,106 @@ class TestSideQuests(unittest.TestCase):
         self.assertEqual(self.g.flags.get("kill_boar"), 1)
 
 
+class TestYetenekDengesi(unittest.TestCase):
+    """Olcum: on iki hasar yeteneginin ONU temel saldiridan daha az
+    hasar/saniye veriyordu. Mana ve bekleme harcayip daha az vuran
+    yetenek, yetenek degildir. Okcunun 8. seviye yetenegi temelin
+    0.18 katiydi.
+
+    Ayrica okcunun oku GUC'ten geliyordu ama sinif bonusu CEVIKLIK:
+    cevikilige puan veren okcu kendi okunu zayiflatiyordu.
+    """
+
+    TEMEL_CARPAN = {"warrior": 1.1, "mage": 0.85, "archer": 0.95, "healer": 0.9}
+
+    def _st(self, cls, seviye=10):
+        st = MOD.PlayerStats(cls)
+        st.level = seviye
+        ana = MOD.CLASS_POWER[cls][0]
+        for _ in range((seviye - 1) * 3):
+            setattr(st, ana, min(30, getattr(st, ana) + 1))
+        return st
+
+    def test_her_sinifin_gucu_kendi_niteliginden(self):
+        for cls, (ana, _k, _y, _k2) in MOD.CLASS_POWER.items():
+            st = MOD.PlayerStats(cls)
+            once = st.power
+            setattr(st, ana, getattr(st, ana) + 10)
+            with self.subTest(sinif=cls):
+                self.assertGreater(st.power, once,
+                                   "%s sinifinin ana niteligi gucunu arttirmiyor" % cls)
+
+    def test_ana_nitelik_sinif_bonusuyla_ayni(self):
+        """Okcunun bonusu CEVIKLIK ama hasari GUC'ten geliyordu."""
+        ad = {"str": "str", "int_": "int", "agi": "agi", "vit": "vit", "wis": "wis"}
+        for cls, bilgi in MOD.CLASS_INFO.items():
+            ana = MOD.CLASS_POWER[cls][0]
+            bonus = bilgi["bonus"]
+            enbuyuk = max(bonus, key=lambda k: bonus[k])
+            with self.subTest(sinif=cls):
+                self.assertEqual(ad[ana], enbuyuk,
+                                 "%s: hasar %s'ten geliyor ama sinif bonusu %s"
+                                 % (cls, ad[ana], enbuyuk))
+
+    def test_siniflarin_gucu_birbirine_yakin(self):
+        gucler = {cls: self._st(cls).power for cls in MOD.CLASS_INFO}
+        en_az, en_cok = min(gucler.values()), max(gucler.values())
+        self.assertLess(en_cok / float(en_az), 1.5,
+                        "siniflar arasi guc ucurumu: %s" % gucler)
+
+    def test_hicbir_yetenek_temel_saldiridan_zayif_degil(self):
+        for cls in MOD.CLASS_INFO:
+            st = self._st(cls)
+            temel = int(st.power * self.TEMEL_CARPAN[cls]) * 60.0 / st.atk_max_cd
+            for ab in MOD.ABILITIES[cls]:
+                aid = ab["id"]
+                if aid not in MOD.ABILITY_POWER:
+                    continue           # yardimci yetenek
+                krit = 1.8 if aid in MOD.ABILITY_CRIT else 1.0
+                tek = MOD.ability_power(st, aid) * krit * 60.0 / ab["cd"]
+                # Alan yetenegi uc dusmana vurdugunda olculur
+                dps = tek * (3 if aid in MOD.ABILITY_AREA else 1)
+                with self.subTest(sinif=cls, yetenek=aid):
+                    self.assertGreaterEqual(
+                        dps, temel * 0.9,
+                        "%s: %.0f hasar-sn, temel saldiri %.0f" % (aid, dps, temel))
+
+    def _etki(self, st, ab):
+        """Yetenegin toplam etkisi: alan yetenegi uc dusmana vurur.
+
+        VURUS BASINA hasari karsilastirmak yanlisti: alan yetenegi
+        dogasi geregi hedef basina az vurur ama cok hedefe vurur.
+        """
+        aid = ab["id"]
+        krit = 1.8 if aid in MOD.ABILITY_CRIT else 1.0
+        n = 3 if aid in MOD.ABILITY_AREA else 1
+        return MOD.ability_power(st, aid) * krit * n
+
+    def test_ust_seviye_yetenek_alt_seviyeden_guclu(self):
+        for cls in MOD.CLASS_INFO:
+            st = self._st(cls)
+            onceki = None
+            for ab in MOD.ABILITIES[cls]:
+                if ab["id"] not in MOD.ABILITY_POWER:
+                    onceki = None
+                    continue
+                etki = self._etki(st, ab)
+                if onceki is not None:
+                    with self.subTest(sinif=cls, yetenek=ab["id"]):
+                        self.assertGreaterEqual(
+                            etki, onceki,
+                            "%s ust seviye ama toplam etkisi daha dusuk" % ab["id"])
+                onceki = etki
+
+    def test_yetenek_tablosu_kaynakla_uyusuyor(self):
+        """ABILITY_POWER'daki her anahtar gercek bir yetenek olmali."""
+        tum = {ab["id"] for liste in MOD.ABILITIES.values() for ab in liste}
+        for aid in MOD.ABILITY_POWER:
+            self.assertIn(aid, tum, "%s diye bir yetenek yok" % aid)
+        for aid in MOD.ABILITY_AREA:
+            self.assertIn(aid, MOD.ABILITY_POWER, "%s alan ama hasari yok" % aid)
+
+
 class TestQuestMarkers(unittest.TestCase):
     """I5: isi olan NPC'nin ustunde isaret gorunmeli, bitince kaybolmali."""
 
